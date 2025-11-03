@@ -17,7 +17,7 @@ interface DataPoint {
   reach: number
   impressions: number
   clicks: number
-  totalSpent: number
+  totalSpent: number // Investimento
   videoViews: number
   videoViews25: number
   videoViews50: number

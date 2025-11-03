@@ -87,6 +87,17 @@ export const fetchTikTokCreatives = async (): Promise<ConsolidadoData> => {
   }
 }
 
+// Função para buscar dados de veiculação off-line
+export const fetchOfflineData = async (): Promise<ConsolidadoData> => {
+  try {
+    const response = await consolidadoApi.get("/google/sheets/1R1ehp35FAxdP1vhI1rT-mIYw3h9fuatHMiS__5V6Yok/data?range=Offline")
+    return response.data
+  } catch (error) {
+    console.error("Erro ao buscar dados de veiculação off-line:", error)
+    throw error
+  }
+}
+
 // Interface para uma campanha processada
 export interface Campaign {
   name: string
