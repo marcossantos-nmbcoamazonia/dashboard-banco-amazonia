@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useEffect, useMemo } from "react"
 import { Video, Calendar, Filter, ArrowUpDown } from "lucide-react"
-import { useCartaoTikTokData, usePontuacaoTikTokData } from "../../services/api"
+import { useTikTokCreatives } from "../../services/consolidadoApi"
 import Loading from "../../components/Loading/Loading"
 
 interface CreativeData {
@@ -39,8 +39,7 @@ interface CreativeData {
 }
 
 const CriativosTikTok: React.FC = () => {
-  const { data: apiData, loading, error } = useCartaoTikTokData()
-  const { data: pontuacaoData, loading: pontuacaoLoading, error: pontuacaoError } = usePontuacaoTikTokData()
+  const { data: apiData, loading, error } = useTikTokCreatives()
 
   const [processedData, setProcessedData] = useState<CreativeData[]>([])
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: "", end: "" })
@@ -58,25 +57,9 @@ const CriativosTikTok: React.FC = () => {
 
   // Processar dados da API
   useEffect(() => {
-    if (apiData?.values && pontuacaoData?.values) {
-      const pontuacaoHeaders = pontuacaoData.values[0]
-      const pontuacaoRows = pontuacaoData.values.slice(1)
-      const pontuacaoMap = new Map<string, any>()
-      pontuacaoRows.forEach((row: string[]) => {
-        const creativeTitle = row[pontuacaoHeaders.indexOf("Creative title")]
-        if (creativeTitle) {
-          pontuacaoMap.set(creativeTitle.trim(), {
-            pontuacao: Number.parseFloat(
-              row[pontuacaoHeaders.indexOf("Pontuacao de criativo")]?.replace(",", ".") || "0",
-            ),
-            tipoCompra: row[pontuacaoHeaders.indexOf("Tipo de Compra")],
-            videoEstaticoAudio: row[pontuacaoHeaders.indexOf("video_estatico_audio")],
-          })
-        }
-      })
-
-      const headers = apiData.values[0]
-      const rows = apiData.values.slice(1)
+    if (apiData?.success && apiData?.data?.values) {
+      const headers = apiData.data.values[0]
+      const rows = apiData.data.values.slice(1)
 
       const tiposCompraSet = new Set<string>()
       const videoEstaticoAudioSet = new Set<string>()
@@ -94,10 +77,12 @@ const CriativosTikTok: React.FC = () => {
           }
 
           const adName = row[headers.indexOf("Ad name")]?.trim() || ""
-          const scoreData = pontuacaoMap.get(adName)
+          const tipoCompra = row[headers.indexOf("Tipo de Compra")] || row[headers.indexOf("tipo_compra")] || ""
+          const videoEstaticoAudio = row[headers.indexOf("video_estatico_audio")] || row[headers.indexOf("Formato")] || ""
+          const pontuacaoCriativo = parseNumber(row[headers.indexOf("Pontuacao de criativo")] || row[headers.indexOf("pontuacao")] || "0")
 
-          if (scoreData?.tipoCompra) tiposCompraSet.add(scoreData.tipoCompra)
-          if (scoreData?.videoEstaticoAudio) videoEstaticoAudioSet.add(scoreData.videoEstaticoAudio)
+          if (tipoCompra) tiposCompraSet.add(tipoCompra)
+          if (videoEstaticoAudio) videoEstaticoAudioSet.add(videoEstaticoAudio)
 
           return {
             date: row[headers.indexOf("Date")] || "",
@@ -125,9 +110,9 @@ const CriativosTikTok: React.FC = () => {
             paidComments: parseInteger(row[headers.indexOf("Paid comments")]),
             paidShares: parseInteger(row[headers.indexOf("Paid shares")]),
             paidFollows: parseInteger(row[headers.indexOf("Paid follows")]),
-            pontuacaoCriativo: scoreData?.pontuacao,
-            tipoCompra: scoreData?.tipoCompra,
-            videoEstaticoAudio: scoreData?.videoEstaticoAudio,
+            pontuacaoCriativo: pontuacaoCriativo > 0 ? pontuacaoCriativo : undefined,
+            tipoCompra: tipoCompra || undefined,
+            videoEstaticoAudio: videoEstaticoAudio || undefined,
             ctr: 0,
           } as CreativeData
         })
@@ -152,7 +137,7 @@ const CriativosTikTok: React.FC = () => {
       })
       setAvailableCampaigns(Array.from(campaignSet).filter(Boolean))
     }
-  }, [apiData, pontuacaoData])
+  }, [apiData])
 
   // Filtrar dados
   const filteredData = useMemo(() => {
@@ -285,14 +270,14 @@ const CriativosTikTok: React.FC = () => {
     return text.substring(0, maxLength) + "..."
   }
 
-  if (loading || pontuacaoLoading) {
+  if (loading) {
     return <Loading message="Carregando criativos TikTok..." />
   }
 
-  if (error || pontuacaoError) {
+  if (error) {
     return (
       <div className="bg-red-50/90 backdrop-blur-sm border border-red-200 rounded-lg p-4">
-        <p className="text-red-600">Erro ao carregar dados: {error?.message || pontuacaoError?.message}</p>
+        <p className="text-red-600">Erro ao carregar dados: {error?.message}</p>
       </div>
     )
   }

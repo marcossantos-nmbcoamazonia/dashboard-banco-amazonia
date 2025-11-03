@@ -1,5 +1,7 @@
 import type React from "react"
 import { Link } from "react-router-dom"
+import { useState, useMemo } from "react"
+import { ResponsiveLine } from "@nivo/line"
 import {
   Clock,
   Globe,
@@ -15,9 +17,13 @@ import {
   TargetIcon as Bullseye,
   Linkedin,
   ImageIcon as MetaIcon,
-  PinIcon as Pinterest,
   BookOpenText,
+  CircleDot,
+  DollarSign,
+  MousePointerClick,
+  Radio,
 } from "lucide-react"
+import { useConsolidadoGeral } from "../../services/consolidadoApi"
 
 interface NavigationCard {
   title: string
@@ -94,15 +100,15 @@ const navigationCards: NavigationCard[] = [
     color: "bg-blue-600",
   },
   {
-    title: "Criativos - Pinterest",
-    description: "Performance dos criativos na plataforma Pinterest",
-    path: "/criativos-pinterest",
+    title: "Criativos - Google Ads",
+    description: "Performance dos criativos na plataforma Google Ads",
+    path: "/criativos-google-ads",
     icon: (
-      <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" width="50" height="50" viewBox="0 0 50 50" fill="currentColor">
-        <path d="M 25 2 C 12.309295 2 2 12.309295 2 25 C 2 37.690705 12.309295 48 25 48 C 37.690705 48 48 37.690705 48 25 C 48 12.309295 37.690705 2 25 2 z M 25 4 C 36.609825 4 46 13.390175 46 25 C 46 36.609825 36.609825 46 25 46 C 22.876355 46 20.82771 45.682142 18.896484 45.097656 C 19.75673 43.659418 20.867347 41.60359 21.308594 39.90625 C 21.570728 38.899887 22.648438 34.794922 22.648438 34.794922 C 23.348841 36.132057 25.395277 37.263672 27.574219 37.263672 C 34.058123 37.263672 38.732422 31.300682 38.732422 23.890625 C 38.732422 16.78653 32.935409 11.472656 25.476562 11.472656 C 16.196831 11.472656 11.271484 17.700825 11.271484 24.482422 C 11.271484 27.636307 12.94892 31.562193 15.634766 32.8125 C 16.041611 33.001865 16.260073 32.919834 16.353516 32.525391 C 16.425459 32.226044 16.788267 30.766792 16.951172 30.087891 C 17.003269 29.871239 16.978043 29.68405 16.802734 29.470703 C 15.913793 28.392399 15.201172 26.4118 15.201172 24.564453 C 15.201172 19.822048 18.791452 15.232422 24.908203 15.232422 C 30.18976 15.232422 33.888672 18.832872 33.888672 23.980469 C 33.888672 29.796219 30.95207 33.826172 27.130859 33.826172 C 25.020554 33.826172 23.440361 32.080359 23.947266 29.939453 C 24.555054 27.38426 25.728516 24.626944 25.728516 22.78125 C 25.728516 21.130713 24.842754 19.753906 23.007812 19.753906 C 20.850369 19.753906 19.117188 21.984457 19.117188 24.974609 C 19.117187 26.877359 19.761719 28.166016 19.761719 28.166016 C 19.761719 28.166016 17.630543 37.176514 17.240234 38.853516 C 16.849091 40.52931 16.953851 42.786365 17.115234 44.466797 C 9.421139 41.352465 4 33.819328 4 25 C 4 13.390175 13.390175 4 25 4 z"></path>
+      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/>
       </svg>
     ),
-    color: "bg-red-400",
+    color: "bg-green-600",
   },
   {
     title: "Criativos - LinkedIn",
@@ -116,127 +122,376 @@ const navigationCards: NavigationCard[] = [
     color: "bg-blue-700",
   },
   {
+    title: "Veiculação Off-line",
+    description: "Análise de veiculação em mídias off-line",
+    path: "/veiculacao-offline",
+    icon: <Radio className="w-6 h-6" />,
+    color: "bg-slate-600",
+  },
+  {
     title: "Glossário",
     description: "Entenda os termos técnicos e métricas do dashboard",
     path: "/glossario",
-    icon: <BookOpenText className="w-6 h-6" />, // Novo card para Glossário
+    icon: <BookOpenText className="w-6 h-6" />,
     color: "bg-purple-600",
   },
 ]
 
+type MetricType = "impressions" | "clicks" | "videoViews" | "spent"
+
 const Capa: React.FC = () => {
+  const { campaigns, last7Days, loading, error, data } = useConsolidadoGeral()
+  const [selectedMetric, setSelectedMetric] = useState<MetricType>("impressions")
+  const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null)
+
+  // Filtrar dados dos últimos 7 dias por campanha selecionada
+  const filteredLast7Days = useMemo(() => {
+    if (!selectedCampaign || !data?.success || !data?.data?.values) return last7Days
+
+    const headers = data.data.values[0]
+    const rows = data.data.values.slice(1)
+
+    const dateIndex = headers.indexOf("Date")
+    const campaignIndex = headers.indexOf("Campanha")
+    const spentIndex = headers.indexOf("Total spent")
+    const impressionsIndex = headers.indexOf("Impressions")
+    const clicksIndex = headers.indexOf("Clicks")
+    const videoViewsIndex = headers.indexOf("Video views")
+
+    // Parsear números brasileiros
+    const parseBrazilianCurrency = (value: string): number => {
+      if (!value || value === "0") return 0
+      return parseFloat(value.replace(/R\$\s?/g, '').replace(/\./g, '').replace(',', '.'))
+    }
+    const parseBrazilianNumber = (value: string): number => {
+      if (!value || value === "0") return 0
+      return parseFloat(value.replace(/\./g, '').replace(',', '.'))
+    }
+
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    yesterday.setHours(0, 0, 0, 0)
+    const sevenDaysAgo = new Date(yesterday)
+    sevenDaysAgo.setDate(yesterday.getDate() - 6)
+    sevenDaysAgo.setHours(0, 0, 0, 0)
+
+    const metricsMap = new Map<string, { date: string; impressions: number; clicks: number; videoViews: number; spent: number }>()
+
+    rows.forEach((row) => {
+      const campaignName = row[campaignIndex]
+      const dateStr = row[dateIndex]
+
+      if (campaignName !== selectedCampaign || !dateStr) return
+
+      const [day, month, year] = dateStr.split("/")
+      const rowDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+      rowDate.setHours(0, 0, 0, 0)
+
+      if (rowDate >= sevenDaysAgo && rowDate <= yesterday) {
+        if (!metricsMap.has(dateStr)) {
+          metricsMap.set(dateStr, { date: dateStr, impressions: 0, clicks: 0, videoViews: 0, spent: 0 })
+        }
+        const metrics = metricsMap.get(dateStr)!
+        metrics.impressions += parseBrazilianNumber(row[impressionsIndex] || "0")
+        metrics.clicks += parseBrazilianNumber(row[clicksIndex] || "0")
+        metrics.videoViews += parseBrazilianNumber(row[videoViewsIndex] || "0")
+        metrics.spent += parseBrazilianCurrency(row[spentIndex] || "0")
+      }
+    })
+
+    return Array.from(metricsMap.values()).sort((a, b) => {
+      const [dayA, monthA, yearA] = a.date.split("/").map(Number)
+      const [dayB, monthB, yearB] = b.date.split("/").map(Number)
+      const dateA = new Date(yearA, monthA - 1, dayA)
+      const dateB = new Date(yearB, monthB - 1, dayB)
+      return dateA.getTime() - dateB.getTime()
+    })
+  }, [selectedCampaign, data, last7Days])
+
+  // Preparar dados para o gráfico
+  const chartData = useMemo(() => {
+    const dataToUse = filteredLast7Days
+    if (!dataToUse.length) return []
+
+    const metricLabels: Record<MetricType, string> = {
+      impressions: "Impressões",
+      clicks: "Cliques",
+      videoViews: "Visualizações",
+      spent: "Investimento",
+    }
+
+    return [
+      {
+        id: metricLabels[selectedMetric],
+        data: dataToUse.map((day) => ({
+          x: day.date,
+          y: day[selectedMetric],
+        })),
+      },
+    ]
+  }, [filteredLast7Days, selectedMetric])
+
+  // Calcular total da métrica selecionada
+  const totalMetric = useMemo(() => {
+    return filteredLast7Days.reduce((sum, day) => sum + day[selectedMetric], 0)
+  }, [filteredLast7Days, selectedMetric])
+
+  // Handler para clicar em uma campanha
+  const handleCampaignClick = (campaignName: string) => {
+    setSelectedCampaign(selectedCampaign === campaignName ? null : campaignName)
+  }
+
+  // Formatar valor baseado na métrica
+  const formatMetricValue = (value: number, metric: MetricType): string => {
+    if (metric === "spent") {
+      return new Intl.NumberFormat("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+      }).format(value)
+    }
+    return new Intl.NumberFormat("pt-BR").format(Math.round(value))
+  }
+
   return (
     <div className="h-full flex flex-col space-y-4 overflow-hidden">
       {/* Hero Section com Imagem da Campanha */}
-      <div className="relative overflow-hidden rounded-2xl shadow-2xl h-48">
+      <div className="relative overflow-hidden rounded-2xl shadow-2xl h-44">
         <div className="relative h-full bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600">
           <img
             src="/images/fundo_card.webp"
-            alt="Campanha Cartões - Colecione Momentos"
+            alt="Dashboard - Banco da Amazônia"
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-black/20"></div>
-          <div className=" grid grid-cols-1 lg:grid-cols-2 gap-4 absolute bottom-0 left-0 right-0 p-4">
-            <div className="bg-white/95 backdrop-blur-sm rounded-xl p-4 shadow-lg">
+          <div className="absolute bottom-0 left-0 right-0 p-4">
+            <div className="bg-white/95 backdrop-blur-sm rounded-xl p-4 shadow-lg max-w-2xl">
               <h1 className="text-2xl font-bold text-gray-900 mb-1">Dashboard - Banco da Amazônia</h1>
-              <p className="text-base text-gray-700">Colecione momentos • Análise completa de performance</p>
+              <p className="text-base text-gray-700">Análise de performance • Múltiplas Campanhas</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Informações da Campanha */}
+      {/* Cards de Informação */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Detalhes da Campanha */}
-        <div className="card-overlay rounded-xl shadow-lg p-4">
-          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-            <Calendar className="w-4 h-4 mr-2 text-blue-600" />
-            Informações da Campanha
+        {/* Card de Campanhas */}
+        <div className="card-overlay rounded-xl shadow-lg p-5 max-h-80 flex flex-col">
+          <h2 className="text-base font-bold text-gray-900 mb-3 flex items-center">
+            <BarChart3 className="w-4 h-4 mr-2 text-blue-600" />
+            Campanhas
           </h2>
-          <div className="space-y-3">
-            <div className="flex items-start space-x-3">
-              <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-              <div>
-                <p className="font-semibold text-gray-900 text-sm">Campanha:</p>
-                <p className="text-gray-700 text-sm">Cartões</p>
-              </div>
+
+          {loading && (
+            <div className="flex-1 flex items-center justify-center">
+              <p className="text-sm text-gray-500">Carregando campanhas...</p>
             </div>
-            <div className="flex items-start space-x-3">
-              <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
-              <div>
-                <p className="font-semibold text-gray-900 text-sm">Códigos</p>
-                <p className="text-gray-700 text-sm">Nº Ação: A2025/00002</p>
-                <p className="text-gray-700 text-sm">Nº Projeto: P2024/00854</p>
-              </div>
+          )}
+
+          {error && (
+            <div className="flex-1 flex items-center justify-center">
+              <p className="text-sm text-red-500">Erro ao carregar campanhas</p>
             </div>
-            <div className="flex items-start space-x-3">
-              <User className="w-3 h-3 text-purple-600 mt-1" />
-              <div>
-                <p className="font-semibold text-gray-900 text-sm">Assessora:</p>
-                <p className="text-gray-700 text-sm">Isis Azevedo</p>
+          )}
+
+          {!loading && !error && campaigns.length > 0 && (
+            <>
+              <div className="flex-1 overflow-y-auto space-y-2 mb-3">
+                {campaigns.map((campaign, index) => (
+                  <div
+                    key={index}
+                    onClick={() => handleCampaignClick(campaign.name)}
+                    className={`flex items-start space-x-2 py-2 px-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                      selectedCampaign === campaign.name
+                        ? "bg-blue-50 border-2 border-blue-400 shadow-sm"
+                        : "hover:bg-gray-50 border-2 border-transparent"
+                    }`}
+                  >
+                    <CircleDot
+                      className={`w-3 h-3 mt-1 flex-shrink-0 ${
+                        campaign.isActive ? "text-green-500 fill-green-500" : "text-gray-400 fill-gray-400"
+                      }`}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{campaign.name}</p>
+                      <p className="text-xs text-gray-600">
+                        {formatMetricValue(campaign.totalSpent, "spent")} •{" "}
+                        {formatMetricValue(campaign.impressions, "impressions")} impressões
+                      </p>
+                    </div>
+                  </div>
+                ))}
               </div>
+
+              {/* Legenda */}
+              <div className="border-t pt-2 flex items-center justify-start space-x-4 text-xs text-gray-600">
+                <div className="flex items-center space-x-1">
+                  <CircleDot className="w-3 h-3 text-green-500 fill-green-500" />
+                  <span>Ativa (últimos 7 dias)</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <CircleDot className="w-3 h-3 text-gray-400 fill-gray-400" />
+                  <span>Inativa</span>
+                </div>
+              </div>
+            </>
+          )}
+
+          {!loading && !error && campaigns.length === 0 && (
+            <div className="flex-1 flex items-center justify-center">
+              <p className="text-sm text-gray-500">Nenhuma campanha encontrada</p>
             </div>
-          </div>
+          )}
         </div>
 
-        {/* Objetivos e Público */}
-        <div className="card-overlay rounded-xl shadow-lg p-4">
-          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-            <Target className="w-4 h-4 mr-2 text-green-600" />
-            Objetivos e Público
-          </h2>
-          <div className="space-y-3">
-            <div className="flex items-start space-x-3">
-              <Users className="w-3 h-3 text-orange-600 mt-1" />
-              <div>
-                <p className="font-semibold text-gray-900 text-sm">Público Alvo:</p>
-                <p className="text-gray-700 text-sm">AS - 18 +</p>
-                <p className="text-gray-700 text-sm">AS - 18 a 40 anos + Interesses</p>
-              </div>
+        {/* Gráfico de Métricas dos Últimos 7 Dias */}
+        <div className="card-overlay rounded-xl shadow-lg p-5 max-h-80 flex flex-col">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center space-x-2">
+              <TrendingUp className="w-5 h-5 text-green-600" />
+              <h2 className="text-base font-bold text-gray-900">
+                Últimos 7 Dias
+                {selectedCampaign && (
+                  <span className="text-sm font-normal text-blue-600 ml-2">• {selectedCampaign}</span>
+                )}
+              </h2>
             </div>
-            <div className="flex items-start space-x-3">
-              <Bullseye className="w-3 h-3 text-red-600 mt-1" />
-              <div>
-                <p className="font-semibold text-gray-900 text-sm">Objetivo de Campanha:</p>
-                <p className="text-gray-700 text-sm">Mercadológica - Negocial</p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <BarChart3 className="w-3 h-3 text-blue-600 mt-1" />
-              <div>
-                <p className="font-semibold text-gray-900 text-sm">Objetivo de Mídia:</p>
-                <p className="text-gray-700 text-sm">Alcance</p>
+            <div className="relative">
+              <select
+                value={selectedMetric}
+                onChange={(e) => setSelectedMetric(e.target.value as MetricType)}
+                className="appearance-none text-sm bg-white border-2 border-gray-200 rounded-xl pl-3 pr-8 py-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-300 transition-colors"
+              >
+                <option value="impressions">Impressões</option>
+                <option value="clicks">Cliques</option>
+                <option value="videoViews">Visualizações</option>
+                <option value="spent">Investimento</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-600">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                </svg>
               </div>
             </div>
           </div>
+
+          {loading && (
+            <div className="flex-1 flex items-center justify-center">
+              <p className="text-sm text-gray-500">Carregando métricas...</p>
+            </div>
+          )}
+
+          {error && (
+            <div className="flex-1 flex items-center justify-center">
+              <p className="text-sm text-red-500">Erro ao carregar métricas</p>
+            </div>
+          )}
+
+          {!loading && !error && chartData.length > 0 && (
+            <>
+              {/* Valor Total */}
+              <div className="mb-2">
+                <p className="text-xs text-gray-600">Total do Período</p>
+                <p className="text-lg font-bold text-green-600">
+                  {formatMetricValue(totalMetric, selectedMetric)}
+                </p>
+              </div>
+
+              {/* Gráfico */}
+              <div className="flex-1 min-h-0">
+                <ResponsiveLine
+                  data={chartData}
+                  margin={{ top: 10, right: 10, bottom: 30, left: 60 }}
+                  xScale={{ type: "point" }}
+                  yScale={{ type: "linear", min: "auto", max: "auto" }}
+                  curve="monotoneX"
+                  axisTop={null}
+                  axisRight={null}
+                  axisBottom={{
+                    tickSize: 5,
+                    tickPadding: 5,
+                    tickRotation: -45,
+                    legendOffset: 36,
+                    legendPosition: "middle",
+                    format: (value) => {
+                      const [day, month] = value.split("/")
+                      return `${day}/${month}`
+                    },
+                  }}
+                  axisLeft={{
+                    tickSize: 5,
+                    tickPadding: 8,
+                    tickRotation: 0,
+                    legendOffset: -50,
+                    legendPosition: "middle",
+                    format: (value) => {
+                      if (selectedMetric === "spent") {
+                        return `R$${(value / 1000).toFixed(0)}k`
+                      }
+                      return value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value.toString()
+                    },
+                  }}
+                  colors={["#10b981"]}
+                  pointSize={6}
+                  pointColor={{ theme: "background" }}
+                  pointBorderWidth={2}
+                  pointBorderColor={{ from: "serieColor" }}
+                  pointLabelYOffset={-12}
+                  enableArea={true}
+                  areaOpacity={0.15}
+                  useMesh={true}
+                  enableGridX={false}
+                  theme={{
+                    text: {
+                      fontSize: 10,
+                      fill: "#6b7280",
+                    },
+                    axis: {
+                      ticks: {
+                        text: {
+                          fontSize: 10,
+                          fill: "#6b7280",
+                        },
+                      },
+                    },
+                  }}
+                  tooltip={({ point }) => (
+                    <div className="bg-white px-2 py-1 shadow-lg rounded border border-gray-200">
+                      <div className="text-xs">
+                        <strong>{point.data.xFormatted}</strong>
+                        <br />
+                        {formatMetricValue(point.data.y as number, selectedMetric)}
+                      </div>
+                    </div>
+                  )}
+                />
+              </div>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Menu de Navegação */}
+      {/* Menu de Navegação Minimalista */}
       <div className="flex-1 min-h-0">
-        <h2 className="text-xl font-bold text-gray-900 mb-3 text-enhanced">Navegação do Dashboard</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 h-full overflow-y-auto">
+        <div className="bg-gradient-to-r from-blue-600 to-green-700 rounded-lg px-4 py-2 mb-3 shadow-md">
+          <h2 className="text-base font-bold text-white">Navegação do Dashboard</h2>
+        </div>
+        <div className="grid grid-cols-4 gap-3 overflow-y-auto">
           {navigationCards.map((card, index) => (
             <Link
               key={index}
               to={card.path}
-              className="group card-overlay rounded-xl shadow-lg p-4 hover:shadow-xl transition-all duration-300 h-fit"
+              className="group card-overlay rounded-lg shadow-md p-3 hover:shadow-lg transition-all duration-300 h-fit"
             >
-              <div className="flex items-start space-x-3">
+              <div className="flex flex-col items-center text-center space-y-2">
                 <div
                   className={`${card.color} p-2 rounded-lg text-white group-hover:scale-110 transition-transform duration-300`}
                 >
                   {card.icon}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-base font-semibold text-gray-900 group-hover:text-blue-600 transition-colors duration-300">
+                <div>
+                  <h3 className="text-xs font-semibold text-gray-900 group-hover:text-blue-600 transition-colors duration-300 line-clamp-2">
                     {card.title}
                   </h3>
-                  <p className="text-xs text-gray-600 mt-1 line-clamp-2">{card.description}</p>
-                  <div className="flex items-center mt-2 text-blue-600 group-hover:text-blue-700">
-                    <span className="text-xs font-medium">Acessar</span>
-                    <ArrowRight className="w-3 h-3 ml-1 group-hover:translate-x-1 transition-transform duration-300" />
-                  </div>
                 </div>
               </div>
             </Link>

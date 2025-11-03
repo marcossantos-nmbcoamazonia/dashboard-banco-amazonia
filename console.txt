@@ -1,0 +1,198 @@
+react refresh:37 Download the React DevTools for a better development experience: https://react.dev/link/react-devtools
+TrafegoEngajamento.tsx:77 Default Date Range: {firstDate: '', lastDate: ''}
+TrafegoEngajamento.tsx:77 Default Date Range: {firstDate: '', lastDate: ''}
+TrafegoEngajamento.tsx:225 === PROCESSANDO CONSOLIDADO ===
+TrafegoEngajamento.tsx:226 Data Range: {start: '2025-01-01', end: '2025-12-31'}
+TrafegoEngajamento.tsx:229 Sem dados consolidados
+TrafegoEngajamento.tsx:225 === PROCESSANDO CONSOLIDADO ===
+TrafegoEngajamento.tsx:226 Data Range: {start: '2025-01-01', end: '2025-12-31'}
+TrafegoEngajamento.tsx:229 Sem dados consolidados
+api.ts:727 GA4 Estados Response: {success: true, data: {…}}
+TrafegoEngajamento.tsx:219 Region Data processado: {}
+TrafegoEngajamento.tsx:219 Region Data processado: {}
+api.ts:715 GA4 Response: {success: true, data: {…}}
+TrafegoEngajamento.tsx:77 Default Date Range: {firstDate: '2025-01-01', lastDate: '2025-01-29'}
+TrafegoEngajamento.tsx:77 Default Date Range: {firstDate: '2025-01-01', lastDate: '2025-01-29'}
+TrafegoEngajamento.tsx:219 Region Data processado: {}
+TrafegoEngajamento.tsx:219 Region Data processado: {}
+TrafegoEngajamento.tsx:225 === PROCESSANDO CONSOLIDADO ===
+TrafegoEngajamento.tsx:226 Data Range: {start: '2025-01-01', end: '2025-01-29'}
+TrafegoEngajamento.tsx:229 Sem dados consolidados
+TrafegoEngajamento.tsx:225 === PROCESSANDO CONSOLIDADO ===
+TrafegoEngajamento.tsx:226 Data Range: {start: '2025-01-01', end: '2025-01-29'}
+TrafegoEngajamento.tsx:229 Sem dados consolidados
+api.ts:739 GA4 Consolidado Response: {success: true, data: {…}}data: {range: "'GA4'!A1:Z1000", majorDimension: 'ROWS', values: Array(1000), totalRows: 1000, totalColumns: 7}success: true[[Prototype]]: Object
+TrafegoEngajamento.tsx:225 === PROCESSANDO CONSOLIDADO ===
+TrafegoEngajamento.tsx:226 Data Range: {start: '2025-01-01', end: '2025-01-29'}
+TrafegoEngajamento.tsx:241 Headers: (7) ['Date', 'Sessions', 'Views', 'Session campaign', 'Session source', 'Session medium', 'Session manual term']
+TrafegoEngajamento.tsx:242 Total de linhas: 999
+TrafegoEngajamento.tsx:250 Índices: {dateIndex: 0, newUsersIndex: -1, avgDurationIndex: -1, deviceIndex: -1, engagedSessionsIndex: -1}
+TrafegoEngajamento.tsx:263 Linha 0: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:263 Linha 1: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:263 Linha 2: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:263 Linha 3: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:263 Linha 4: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:288 Resultados: {totalNewUsers: 0, totalDuration: 0, validRows: 999, totalEngagedSessions: 0, deviceMap: {…}}
+TrafegoEngajamento.tsx:225 === PROCESSANDO CONSOLIDADO ===
+TrafegoEngajamento.tsx:226 Data Range: {start: '2025-01-01', end: '2025-01-29'}
+TrafegoEngajamento.tsx:241 Headers: (7) ['Date', 'Sessions', 'Views', 'Session campaign', 'Session source', 'Session medium', 'Session manual term']
+TrafegoEngajamento.tsx:242 Total de linhas: 999
+TrafegoEngajamento.tsx:250 Índices: {dateIndex: 0, newUsersIndex: -1, avgDurationIndex: -1, deviceIndex: -1, engagedSessionsIndex: -1}
+TrafegoEngajamento.tsx:263 Linha 0: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:263 Linha 1: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:263 Linha 2: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:263 Linha 3: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:263 Linha 4: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:288 Resultados: {totalNewUsers: 0, totalDuration: 0, validRows: 999, totalEngagedSessions: 0, deviceMap: {…}}
+api.ts:751 GA4 Event Response: {success: true, data: {…}}
+BrazilMap.tsx:105 Region Data recebido pelo BrazilMap: {}
+BrazilMap.tsx:105 Region Data recebido pelo BrazilMap: {}
+BrazilMap.tsx:90 GeoJSON loaded successfully
+BrazilMap.tsx:91 GeoJSON features count: 27
+BrazilMap.tsx:92 First few state names from GeoJSON: (5) ['Acre', 'Alagoas', 'Amazonas', 'Amapá', 'Bahia']
+BrazilMap.tsx:90 GeoJSON loaded successfully
+BrazilMap.tsx:91 GeoJSON features count: 27
+BrazilMap.tsx:92 First few state names from GeoJSON: (5) ['Acre', 'Alagoas', 'Amazonas', 'Amapá', 'Bahia']
+BrazilMap.tsx:112 GeoJSON state names: (27) ['Acre', 'Alagoas', 'Amazonas', 'Amapá', 'Bahia', 'Ceará', 'Espírito Santo', 'Goiás', 'Maranhão', 'Minas Gerais', 'Mato Grosso do Sul', 'Mato Grosso', 'Pará', 'Paraíba', 'Pernambuco', 'Piauí', 'Paraná', 'Rio de Janeiro', 'Rio Grande do Norte', 'Rondônia', 'Roraima', 'Rio Grande do Sul', 'Santa Catarina', 'Sergipe', 'São Paulo', 'Tocantins', 'Distrito Federal']
+BrazilMap.tsx:116 Region data keys: []
+BrazilMap.tsx:141 Verificando estado: Acre, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Alagoas, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Amazonas, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Amapá, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Bahia, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Ceará, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Espírito Santo, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Goiás, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Maranhão, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Minas Gerais, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Mato Grosso do Sul, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Mato Grosso, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Pará, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Paraíba, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Pernambuco, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Piauí, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Paraná, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Rio de Janeiro, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Rio Grande do Norte, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Rondônia, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Roraima, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Rio Grande do Sul, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Santa Catarina, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Sergipe, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: São Paulo, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Tocantins, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Distrito Federal, Dados disponíveis: undefined
+api.ts:715 GA4 Response: {success: true, data: {…}}
+api.ts:727 GA4 Estados Response: {success: true, data: {…}}
+api.ts:739 GA4 Consolidado Response: {success: true, data: {…}}
+TrafegoEngajamento.tsx:77 Default Date Range: {firstDate: '2025-01-01', lastDate: '2025-01-29'}
+TrafegoEngajamento.tsx:77 Default Date Range: {firstDate: '2025-01-01', lastDate: '2025-01-29'}
+TrafegoEngajamento.tsx:219 Region Data processado: {}
+TrafegoEngajamento.tsx:219 Region Data processado: {}
+TrafegoEngajamento.tsx:225 === PROCESSANDO CONSOLIDADO ===
+TrafegoEngajamento.tsx:226 Data Range: {start: '2025-01-01', end: '2025-01-29'}
+TrafegoEngajamento.tsx:241 Headers: (7) ['Date', 'Sessions', 'Views', 'Session campaign', 'Session source', 'Session medium', 'Session manual term']
+TrafegoEngajamento.tsx:242 Total de linhas: 999
+TrafegoEngajamento.tsx:250 Índices: {dateIndex: 0, newUsersIndex: -1, avgDurationIndex: -1, deviceIndex: -1, engagedSessionsIndex: -1}
+TrafegoEngajamento.tsx:263 Linha 0: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:263 Linha 1: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:263 Linha 2: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:263 Linha 3: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:263 Linha 4: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:288 Resultados: {totalNewUsers: 0, totalDuration: 0, validRows: 999, totalEngagedSessions: 0, deviceMap: {…}}
+TrafegoEngajamento.tsx:225 === PROCESSANDO CONSOLIDADO ===
+TrafegoEngajamento.tsx:226 Data Range: {start: '2025-01-01', end: '2025-01-29'}
+TrafegoEngajamento.tsx:241 Headers: (7) ['Date', 'Sessions', 'Views', 'Session campaign', 'Session source', 'Session medium', 'Session manual term']
+TrafegoEngajamento.tsx:242 Total de linhas: 999
+TrafegoEngajamento.tsx:250 Índices: {dateIndex: 0, newUsersIndex: -1, avgDurationIndex: -1, deviceIndex: -1, engagedSessionsIndex: -1}
+TrafegoEngajamento.tsx:263 Linha 0: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:263 Linha 1: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:263 Linha 2: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:263 Linha 3: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:263 Linha 4: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:288 Resultados: {totalNewUsers: 0, totalDuration: 0, validRows: 999, totalEngagedSessions: 0, deviceMap: {…}}
+api.ts:751 GA4 Event Response: {success: true, data: {…}}
+BrazilMap.tsx:105 Region Data recebido pelo BrazilMap: {}
+BrazilMap.tsx:112 GeoJSON state names: (27) ['Acre', 'Alagoas', 'Amazonas', 'Amapá', 'Bahia', 'Ceará', 'Espírito Santo', 'Goiás', 'Maranhão', 'Minas Gerais', 'Mato Grosso do Sul', 'Mato Grosso', 'Pará', 'Paraíba', 'Pernambuco', 'Piauí', 'Paraná', 'Rio de Janeiro', 'Rio Grande do Norte', 'Rondônia', 'Roraima', 'Rio Grande do Sul', 'Santa Catarina', 'Sergipe', 'São Paulo', 'Tocantins', 'Distrito Federal']
+BrazilMap.tsx:116 Region data keys: []
+BrazilMap.tsx:141 Verificando estado: Acre, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Alagoas, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Amazonas, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Amapá, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Bahia, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Ceará, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Espírito Santo, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Goiás, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Maranhão, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Minas Gerais, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Mato Grosso do Sul, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Mato Grosso, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Pará, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Paraíba, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Pernambuco, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Piauí, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Paraná, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Rio de Janeiro, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Rio Grande do Norte, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Rondônia, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Roraima, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Rio Grande do Sul, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Santa Catarina, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Sergipe, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: São Paulo, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Tocantins, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Distrito Federal, Dados disponíveis: undefined
+TrafegoEngajamento.tsx:219 Region Data processado: {}
+TrafegoEngajamento.tsx:219 Region Data processado: {}
+TrafegoEngajamento.tsx:225 === PROCESSANDO CONSOLIDADO ===
+TrafegoEngajamento.tsx:226 Data Range: {start: '2025-01-01', end: '2025-01-29'}
+TrafegoEngajamento.tsx:241 Headers: (7) ['Date', 'Sessions', 'Views', 'Session campaign', 'Session source', 'Session medium', 'Session manual term']
+TrafegoEngajamento.tsx:242 Total de linhas: 999
+TrafegoEngajamento.tsx:250 Índices: {dateIndex: 0, newUsersIndex: -1, avgDurationIndex: -1, deviceIndex: -1, engagedSessionsIndex: -1}
+TrafegoEngajamento.tsx:263 Linha 0: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:263 Linha 1: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:263 Linha 2: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:263 Linha 3: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:263 Linha 4: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:288 Resultados: {totalNewUsers: 0, totalDuration: 0, validRows: 999, totalEngagedSessions: 0, deviceMap: {…}}
+TrafegoEngajamento.tsx:225 === PROCESSANDO CONSOLIDADO ===
+TrafegoEngajamento.tsx:226 Data Range: {start: '2025-01-01', end: '2025-01-29'}
+TrafegoEngajamento.tsx:241 Headers: (7) ['Date', 'Sessions', 'Views', 'Session campaign', 'Session source', 'Session medium', 'Session manual term']
+TrafegoEngajamento.tsx:242 Total de linhas: 999
+TrafegoEngajamento.tsx:250 Índices: {dateIndex: 0, newUsersIndex: -1, avgDurationIndex: -1, deviceIndex: -1, engagedSessionsIndex: -1}
+TrafegoEngajamento.tsx:263 Linha 0: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:263 Linha 1: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:263 Linha 2: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:263 Linha 3: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:263 Linha 4: {date: '2025-01-01', inRange: true, newUsers: undefined, duration: undefined, device: undefined, …}
+TrafegoEngajamento.tsx:288 Resultados: {totalNewUsers: 0, totalDuration: 0, validRows: 999, totalEngagedSessions: 0, deviceMap: {…}}
+BrazilMap.tsx:105 Region Data recebido pelo BrazilMap: {}
+BrazilMap.tsx:112 GeoJSON state names: (27) ['Acre', 'Alagoas', 'Amazonas', 'Amapá', 'Bahia', 'Ceará', 'Espírito Santo', 'Goiás', 'Maranhão', 'Minas Gerais', 'Mato Grosso do Sul', 'Mato Grosso', 'Pará', 'Paraíba', 'Pernambuco', 'Piauí', 'Paraná', 'Rio de Janeiro', 'Rio Grande do Norte', 'Rondônia', 'Roraima', 'Rio Grande do Sul', 'Santa Catarina', 'Sergipe', 'São Paulo', 'Tocantins', 'Distrito Federal']
+BrazilMap.tsx:116 Region data keys: []
+BrazilMap.tsx:141 Verificando estado: Acre, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Alagoas, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Amazonas, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Amapá, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Bahia, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Ceará, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Espírito Santo, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Goiás, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Maranhão, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Minas Gerais, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Mato Grosso do Sul, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Mato Grosso, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Pará, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Paraíba, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Pernambuco, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Piauí, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Paraná, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Rio de Janeiro, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Rio Grande do Norte, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Rondônia, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Roraima, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Rio Grande do Sul, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Santa Catarina, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Sergipe, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: São Paulo, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Tocantins, Dados disponíveis: undefined
+BrazilMap.tsx:141 Verificando estado: Distrito Federal, Dados disponíveis: undefined

@@ -2,9 +2,10 @@
 
 import type React from "react"
 import { useState, useEffect, useMemo } from "react"
-import { BarChart3, Calendar } from "lucide-react"
+import { BarChart3, Calendar, Filter } from "lucide-react"
 import Loading from "../../components/Loading/Loading"
-import { useConsolidadoData, useBenchmarkData } from "../../services/api"
+import { useBenchmarkData } from "../../services/api"
+import { useData } from "../../contexts/DataContext"
 
 interface BenchmarkData {
   platform: string
@@ -69,12 +70,13 @@ interface ChartDataPoint {
 }
 
 const VisaoGeral: React.FC = () => {
-  const { data: apiData, loading, error } = useConsolidadoData()
+  const { data: apiData, campaigns, loading, error } = useData()
   const { data: benchmarkApiData, loading: benchmarkLoading, error: benchmarkError } = useBenchmarkData()
   const [processedData, setProcessedData] = useState<ProcessedData[]>([])
   const [benchmarkData, setBenchmarkData] = useState<ProcessedBenchmarkData | null>(null)
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: "", end: "" })
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
+  const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null)
 
   // Cores para as plataformas
   const platformColors: Record<string, string> = {
@@ -246,9 +248,9 @@ const VisaoGeral: React.FC = () => {
 
   // Processar dados da API
   useEffect(() => {
-    if (apiData?.values) {
-      const headers = apiData.values[0]
-      const rows = apiData.values.slice(1)
+    if (apiData?.success && apiData?.data?.values) {
+      const headers = apiData.data.values[0]
+      const rows = apiData.data.values.slice(1)
 
       const processed: ProcessedData[] = rows
         .map((row: string[]) => {
@@ -262,20 +264,25 @@ const VisaoGeral: React.FC = () => {
             return Number.parseInt(value.replace(/[.\s]/g, "").replace(",", "")) || 0
           }
 
+          const rawPlatform = row[headers.indexOf("Veículo")] || "Outros"
+          // Normalizar plataforma: mapear "Audience Network" e "unknown" para "Meta"
+          const normalizedPlatform =
+            rawPlatform.toLowerCase() === 'audience network' || rawPlatform.toLowerCase() === 'unknown'
+              ? 'Meta'
+              : rawPlatform
+
           return {
             date: row[headers.indexOf("Date")] || "",
-            platform: row[headers.indexOf("Veículo")] || "Outros",
-            campaignName: row[headers.indexOf("Campaign name")] || "",
+            platform: normalizedPlatform,
+            campaignName: row[headers.indexOf("Campanha")] || "",
             impressions: parseInteger(row[headers.indexOf("Impressions")]),
             cost: parseNumber(row[headers.indexOf("Total spent")]),
             reach: parseInteger(row[headers.indexOf("Reach")]),
             clicks: parseInteger(row[headers.indexOf("Clicks")]),
             frequency: parseNumber(row[headers.indexOf("Frequency")]) || 1,
             cpm: parseNumber(row[headers.indexOf("CPM")]),
-            videoPlays: parseInteger(
-              row[headers.indexOf("Video views ")] || row[headers.indexOf("Video starts")] || "0",
-            ),
-            videoCompletions: parseInteger(row[headers.indexOf("Video completions ")] || "0"),
+            videoPlays: parseInteger(row[headers.indexOf("Video views")] || "0"),
+            videoCompletions: parseInteger(row[headers.indexOf("Video completions")] || "0"),
           } as ProcessedData
         })
         .filter((item: ProcessedData) => item.date && item.impressions > 0)
@@ -314,7 +321,8 @@ const VisaoGeral: React.FC = () => {
         return itemDate >= startDate && itemDate <= endDate
       })
       .filter((item) => selectedPlatforms.length === 0 || selectedPlatforms.includes(item.platform))
-  }, [processedData, dateRange, selectedPlatforms])
+      .filter((item) => !selectedCampaign || item.campaignName === selectedCampaign)
+  }, [processedData, dateRange, selectedPlatforms, selectedCampaign])
 
   // Calcular métricas por plataforma
   const platformMetrics = useMemo(() => {
@@ -370,7 +378,7 @@ const VisaoGeral: React.FC = () => {
     const cpc = clicks > 0 ? investment / clicks : 0
     const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0
     const cpv = videoCompletions > 0 ? investment / videoCompletions : 0
-    const vtr = videoPlays > 0 ? (videoCompletions / videoPlays) * 100 : 0 // Fixed VTR calculation
+    const vtr = impressions > 0 ? (videoCompletions / impressions) * 100 : 0 // VTR = (Video Completions / Impressions) * 100
 
     return {
       investment,
@@ -558,26 +566,61 @@ const VisaoGeral: React.FC = () => {
         </div>
       </div>
 
-      {/* Filtro de Data */}
+      {/* Filtro de Data e Campanha */}
       <div className="card-overlay rounded-lg shadow-lg p-4">
-        <div className="flex items-center space-x-4">
-          <label className="block text-sm font-medium text-gray-700 flex items-center">
-            <Calendar className="w-4 h-4 mr-2" />
-            Período:
-          </label>
-          <input
-            type="date"
-            value={dateRange.start}
-            onChange={(e) => setDateRange((prev) => ({ ...prev, start: e.target.value }))}
-            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-          />
-          <span className="text-gray-500">até</span>
-          <input
-            type="date"
-            value={dateRange.end}
-            onChange={(e) => setDateRange((prev) => ({ ...prev, end: e.target.value }))}
-            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-          />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+          {/* Filtro de Campanha */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+              <Filter className="w-4 h-4 mr-2" />
+              Campanha
+            </label>
+            <div className="relative">
+              <select
+                value={selectedCampaign || ""}
+                onChange={(e) => setSelectedCampaign(e.target.value || null)}
+                className="w-full px-4 py-2 bg-white border-2 border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 appearance-none cursor-pointer"
+              >
+                <option value="">Todas as campanhas</option>
+                {campaigns.map((campaign) => (
+                  <option key={campaign.name} value={campaign.name}>
+                    {campaign.name}
+                  </option>
+                ))}
+              </select>
+              <svg
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
+
+          {/* Filtro de Data */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+              <Calendar className="w-4 h-4 mr-2" />
+              Período
+            </label>
+            <div className="flex items-center space-x-2">
+              <input
+                type="date"
+                value={dateRange.start}
+                onChange={(e) => setDateRange((prev) => ({ ...prev, start: e.target.value }))}
+                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+              <span className="text-gray-500">até</span>
+              <input
+                type="date"
+                value={dateRange.end}
+                onChange={(e) => setDateRange((prev) => ({ ...prev, end: e.target.value }))}
+                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
+          </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           {availablePlatforms.map((platform) => (

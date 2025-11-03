@@ -32,7 +32,6 @@ interface DataPoint {
   videoViews50: number
   videoViews75: number
   videoCompletions: number
-  videoStarts: number
   totalEngagements: number
   veiculo: string
   tipoCompra: string
@@ -79,6 +78,7 @@ interface AnaliseSemanalProps {
   availableVehicles: string[]
   platformColors: Record<string, string>
   onBack: () => void
+  campaigns: Array<{ name: string }>
 }
 
 const AnaliseSemanal: React.FC<AnaliseSemanalProps> = ({
@@ -86,10 +86,12 @@ const AnaliseSemanal: React.FC<AnaliseSemanalProps> = ({
   availableVehicles,
   platformColors,
   onBack,
+  campaigns,
 }) => {
   const contentRef = useRef<HTMLDivElement>(null)
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: "", end: "" })
   const [selectedVehicles, setSelectedVehicles] = useState<string[]>([])
+  const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null)
   const [selectedMetric, setSelectedMetric] = useState<
     "impressions" | "clicks" | "views" | "cpm" | "cpc" | "cpv" | "ctr" | "vtr"
   >("impressions")
@@ -161,7 +163,8 @@ const AnaliseSemanal: React.FC<AnaliseSemanalProps> = ({
       const itemDate = createLocalDate(item.date) // ← MUDANÇA AQUI
       const isInDateRange = itemDate >= targetStartDate && itemDate <= targetEndDate
       const isVehicleSelected = selectedVehicles.length === 0 || selectedVehicles.includes(item.platform)
-      return isInDateRange && isVehicleSelected
+      const isCampaignSelected = !selectedCampaign || item.campaignName === selectedCampaign
+      return isInDateRange && isVehicleSelected && isCampaignSelected
     })
   }
 
@@ -170,12 +173,13 @@ const AnaliseSemanal: React.FC<AnaliseSemanalProps> = ({
     const totalInvestment = data.reduce((sum, item) => sum + (item.totalSpent || 0), 0)
     const totalImpressions = data.reduce((sum, item) => sum + (item.impressions || 0), 0)
     const totalClicks = data.reduce((sum, item) => sum + (item.clicks || 0), 0)
-    const totalViews = data.reduce((sum, item) => sum + (item.videoViews || item.videoCompletions || 0), 0)
+    const totalVideoCompletions = data.reduce((sum, item) => sum + (item.videoCompletions || 0), 0)
+    const totalViews = data.reduce((sum, item) => sum + (item.videoViews || 0), 0)
 
     const cpm = totalImpressions > 0 ? (totalInvestment / totalImpressions) * 1000 : 0
     const cpc = totalClicks > 0 ? totalInvestment / totalClicks : 0
     const ctr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0
-    const vtr = totalImpressions > 0 ? (totalViews / totalImpressions) * 100 : 0
+    const vtr = totalImpressions > 0 ? (totalVideoCompletions / totalImpressions) * 100 : 0
     const cpv = totalViews > 0 ? totalInvestment / totalViews : 0
 
     return {
@@ -217,7 +221,7 @@ const AnaliseSemanal: React.FC<AnaliseSemanalProps> = ({
     }
 
     return { current, previous, comparison }
-  }, [processedData, selectedVehicles, dateRange])
+  }, [processedData, selectedVehicles, dateRange, selectedCampaign])
 
   // Dados do gráfico semanal comparativo
   const weeklyChartData: ChartData[] = useMemo(() => {
@@ -326,7 +330,7 @@ const AnaliseSemanal: React.FC<AnaliseSemanalProps> = ({
     }
 
     return result
-  }, [selectedMetric, processedData, selectedVehicles, dateRange])
+  }, [selectedMetric, processedData, selectedVehicles, dateRange, selectedCampaign])
 
   // Função para formatar valor monetário
   const formatCurrency = (value: number): string => {
@@ -459,7 +463,37 @@ const AnaliseSemanal: React.FC<AnaliseSemanalProps> = ({
 
       {/* Filtros */}
       <div className="card-overlay rounded-lg shadow-lg p-4">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Filtro de Campanha */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+              <Filter className="w-4 h-4 mr-2" />
+              Campanha
+            </label>
+            <div className="relative">
+              <select
+                value={selectedCampaign || ""}
+                onChange={(e) => setSelectedCampaign(e.target.value || null)}
+                className="w-full px-4 py-2 bg-white border-2 border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 appearance-none cursor-pointer"
+              >
+                <option value="">Todas as campanhas</option>
+                {campaigns.map((campaign) => (
+                  <option key={campaign.name} value={campaign.name}>
+                    {campaign.name}
+                  </option>
+                ))}
+              </select>
+              <svg
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
+
           {/* Filtro de Data */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">

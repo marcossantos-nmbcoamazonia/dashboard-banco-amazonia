@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useEffect, useMemo } from "react"
 import { Share2, Calendar, Filter, ArrowUpDown } from "lucide-react"
-import { useCartaoMetaData, usePontuacaoMetaData } from "../../services/api"
+import { useMetaCreatives } from "../../services/consolidadoApi"
 import Loading from "../../components/Loading/Loading"
 import CreativeModalMeta from "./CreativeModalMeta"
 
@@ -37,8 +37,7 @@ interface CreativeData {
 }
 
 const CriativosMetaAds: React.FC = () => {
-  const { data: apiData, loading, error } = useCartaoMetaData()
-  const { data: pontuacaoData, loading: pontuacaoLoading, error: pontuacaoError } = usePontuacaoMetaData()
+  const { data: apiData, loading, error } = useMetaCreatives()
 
   const [processedData, setProcessedData] = useState<CreativeData[]>([])
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: "", end: "" })
@@ -57,25 +56,9 @@ const CriativosMetaAds: React.FC = () => {
 
   // Processar dados da API
   useEffect(() => {
-    if (apiData?.values && pontuacaoData?.values) {
-      const pontuacaoHeaders = pontuacaoData.values[0]
-      const pontuacaoRows = pontuacaoData.values.slice(1)
-      const pontuacaoMap = new Map<string, any>()
-      pontuacaoRows.forEach((row: string[]) => {
-        const creativeTitle = row[pontuacaoHeaders.indexOf("Creative title")]
-        if (creativeTitle) {
-          pontuacaoMap.set(creativeTitle.trim(), {
-            pontuacao: Number.parseFloat(
-              row[pontuacaoHeaders.indexOf("Pontuacao de criativo")]?.replace(",", ".") || "0",
-            ),
-            tipoCompra: row[pontuacaoHeaders.indexOf("Tipo de Compra")],
-            videoEstaticoAudio: row[pontuacaoHeaders.indexOf("video_estatico_audio")],
-          })
-        }
-      })
-
-      const headers = apiData.values[0]
-      const rows = apiData.values.slice(1)
+    if (apiData?.success && apiData?.data?.values) {
+      const headers = apiData.data.values[0]
+      const rows = apiData.data.values.slice(1)
 
       const tiposCompraSet = new Set<string>()
       const videoEstaticoAudioSet = new Set<string>()
@@ -92,39 +75,41 @@ const CriativosMetaAds: React.FC = () => {
             return Number.parseInt(value.replace(/[.\s]/g, "").replace(",", "")) || 0
           }
 
-          const adName = row[headers.indexOf("Ad name")]?.trim() || ""
-          const scoreData = pontuacaoMap.get(adName)
+          const adName = row[headers.indexOf("Ad Name")]?.trim() || ""
+          const tipoCompra = row[headers.indexOf("Tipo de Compra")] || ""
+          const placement = row[headers.indexOf("Placement")] || ""
+          const platform = row[headers.indexOf("Platform")] || ""
 
-          if (scoreData?.tipoCompra) tiposCompraSet.add(scoreData.tipoCompra)
-          if (scoreData?.videoEstaticoAudio) videoEstaticoAudioSet.add(scoreData.videoEstaticoAudio)
+          if (tipoCompra) tiposCompraSet.add(tipoCompra)
+          if (placement) videoEstaticoAudioSet.add(placement)
 
           return {
-            date: row[headers.indexOf("Date")] || "",
+            date: row[headers.indexOf("Day")] || "",
             adName,
-            adCreativeImageUrl: row[headers.indexOf("Ad creative image URL")] || "",
-            adCreativeThumbnailUrl: row[headers.indexOf("Ad creative thumbnail URL")] || "",
-            campaignName: row[headers.indexOf("Campaign name")] || "",
+            adCreativeImageUrl: row[headers.indexOf("Creative Image")] || "",
+            adCreativeThumbnailUrl: row[headers.indexOf("Creative Image")] || "",
+            campaignName: row[headers.indexOf("Campaign Name")] || "",
             reach: parseInteger(row[headers.indexOf("Reach")]),
-            frequency: parseNumber(row[headers.indexOf("Frequency")]),
+            frequency: 0, // Não está disponível na nova API
             impressions: parseInteger(row[headers.indexOf("Impressions")]),
-            cost: parseNumber(row[headers.indexOf("Cost")]),
-            linkClicks: parseInteger(row[headers.indexOf("Link clicks")]),
-            cpc: parseNumber(row[headers.indexOf("CPC (cost per link click)")]),
-            pageEngagements: parseInteger(row[headers.indexOf("Page engagements")]),
-            postEngagements: parseInteger(row[headers.indexOf("Post engagements")]),
-            postReactions: parseInteger(row[headers.indexOf("Post reactions")]),
-            costPerPostEngagement: parseNumber(row[headers.indexOf("Cost per post engagement")]),
-            videoWatches25: parseInteger(row[headers.indexOf("Video watches at 25%")]),
-            videoWatches50: parseInteger(row[headers.indexOf("Video watches at 50%")]),
-            videoWatches75: parseInteger(row[headers.indexOf("Video watches at 75%")]),
-            videoWatches100: parseInteger(row[headers.indexOf("Video watches at 100%")]),
-            videoPlayActions: parseInteger(row[headers.indexOf("Video play actions")]),
-            landingPageViews: parseInteger(row[headers.indexOf("Landing page views")]),
-            cpm: parseNumber(row[headers.indexOf("CPM (cost per 1000 impressions)")]),
-            pontuacaoCriativo: scoreData?.pontuacao,
-            tipoCompra: scoreData?.tipoCompra,
-            videoEstaticoAudio: scoreData?.videoEstaticoAudio,
-            linkToPromotedInstagramPost: row[headers.indexOf("Link to promoted Instagram post")] || "",
+            cost: parseNumber(row[headers.indexOf("Amount Spent")]),
+            linkClicks: parseInteger(row[headers.indexOf("Link Clicks")]),
+            cpc: 0, // Será calculado
+            pageEngagements: 0, // Não está disponível na nova API
+            postEngagements: parseInteger(row[headers.indexOf("Post Engagement")]),
+            postReactions: 0, // Não está disponível na nova API
+            costPerPostEngagement: 0, // Será calculado
+            videoWatches25: parseInteger(row[headers.indexOf("Video Watches at 25%")]),
+            videoWatches50: parseInteger(row[headers.indexOf("Video Watches at 50%")]),
+            videoWatches75: parseInteger(row[headers.indexOf("Video Watches at 75%")]),
+            videoWatches100: parseInteger(row[headers.indexOf("Video Watches at 100%")]),
+            videoPlayActions: parseInteger(row[headers.indexOf("Video Plays")]),
+            landingPageViews: 0, // Não está disponível na nova API
+            cpm: 0, // Será calculado
+            pontuacaoCriativo: undefined,
+            tipoCompra: tipoCompra || undefined,
+            videoEstaticoAudio: placement || undefined,
+            linkToPromotedInstagramPost: "",
           } as CreativeData
         })
         .filter((item: CreativeData) => item.date && item.impressions > 0)
@@ -155,7 +140,7 @@ const CriativosMetaAds: React.FC = () => {
       //   setSelectedCampaign(cpmCampaign)
       // }
     }
-  }, [apiData, pontuacaoData, selectedCampaign])
+  }, [apiData])
 
   // Filtrar dados
   const filteredData = useMemo(() => {
@@ -290,14 +275,14 @@ const CriativosMetaAds: React.FC = () => {
     setSelectedCreative(null)
   }
 
-  if (loading || pontuacaoLoading) {
+  if (loading) {
     return <Loading message="Carregando criativos Meta Ads..." />
   }
 
-  if (error || pontuacaoError) {
+  if (error) {
     return (
       <div className="bg-red-50/90 backdrop-blur-sm border border-red-200 rounded-lg p-4">
-        <p className="text-red-600">Erro ao carregar dados: {error?.message || pontuacaoError?.message}</p>
+        <p className="text-red-600">Erro ao carregar dados: {error?.message}</p>
       </div>
     )
   }

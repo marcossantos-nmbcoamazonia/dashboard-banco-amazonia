@@ -701,3 +701,184 @@ export const useBenchmarkData = () => {
 
   return { data, loading, error, refetch: loadData }
 }
+
+// ============================================
+// NOVAS APIs DO GA4 - BANCO DA AMAZÔNIA
+// ============================================
+
+const GA4_API_BASE = "https://nmbcoamazonia-api.vercel.app/google/sheets/1RSgz287Kdd5fl01fSaylU02cEyBn1i8N9AASZKkqO9E/data"
+
+// Função para buscar dados do GA4 (Source, Medium, Campaign)
+export const fetchGA4Data = async () => {
+  try {
+    const url = `${GA4_API_BASE}?Range=GA4`
+    console.log("GA4 URL:", url)
+    const response = await axios.get(url)
+    console.log("GA4 Response:", response.data)
+    console.log("GA4 Range retornado:", response.data?.data?.range)
+    return response.data
+  } catch (error) {
+    console.error("Erro ao buscar dados do GA4:", error)
+    throw error
+  }
+}
+
+// Função para buscar dados do GA4 Estados (para o mapa)
+export const fetchGA4EstadosData = async () => {
+  try {
+    const url = `${GA4_API_BASE}?range=GA4%20-%20Estados`
+    console.log("GA4 Estados URL:", url)
+    const response = await axios.get(url)
+    console.log("GA4 Estados Response:", response.data)
+    console.log("GA4 Estados Range retornado:", response.data?.data?.range)
+    return response.data
+  } catch (error) {
+    console.error("Erro ao buscar dados do GA4 Estados:", error)
+    throw error
+  }
+}
+
+// Função para buscar dados do GA4 Consolidado (dispositivos)
+export const fetchGA4ConsolidadoData = async () => {
+  try {
+    const url = `${GA4_API_BASE}?range=GA4%20-%20Consolidado`
+    console.log("GA4 Consolidado URL:", url)
+    const response = await axios.get(url)
+    console.log("GA4 Consolidado Response:", response.data)
+    console.log("GA4 Consolidado Range retornado:", response.data?.data?.range)
+    console.log("GA4 Consolidado Headers:", response.data?.data?.values?.[0])
+    return response.data
+  } catch (error) {
+    console.error("Erro ao buscar dados do GA4 Consolidado:", error)
+    throw error
+  }
+}
+
+// Função para buscar dados do GA4 Event (eventos)
+export const fetchGA4EventData = async () => {
+  try {
+    const url = `${GA4_API_BASE}?range=GA4%20-%20Event`
+    console.log("GA4 Event URL:", url)
+    const response = await axios.get(url)
+    console.log("GA4 Event Response:", response.data)
+    console.log("GA4 Event Range retornado:", response.data?.data?.range)
+    return response.data
+  } catch (error) {
+    console.error("Erro ao buscar dados do GA4 Event:", error)
+    throw error
+  }
+}
+
+// Tipos de dados para as novas APIs do GA4
+interface GA4Data {
+  success: boolean
+  data: {
+    range: string
+    majorDimension: string
+    values: string[][]
+  }
+}
+
+// Hook para dados do GA4 (Source, Medium, Campaign)
+export const useGA4Data = () => {
+  const [data, setData] = useState<GA4Data | null>(null)
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  const loadData = React.useCallback(async () => {
+    try {
+      setLoading(true)
+      const result = await fetchGA4Data()
+      setData(result)
+      setError(null)
+    } catch (err) {
+      setError(err as Error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  return { data, loading, error, refetch: loadData }
+}
+
+// Hook para dados do GA4 Estados (mapa)
+export const useGA4EstadosData = () => {
+  const [data, setData] = useState<GA4Data | null>(null)
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  const loadData = React.useCallback(async () => {
+    try {
+      setLoading(true)
+      const result = await fetchGA4EstadosData()
+      setData(result)
+      setError(null)
+    } catch (err) {
+      setError(err as Error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  return { data, loading, error, refetch: loadData }
+}
+
+// Hook para dados do GA4 Consolidado (dispositivos)
+export const useGA4ConsolidadoData = () => {
+  const [data, setData] = useState<GA4Data | null>(null)
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  const loadData = React.useCallback(async () => {
+    try {
+      setLoading(true)
+      const result = await fetchGA4ConsolidadoData()
+      setData(result)
+      setError(null)
+    } catch (err) {
+      setError(err as Error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  return { data, loading, error, refetch: loadData }
+}
+
+// Hook para dados do GA4 Event (eventos)
+export const useGA4EventData = () => {
+  const [data, setData] = useState<GA4Data | null>(null)
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  const loadData = React.useCallback(async () => {
+    try {
+      setLoading(true)
+      const result = await fetchGA4EventData()
+      setData(result)
+      setError(null)
+    } catch (err) {
+      setError(err as Error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  return { data, loading, error, refetch: loadData }
+}

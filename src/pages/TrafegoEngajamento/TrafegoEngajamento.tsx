@@ -1,11 +1,16 @@
 "use client"
 
 import type React from "react"
-import { useState, useMemo } from "react"
-import { TrendingUp, Calendar, MousePointer, Clock, Users, BarChart3 } from "lucide-react"
+import { useState, useMemo, useEffect } from "react"
+import { TrendingUp, Calendar, Users, Clock, BarChart3, Target, UserPlus } from "lucide-react"
 import Loading from "../../components/Loading/Loading"
-import { useGA4ResumoData, useGA4CompletoData, useGA4SourceData } from "../../services/api" // Importar nova API
-import BrazilMap from "../../components/BrazilMap/BrazilMap" // Importar novo componente de mapa
+import {
+  useGA4Data,
+  useGA4EstadosData,
+  useGA4ConsolidadoData,
+  useGA4EventData,
+} from "../../services/api"
+import BrazilMap from "../../components/BrazilMap/BrazilMap"
 
 type TrafegoEngajamentoProps = {}
 
@@ -38,268 +43,299 @@ const API_TO_GEOJSON_STATE_NAMES: { [key: string]: string } = {
   "State of Sao Paulo": "São Paulo",
   "State of Sergipe": "Sergipe",
   "State of Tocantins": "Tocantins",
-  "Upper Takutu-Upper Essequibo": "Outros", // This isn't a Brazilian state
 }
 
 const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
-  const { data: ga4ResumoData, loading: resumoLoading, error: resumoError } = useGA4ResumoData()
-  const { data: ga4CompletoData, loading: completoLoading, error: completoError } = useGA4CompletoData()
-  const { data: ga4SourceData, loading: sourceLoading, error: sourceError } = useGA4SourceData() // Nova API
+  const { data: ga4Data, loading: ga4Loading, error: ga4Error } = useGA4Data()
+  const { data: ga4EstadosData, loading: estadosLoading, error: estadosError } = useGA4EstadosData()
+  const { data: ga4ConsolidadoData, loading: consolidadoLoading, error: consolidadoError } = useGA4ConsolidadoData()
+  const { data: ga4EventData, loading: eventLoading, error: eventError } = useGA4EventData()
 
-  const [dateRange, setDateRange] = useState<{ start: string; end: string }>({
-    start: "2025-05-26",
-    end: "2025-06-31",
-  })
+  // Calcular a primeira data dos dados e a última data disponível como padrão
+  const getDefaultDateRange = useMemo(() => {
+    let firstDate = ""
+    let lastDate = ""
+
+    // Procurar a primeira e última data em qualquer um dos datasets
+    if (ga4Data?.data?.values && ga4Data.data.values.length > 1) {
+      const headers = ga4Data.data.values[0]
+      const dateIndex = headers.indexOf("Date")
+      if (dateIndex !== -1) {
+        const rows = ga4Data.data.values.slice(1)
+        const dates = rows
+          .map((row: any[]) => row[dateIndex])
+          .filter((d: string) => d && d.trim() !== "")
+          .sort()
+
+        if (dates.length > 0) {
+          firstDate = dates[0]
+          lastDate = dates[dates.length - 1]
+        }
+      }
+    }
+
+    console.log("Default Date Range:", { firstDate, lastDate })
+
+    return {
+      start: firstDate || "2025-01-01",
+      end: lastDate || "2025-12-31",
+    }
+  }, [ga4Data])
+
+  const [dateRange, setDateRange] = useState<{ start: string; end: string }>(getDefaultDateRange)
+
+  // Atualizar dateRange quando os dados carregarem
+  useEffect(() => {
+    if (getDefaultDateRange.start && getDefaultDateRange.end) {
+      setDateRange(getDefaultDateRange)
+    }
+  }, [getDefaultDateRange])
 
   // Função para verificar se uma data está dentro do range selecionado
   const isDateInRange = (dateStr: string): boolean => {
     if (!dateStr || !dateRange.start || !dateRange.end) return true
 
-    // Converter string de data para formato comparável (YYYY-MM-DD)
-    const date = new Date(dateStr).toISOString().split("T")[0]
-    const startDate = new Date(dateRange.start).toISOString().split("T")[0]
-    const endDate = new Date(dateRange.end).toISOString().split("T")[0]
+    // Normalizar datas para YYYY-MM-DD
+    const date = dateStr.includes("/")
+      ? dateStr.split("/").reverse().join("-")
+      : dateStr
 
-    return date >= startDate && date <= endDate
+    const result = date >= dateRange.start && date <= dateRange.end
+    return result
   }
 
-  // Função para obter cor do veículo/plataforma
-  const getPlataformaColor = (plataforma: string): string => {
+  // Função para obter cor da plataforma/medium
+  const getMediumColor = (medium: string): string => {
     const colors: { [key: string]: string } = {
-      Meta: "#1877f2",
-      TikTok: "#ff0050",
-      YouTube: "#ff0000",
-      Spotify: "#1DB954",
-      Netflix: "#E50914",
-      "Portal Forum": "#8b5cf6",
-      "Brasil 247": "#10b981",
-      Band: "#f59e0b",
-      "Globo.com": "#0066cc",
-      GDN: "#4285f4",
-      "Demand-Gen": "#34a853",
-      Orgânico: "#6b7280",
-      Outros: "#9ca3af",
+      cpc: "#1877f2",
+      organic: "#34a853",
+      referral: "#8b5cf6",
+      "(none)": "#6b7280",
+      email: "#ea4335",
+      social: "#ff0050",
     }
-    return colors[plataforma] || "#6b7280"
+    return colors[medium] || "#9ca3af"
   }
 
-  // Processamento dos dados da API GA4 Source (nova funcionalidade) com filtro de data
-  const processedSourceData = useMemo(() => {
-    if (!ga4SourceData?.values || ga4SourceData.values.length <= 1) {
+  // Processamento dos dados do GA4 (Source, Medium, Campaign)
+  const processedGA4Data = useMemo(() => {
+    if (!ga4Data?.data?.values || ga4Data.data.values.length <= 1) {
       return {
-        veiculosDetalhados: [],
-        fontesPorPlataforma: {},
         totalSessions: 0,
-        resumoPorData: {},
+        totalViews: 0,
+        mediumData: [],
+        sourceData: [],
       }
     }
 
-    const headers = ga4SourceData.values[0]
-    const rows = ga4SourceData.values.slice(1)
+    const headers = ga4Data.data.values[0]
+    const rows = ga4Data.data.values.slice(1)
 
-    // Índices das colunas
     const dateIndex = headers.indexOf("Date")
-    const campaignIndex = headers.indexOf("User campaign name")
-    const sourceIndex = headers.indexOf("Session manual source")
     const sessionsIndex = headers.indexOf("Sessions")
-    const plataformaIndex = headers.indexOf("Plataforma")
+    const viewsIndex = headers.indexOf("Views")
+    const mediumIndex = headers.indexOf("Session medium")
+    const sourceIndex = headers.indexOf("Session source")
 
-    const veiculoData: { [key: string]: number } = {}
-    const plataformaData: { [key: string]: { [key: string]: number } } = {}
-    const dataResumo: { [key: string]: number } = {}
     let totalSessions = 0
+    let totalViews = 0
+    const mediumMap: { [key: string]: number } = {}
+    const sourceMap: { [key: string]: number } = {}
 
     rows.forEach((row: any[]) => {
       const date = row[dateIndex] || ""
-
-      // Aplicar filtro de data
       if (!isDateInRange(date)) return
 
       const sessions = Number.parseInt(row[sessionsIndex]) || 0
-      const plataforma = row[plataformaIndex] || "Outros"
+      const views = Number.parseInt(row[viewsIndex]) || 0
+      const medium = row[mediumIndex] || "(not set)"
       const source = row[sourceIndex] || "(not set)"
-      const campaign = row[campaignIndex] || "(not set)"
 
       if (sessions > 0) {
         totalSessions += sessions
-
-        // Agrupar por plataforma
-        veiculoData[plataforma] = (veiculoData[plataforma] || 0) + sessions
-
-        // Agrupar fontes por plataforma
-        if (!plataformaData[plataforma]) {
-          plataformaData[plataforma] = {}
-        }
-        if (source !== "(not set)") {
-          plataformaData[plataforma][source] = (plataformaData[plataforma][source] || 0) + sessions
-        }
-
-        // Resumo por data
-        if (date) {
-          dataResumo[date] = (dataResumo[date] || 0) + sessions
-        }
+        totalViews += views
+        mediumMap[medium] = (mediumMap[medium] || 0) + sessions
+        sourceMap[source] = (sourceMap[source] || 0) + sessions
       }
     })
 
-    // Converter em arrays ordenados
-    const veiculosDetalhados = Object.entries(veiculoData)
-      .map(([plataforma, sessoes]) => ({
-        plataforma,
-        sessoes,
-        percentual: totalSessions > 0 ? (sessoes / totalSessions) * 100 : 0,
-        cor: getPlataformaColor(plataforma),
+    const mediumData = Object.entries(mediumMap)
+      .map(([medium, sessions]) => ({
+        medium,
+        sessions,
+        percentual: totalSessions > 0 ? (sessions / totalSessions) * 100 : 0,
+        cor: getMediumColor(medium),
       }))
-      .sort((a, b) => b.sessoes - a.sessoes)
+      .sort((a, b) => b.sessions - a.sessions)
+      .slice(0, 10)
+
+    const sourceData = Object.entries(sourceMap)
+      .map(([source, sessions]) => ({
+        source,
+        sessions,
+        percentual: totalSessions > 0 ? (sessions / totalSessions) * 100 : 0,
+      }))
+      .sort((a, b) => b.sessions - a.sessions)
+      .slice(0, 10)
 
     return {
-      veiculosDetalhados,
-      fontesPorPlataforma: plataformaData,
       totalSessions,
-      resumoPorData: dataResumo,
+      totalViews,
+      mediumData,
+      sourceData,
     }
-  }, [ga4SourceData, dateRange])
+  }, [ga4Data, dateRange])
 
-  // Processamento dos dados da API GA4 Resumo (para o mapa e gráficos existentes) com filtro de data
-  const processedResumoData = useMemo(() => {
-    if (!ga4ResumoData?.values || ga4ResumoData.values.length <= 1) {
-      return {
-        receptivo: {
-          sessoesCampanha: 0,
-          cliquesSaibaMais: 0,
-          cliquesCTAs: 0,
-          duracaoSessoes: "00:00:00",
-          taxaRejeicao: 0,
-        },
-        dispositivos: [],
-        dadosRegiao: {},
-      }
+  // Processamento dos dados de Estados (para o mapa)
+  const processedEstadosData = useMemo(() => {
+    if (!ga4EstadosData?.data?.values || ga4EstadosData.data.values.length <= 1) {
+      return {}
     }
 
-    const headers = ga4ResumoData.values[0]
-    const rows = ga4ResumoData.values.slice(1)
+    const headers = ga4EstadosData.data.values[0]
+    const rows = ga4EstadosData.data.values.slice(1)
 
-    // Índices das colunas
     const dateIndex = headers.indexOf("Date")
     const regionIndex = headers.indexOf("Region")
-    const deviceIndex = headers.indexOf("Device category")
     const sessionsIndex = headers.indexOf("Sessions")
-    const bounceRateIndex = headers.indexOf("Bounce rate")
-    const avgDurationIndex = headers.indexOf("Average session duration")
-    const saibaMaisIndex = headers.indexOf("Key event count for web_pvc_cartoes_useourocard_saibamais")
-    const ctasIndex1 = headers.indexOf("Key event count for web_pvc_cartoes_useourocard_ctas")
-    const ctasIndex2 = headers.indexOf("Key event count for web_pvc_cartoes_use_ourocard_ctas")
 
-    let totalSessions = 0
-    let totalSaibaMais = 0
-    let totalDuration = 0
-    let totalBounceRate = 0
-    let validRows = 0
-    let totalCTAs = 0
-
-    const deviceData: { [key: string]: number } = {}
-    const regionData: { [key: string]: number } = {}
+    const regionMap: { [key: string]: number } = {}
 
     rows.forEach((row: any[]) => {
       const date = row[dateIndex] || ""
-
-      // Aplicar filtro de data
       if (!isDateInRange(date)) return
 
+      const region = row[regionIndex] || ""
       const sessions = Number.parseInt(row[sessionsIndex]) || 0
-      const saibaMais = Number.parseInt(row[saibaMaisIndex]) || 0
-      const duration = Number.parseFloat(row[avgDurationIndex]) || 0
-      const bounceRate = Number.parseFloat(row[bounceRateIndex]) || 0
-      const device = row[deviceIndex] || "Outros"
-      const region = row[regionIndex] || "Outros"
-      const ctas1 = Number.parseInt(row[ctasIndex1]) || 0
-      const ctas2 = Number.parseInt(row[ctasIndex2]) || 0
 
-      totalCTAs += ctas1 + ctas2
-
-      if (sessions > 0) {
-        totalSessions += sessions
-        totalSaibaMais += saibaMais
-        totalDuration += duration * sessions
-        totalBounceRate += bounceRate * sessions
-        validRows += sessions
-
-        // Dispositivos
-        deviceData[device] = (deviceData[device] || 0) + sessions
-
-        // Regiões - Converter o nome do estado para o formato esperado pelo mapa
-        if (region !== "(not set)" && region.trim() !== "" && region !== " ") {
-          const normalizedRegion = API_TO_GEOJSON_STATE_NAMES[region] || region
-          regionData[normalizedRegion] = (regionData[normalizedRegion] || 0) + sessions
+      if (sessions > 0 && region && region !== "(not set)" && region.trim() !== "") {
+        const normalizedRegion = API_TO_GEOJSON_STATE_NAMES[region] || region
+        if (normalizedRegion && normalizedRegion.trim() !== "") {
+          regionMap[normalizedRegion] = (regionMap[normalizedRegion] || 0) + sessions
         }
       }
     })
 
-    // Converter em arrays ordenados
-    const dispositivos = Object.entries(deviceData)
-      .map(([tipo, sessoes]) => ({
-        tipo,
-        sessoes,
-        percentual: totalSessions > 0 ? (sessoes / totalSessions) * 100 : 0,
-        cor: tipo === "mobile" ? "#3b82f6" : tipo === "desktop" ? "#8b5cf6" : "#06b6d4",
-      }))
-      .sort((a, b) => b.sessoes - a.sessoes)
+    console.log("Region Data processado:", regionMap)
+    return regionMap
+  }, [ga4EstadosData, dateRange])
 
-    // Converter duração para formato hh:mm:ss
+  // Processamento dos dados Consolidados (dispositivos, novos usuários, etc.)
+  const processedConsolidadoData = useMemo(() => {
+    if (!ga4ConsolidadoData?.data?.values || ga4ConsolidadoData.data.values.length <= 1) {
+      return {
+        totalNewUsers: 0,
+        avgDuration: "00:00:00",
+        deviceData: [],
+        totalEngagedSessions: 0,
+      }
+    }
+
+    const headers = ga4ConsolidadoData.data.values[0]
+    const rows = ga4ConsolidadoData.data.values.slice(1)
+
+    const dateIndex = headers.indexOf("Date")
+    const newUsersIndex = headers.indexOf("New users")
+    const avgDurationIndex = headers.indexOf("Average session duration")
+    const deviceIndex = headers.indexOf("Device category")
+    const engagedSessionsIndex = headers.indexOf("Engaged sessions")
+
+    let totalNewUsers = 0
+    let totalDuration = 0
+    let validRows = 0
+    let totalEngagedSessions = 0
+    const deviceMap: { [key: string]: number } = {}
+
+    rows.forEach((row: any[]) => {
+      const date = row[dateIndex] || ""
+      if (!isDateInRange(date)) return
+
+      const newUsers = Number.parseInt(row[newUsersIndex]) || 0
+      const duration = Number.parseFloat(row[avgDurationIndex]) || 0
+      const device = row[deviceIndex] || "outros"
+      const engagedSessions = Number.parseInt(row[engagedSessionsIndex]) || 0
+
+      totalNewUsers += newUsers
+      totalDuration += duration
+      totalEngagedSessions += engagedSessions
+      validRows++
+
+      deviceMap[device] = (deviceMap[device] || 0) + engagedSessions
+    })
+
     const avgDurationSec = validRows > 0 ? totalDuration / validRows : 0
     const hours = Math.floor(avgDurationSec / 3600)
     const minutes = Math.floor((avgDurationSec % 3600) / 60)
     const seconds = Math.floor(avgDurationSec % 60)
-    const duracaoFormatada = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
+    const avgDuration = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
 
-    const avgBounceRate = validRows > 0 ? (totalBounceRate / validRows) * 100 : 0
+    const deviceData = Object.entries(deviceMap)
+      .map(([tipo, sessoes]) => ({
+        tipo,
+        sessoes,
+        percentual: totalEngagedSessions > 0 ? (sessoes / totalEngagedSessions) * 100 : 0,
+        cor: tipo === "mobile" ? "#3b82f6" : tipo === "desktop" ? "#8b5cf6" : "#06b6d4",
+      }))
+      .sort((a, b) => b.sessoes - a.sessoes)
+
+    console.log("✅ Consolidado processado:", { totalNewUsers, avgDuration, devices: deviceData.length })
 
     return {
-      receptivo: {
-        sessoesCampanha: totalSessions,
-        cliquesSaibaMais: totalSaibaMais,
-        cliquesCTAs: totalCTAs,
-        duracaoSessoes: duracaoFormatada,
-        taxaRejeicao: avgBounceRate,
-      },
-      dispositivos,
-      dadosRegiao: regionData,
+      totalNewUsers,
+      avgDuration,
+      deviceData,
+      totalEngagedSessions,
     }
-  }, [ga4ResumoData, dateRange])
+  }, [ga4ConsolidadoData, dateRange])
 
-  // Processamento dos dados da NOVA API GA4 Completo (para os novos cards) com filtro de data
-  const processedCompletoData = useMemo(() => {
-    if (!ga4CompletoData?.values || ga4CompletoData.values.length <= 1) {
+  // Processamento dos dados de Eventos
+  const processedEventData = useMemo(() => {
+    if (!ga4EventData?.data?.values || ga4EventData.data.values.length <= 1) {
       return {
-        totalSessions: 0,
-        totalEvents: 0,
+        totalConversions: 0,
+        topEvents: [],
       }
     }
 
-    const headers = ga4CompletoData.values[0]
-    const rows = ga4CompletoData.values.slice(1)
+    const headers = ga4EventData.data.values[0]
+    const rows = ga4EventData.data.values.slice(1)
 
     const dateIndex = headers.indexOf("Date")
-    const sessionsIndex = headers.indexOf("Sessions")
+    const eventNameIndex = headers.indexOf("Event name")
     const eventCountIndex = headers.indexOf("Event count")
+    const conversionsIndex = headers.indexOf("Conversions")
 
-    let totalSessions = 0
-    let totalEvents = 0
+    let totalConversions = 0
+    const eventMap: { [key: string]: number } = {}
 
     rows.forEach((row: any[]) => {
       const date = row[dateIndex] || ""
-
-      // Aplicar filtro de data
       if (!isDateInRange(date)) return
 
-      totalSessions += Number.parseInt(row[sessionsIndex]) || 0
-      totalEvents += Number.parseInt(row[eventCountIndex]) || 0
+      const eventName = row[eventNameIndex] || "(not set)"
+      const eventCount = Number.parseInt(row[eventCountIndex]) || 0
+      const conversions = Number.parseInt(row[conversionsIndex]) || 0
+
+      totalConversions += conversions
+      eventMap[eventName] = (eventMap[eventName] || 0) + eventCount
     })
 
+    const topEvents = Object.entries(eventMap)
+      .map(([evento, count]) => ({
+        evento,
+        count,
+        percentual: Object.values(eventMap).reduce((a, b) => a + b, 0) > 0
+          ? (count / Object.values(eventMap).reduce((a, b) => a + b, 0)) * 100
+          : 0,
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10)
+
     return {
-      totalSessions,
-      totalEvents,
+      totalConversions,
+      topEvents,
     }
-  }, [ga4CompletoData, dateRange])
+  }, [ga4EventData, dateRange])
 
   // Função para formatar números
   const formatNumber = (value: number): string => {
@@ -312,132 +348,139 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
     return value.toLocaleString("pt-BR")
   }
 
-  // Componente de gráfico de barras horizontais
+  // Componente de gráfico de barras horizontais com tooltip
   const HorizontalBarChart: React.FC<{
     title: string
     data: Array<{
       categoria?: string
       tipo?: string
-      plataforma?: string
-      campanha?: string
-      sessoes: number
+      medium?: string
+      source?: string
+      evento?: string
+      sessions?: number
+      sessoes?: number
+      count?: number
       percentual: number
       cor?: string
     }>
     showValues?: boolean
-  }> = ({ title, data, showValues = true }) => (
-    <div className="space-y-4">
-      <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-      <div className="space-y-3">
-        {data.map((item, index) => (
-          <div key={index} className="space-y-1">
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium text-gray-700">
-                {item.categoria || item.tipo || item.plataforma || item.campanha}
-              </span>
-              {showValues && (
-                <span className="text-sm text-gray-600">
-                  {formatNumber(item.sessoes)} ({item.percentual.toFixed(1)}%)
+  }> = ({ title, data, showValues = true }) => {
+    const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+
+    return (
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+        <div className="space-y-3">
+          {data.map((item, index) => (
+            <div key={index} className="space-y-1 relative">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-gray-700">
+                  {item.categoria || item.tipo || item.medium || item.source || item.evento}
                 </span>
-              )}
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-3">
+                {showValues && (
+                  <span className="text-sm text-gray-600">
+                    {formatNumber(item.sessions || item.sessoes || item.count || 0)} ({item.percentual.toFixed(1)}%)
+                  </span>
+                )}
+              </div>
               <div
-                className="h-3 rounded-full transition-all duration-500"
-                style={{
-                  width: `${Math.min(item.percentual, 100)}%`,
-                  backgroundColor: item.cor || "#6b7280",
-                }}
-              />
+                className="w-full bg-gray-200 rounded-full h-3 relative cursor-pointer"
+                onMouseEnter={() => setHoveredIndex(index)}
+                onMouseLeave={() => setHoveredIndex(null)}
+              >
+                <div
+                  className="h-3 rounded-full transition-all duration-500"
+                  style={{
+                    width: `${Math.min(item.percentual, 100)}%`,
+                    backgroundColor: item.cor || "#6b7280",
+                  }}
+                />
+                {hoveredIndex === index && (
+                  <div className="absolute top-full mt-2 left-0 z-10 bg-gray-900 text-white text-xs rounded px-2 py-1 shadow-lg">
+                    {item.categoria || item.tipo || item.medium || item.source || item.evento}: {formatNumber(item.sessions || item.sessoes || item.count || 0)}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </div>
-  )
-
-  // Função para converter hex para RGB
-  const hexToRgb = (hex: string): { r: number; g: number; b: number } => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-    return result
-      ? {
-          r: Number.parseInt(result[1], 16),
-          g: Number.parseInt(result[2], 16),
-          b: Number.parseInt(result[3], 16),
-        }
-      : { r: 0, g: 0, b: 0 }
+    )
   }
 
-  // Função para converter RGB para hex
-  const rgbToHex = (r: number, g: number, b: number): string => {
-    return "#" + ((1 << 24) + (Math.round(r) << 16) + (Math.round(g) << 8) + Math.round(b)).toString(16).slice(1)
-  }
-
-  // Função para interpolar entre duas cores
-  const interpolateColor = (color1: string, color2: string, factor: number): string => {
-    const rgb1 = hexToRgb(color1)
-    const rgb2 = hexToRgb(color2)
-
-    const r = rgb1.r + (rgb2.r - rgb1.r) * factor
-    const g = rgb1.g + (rgb2.g - rgb1.g) * factor
-    const b = rgb1.b + (rgb2.b - rgb1.b) * factor
-
-    return rgbToHex(r, g, b)
-  }
-
+  // Função para obter cor de intensidade do mapa
   const getIntensityColor = (sessions: number): string => {
-    // Pega todos os valores de sessões já mapeados no mapa
-    const values = Object.values(processedResumoData.dadosRegiao)
+    const values = Object.values(processedEstadosData)
     const maxSessions = values.length > 0 ? Math.max(...values) : 0
 
-    if (sessions === 0 || maxSessions === 0) return "#e5e7eb" // Sem dados
+    if (sessions === 0 || maxSessions === 0) return "#e5e7eb"
 
     const intensity = sessions / maxSessions
 
-    // Nova paleta de cores
     const colors = {
-      muitoAlta: "#03045E", // Muito alta
-      alta: "#023E8A", // Alta
-      medio: "#0077B6", // Médio
-      baixa: "#0096C7", // Baixa
-      muitoBaixa: "#00B4D8", // Muito Baixa
+      muitoAlta: "#03045E",
+      alta: "#023E8A",
+      medio: "#0077B6",
+      baixa: "#0096C7",
+      muitoBaixa: "#00B4D8",
     }
 
-    // Criar transições suaves entre os níveis
+    const hexToRgb = (hex: string) => {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+      return result
+        ? {
+            r: Number.parseInt(result[1], 16),
+            g: Number.parseInt(result[2], 16),
+            b: Number.parseInt(result[3], 16),
+          }
+        : { r: 0, g: 0, b: 0 }
+    }
+
+    const rgbToHex = (r: number, g: number, b: number) => {
+      return "#" + ((1 << 24) + (Math.round(r) << 16) + (Math.round(g) << 8) + Math.round(b)).toString(16).slice(1)
+    }
+
+    const interpolateColor = (color1: string, color2: string, factor: number) => {
+      const rgb1 = hexToRgb(color1)
+      const rgb2 = hexToRgb(color2)
+
+      const r = rgb1.r + (rgb2.r - rgb1.r) * factor
+      const g = rgb1.g + (rgb2.g - rgb1.g) * factor
+      const b = rgb1.b + (rgb2.b - rgb1.b) * factor
+
+      return rgbToHex(r, g, b)
+    }
+
     if (intensity >= 0.8) {
-      // Entre Muito Alta (100%) e Alta (80%)
-      const factor = (intensity - 0.8) / 0.2 // Normaliza entre 0 e 1
+      const factor = (intensity - 0.8) / 0.2
       return interpolateColor(colors.alta, colors.muitoAlta, factor)
     } else if (intensity >= 0.6) {
-      // Entre Alta (80%) e Médio (60%)
       const factor = (intensity - 0.6) / 0.2
       return interpolateColor(colors.medio, colors.alta, factor)
     } else if (intensity >= 0.4) {
-      // Entre Médio (60%) e Baixa (40%)
       const factor = (intensity - 0.4) / 0.2
       return interpolateColor(colors.baixa, colors.medio, factor)
     } else if (intensity >= 0.2) {
-      // Entre Baixa (40%) e Muito Baixa (20%)
       const factor = (intensity - 0.2) / 0.2
       return interpolateColor(colors.muitoBaixa, colors.baixa, factor)
     } else {
-      // Muito Baixa (0% - 20%)
       return colors.muitoBaixa
     }
   }
 
-  if (resumoLoading || completoLoading || sourceLoading) {
+  if (ga4Loading || estadosLoading || consolidadoLoading || eventLoading) {
     return <Loading message="Carregando dados de tráfego e engajamento..." />
   }
 
-  if (resumoError || completoError || sourceError) {
+  if (ga4Error || estadosError || consolidadoError || eventError) {
     return (
       <div className="p-6 text-center">
         <div className="text-red-500 mb-2">Erro ao carregar dados</div>
         <p className="text-gray-600">Não foi possível carregar os dados do GA4. Tente novamente.</p>
-        {resumoError && <p className="text-xs text-red-400">{resumoError.message}</p>}
-        {completoError && <p className="text-xs text-red-400">{completoError.message}</p>}
-        {sourceError && <p className="text-xs text-red-400">{sourceError.message}</p>}
+        {ga4Error && <p className="text-xs text-red-400">{ga4Error.message}</p>}
+        {estadosError && <p className="text-xs text-red-400">{estadosError.message}</p>}
+        {consolidadoError && <p className="text-xs text-red-400">{consolidadoError.message}</p>}
+        {eventError && <p className="text-xs text-red-400">{eventError.message}</p>}
       </div>
     )
   }
@@ -451,9 +494,10 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
         </div>
         <div>
           <h1 className="text-xl font-bold text-gray-900">Tráfego e Engajamento</h1>
-          <p className="text-xs text-gray-600">Receptivo da campanha</p>
+          <p className="text-xs text-gray-600">Google Analytics 4 - Banco da Amazônia</p>
         </div>
       </div>
+
       {/* Header Compacto com Filtro de Data e Cards de Métricas */}
       <div className="card-overlay rounded-lg shadow-lg p-4">
         <div className="grid grid-cols-12 gap-4 items-center">
@@ -479,14 +523,14 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
             </div>
           </div>
 
-          {/* Cards de Métricas - 6 cards ocupando 9 colunas */}
-          <div className="col-span-9 grid grid-cols-6 gap-3">
+          {/* Cards de Métricas - 5 cards ocupando 9 colunas */}
+          <div className="col-span-9 grid grid-cols-5 gap-3">
             <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-green-600">Sessões Campanha</p>
+                  <p className="text-xs font-medium text-green-600">Sessões</p>
                   <p className="text-lg font-bold text-green-900">
-                    {formatNumber(processedResumoData.receptivo.sessoesCampanha)}
+                    {formatNumber(processedGA4Data.totalSessions)}
                   </p>
                 </div>
                 <Users className="w-6 h-6 text-green-600" />
@@ -496,32 +540,32 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-blue-600">Cliques SaibaMais</p>
+                  <p className="text-xs font-medium text-blue-600">Novos Usuários</p>
                   <p className="text-lg font-bold text-blue-900">
-                    {formatNumber(processedResumoData.receptivo.cliquesSaibaMais)}
+                    {formatNumber(processedConsolidadoData.totalNewUsers)}
                   </p>
                 </div>
-                <MousePointer className="w-6 h-6 text-blue-600" />
+                <UserPlus className="w-6 h-6 text-blue-600" />
               </div>
             </div>
 
             <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-orange-600">Cliques nos CTAs</p>
+                  <p className="text-xs font-medium text-orange-600">Conversões</p>
                   <p className="text-lg font-bold text-orange-900">
-                    {formatNumber(processedResumoData.receptivo.cliquesCTAs)}
+                    {formatNumber(processedEventData.totalConversions)}
                   </p>
                 </div>
-                <MousePointer className="w-6 h-6 text-orange-600" />
+                <Target className="w-6 h-6 text-orange-600" />
               </div>
             </div>
 
             <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-purple-600">Duração sessões</p>
-                  <p className="text-lg font-bold text-purple-900">{processedResumoData.receptivo.duracaoSessoes}</p>
+                  <p className="text-xs font-medium text-purple-600">Duração média</p>
+                  <p className="text-lg font-bold text-purple-900">{processedConsolidadoData.avgDuration}</p>
                 </div>
                 <Clock className="w-6 h-6 text-purple-600" />
               </div>
@@ -530,20 +574,10 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
             <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg p-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-yellow-600">Sessões Totais</p>
-                  <p className="text-lg font-bold text-yellow-900">{formatNumber(processedSourceData.totalSessions)}</p>
+                  <p className="text-xs font-medium text-yellow-600">Visualizações</p>
+                  <p className="text-lg font-bold text-yellow-900">{formatNumber(processedGA4Data.totalViews)}</p>
                 </div>
                 <BarChart3 className="w-6 h-6 text-yellow-600" />
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-lg p-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-red-600">Eventos Totais</p>
-                  <p className="text-lg font-bold text-red-900">{formatNumber(processedCompletoData.totalEvents)}</p>
-                </div>
-                <TrendingUp className="w-6 h-6 text-red-600" />
               </div>
             </div>
           </div>
@@ -561,87 +595,29 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {/* Dispositivos */}
         <div className="card-overlay rounded-lg shadow-lg p-6">
-          <HorizontalBarChart title="Dispositivo" data={processedResumoData.dispositivos} />
+          <HorizontalBarChart title="Dispositivos" data={processedConsolidadoData.deviceData} />
         </div>
 
-        {/* Plataformas Detalhadas (Nova funcionalidade) */}
+        {/* Source */}
         <div className="card-overlay rounded-lg shadow-lg p-6">
-          <HorizontalBarChart title="Plataformas - Sessões Detalhadas" data={processedSourceData.veiculosDetalhados} />
+          <HorizontalBarChart title="Origem do Tráfego (Source)" data={processedGA4Data.sourceData} />
         </div>
 
-        {/* Mapa de Calor - Usando o novo componente */}
+        {/* Mapa de Calor */}
         <div className="card-overlay rounded-lg shadow-lg p-6">
-          <BrazilMap
-            regionData={processedResumoData.dadosRegiao}
-            getIntensityColor={(sessions) => {
-              const values = Object.values(processedResumoData.dadosRegiao)
-              const maxSessions = values.length > 0 ? Math.max(...values) : 0
+          <BrazilMap regionData={processedEstadosData} getIntensityColor={getIntensityColor} />
+        </div>
 
-              if (sessions === 0 || maxSessions === 0) return "#e5e7eb"
-
-              const intensity = sessions / maxSessions
-
-              const colors = {
-                muitoAlta: "#03045E",
-                alta: "#023E8A",
-                medio: "#0077B6",
-                baixa: "#0096C7",
-                muitoBaixa: "#00B4D8",
-              }
-
-              const hexToRgb = (hex: string) => {
-                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-                return result
-                  ? {
-                      r: Number.parseInt(result[1], 16),
-                      g: Number.parseInt(result[2], 16),
-                      b: Number.parseInt(result[3], 16),
-                    }
-                  : { r: 0, g: 0, b: 0 }
-              }
-
-              const rgbToHex = (r: number, g: number, b: number) => {
-                return (
-                  "#" + ((1 << 24) + (Math.round(r) << 16) + (Math.round(g) << 8) + Math.round(b)).toString(16).slice(1)
-                )
-              }
-
-              const interpolateColor = (color1: string, color2: string, factor: number) => {
-                const rgb1 = hexToRgb(color1)
-                const rgb2 = hexToRgb(color2)
-
-                const r = rgb1.r + (rgb2.r - rgb1.r) * factor
-                const g = rgb1.g + (rgb2.g - rgb1.g) * factor
-                const b = rgb1.b + (rgb2.b - rgb1.b) * factor
-
-                return rgbToHex(r, g, b)
-              }
-
-              if (intensity >= 0.8) {
-                const factor = (intensity - 0.8) / 0.2
-                return interpolateColor(colors.alta, colors.muitoAlta, factor)
-              } else if (intensity >= 0.6) {
-                const factor = (intensity - 0.6) / 0.2
-                return interpolateColor(colors.medio, colors.alta, factor)
-              } else if (intensity >= 0.4) {
-                const factor = (intensity - 0.4) / 0.2
-                return interpolateColor(colors.baixa, colors.medio, factor)
-              } else if (intensity >= 0.2) {
-                const factor = (intensity - 0.2) / 0.2
-                return interpolateColor(colors.muitoBaixa, colors.baixa, factor)
-              } else {
-                return colors.muitoBaixa
-              }
-            }}
-          />
+        {/* Top Eventos */}
+        <div className="card-overlay rounded-lg shadow-lg p-6 col-span-full">
+          <HorizontalBarChart title="Top 10 Eventos com Maior Interação" data={processedEventData.topEvents} />
         </div>
       </div>
 
       {/* Observações */}
       <div className="card-overlay rounded-lg shadow-lg p-4">
         <p className="text-sm text-gray-600">
-          <strong>Fontes:</strong> GA4 Resumo, GA4 Completo e GA4 Source. Os dados são atualizados todos os dias às 6
-          horas da manhã.
+          <strong>Fontes:</strong> Google Analytics 4 via Google Sheets API. Os dados são atualizados automaticamente.
         </p>
         <p className="text-xs text-gray-500 mt-2">
           <strong>Filtro de Data:</strong> Os dados são filtrados automaticamente com base no período selecionado. Todos

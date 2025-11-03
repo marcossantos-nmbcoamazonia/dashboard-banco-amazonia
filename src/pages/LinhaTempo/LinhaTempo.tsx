@@ -4,7 +4,7 @@ import type React from "react"
 import { useState, useEffect, useMemo, useRef } from "react"
 import { ResponsiveLine } from "@nivo/line"
 import { Calendar, Filter, TrendingUp, Play, Info, DollarSign, MousePointer, Eye, BarChart3 } from "lucide-react"
-import { useConsolidadoData } from "../../services/api"
+import { useData } from "../../contexts/DataContext"
 import Loading from "../../components/Loading/Loading"
 import PDFDownloadButton from "../../components/PDFDownloadButton/PDFDownloadButton"
 import AnaliseSemanal from "./components/AnaliseSemanal"
@@ -23,7 +23,6 @@ interface DataPoint {
   videoViews50: number
   videoViews75: number
   videoCompletions: number
-  videoStarts: number
   totalEngagements: number
   veiculo: string
   tipoCompra: string
@@ -45,10 +44,11 @@ interface VehicleEntry {
 
 const LinhaTempo: React.FC = () => {
   const contentRef = useRef<HTMLDivElement>(null)
-  const { data: apiData, loading, error } = useConsolidadoData()
+  const { data, campaigns, loading, error } = useData()
   const [processedData, setProcessedData] = useState<DataPoint[]>([])
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: "", end: "" })
   const [selectedVehicles, setSelectedVehicles] = useState<string[]>([])
+  const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null)
   const [availableVehicles, setAvailableVehicles] = useState<string[]>([])
   const [isWeeklyAnalysis, setIsWeeklyAnalysis] = useState(false)
   const [filteredData, setFilteredData] = useState<DataPoint[]>([])
@@ -83,9 +83,9 @@ const LinhaTempo: React.FC = () => {
 
   // Processar dados da API
   useEffect(() => {
-    if (apiData?.values) {
-      const headers = apiData.values[0]
-      const rows = apiData.values.slice(1)
+    if (data?.success && data?.data?.values) {
+      const headers = data.data.values[0]
+      const rows = data.data.values.slice(1)
 
       const processed: DataPoint[] = rows
         .map((row: any[]) => {
@@ -118,18 +118,17 @@ const LinhaTempo: React.FC = () => {
           }
 
           const dateIndex = headers.indexOf("Date")
-          const campaignNameIndex = headers.indexOf("Campaign name")
+          const campaignNameIndex = headers.indexOf("Campanha")
           const creativeTitleIndex = headers.indexOf("Creative title")
           const reachIndex = headers.indexOf("Reach")
           const impressionsIndex = headers.indexOf("Impressions")
           const clicksIndex = headers.indexOf("Clicks")
           const totalSpentIndex = headers.indexOf("Total spent")
-          const videoViewsIndex = headers.indexOf("Video views ")
+          const videoViewsIndex = headers.indexOf("Video views")
           const videoViews25Index = headers.indexOf("Video views at 25%")
           const videoViews50Index = headers.indexOf("Video views at 50%")
           const videoViews75Index = headers.indexOf("Video views at 75%")
-          const videoCompletionsIndex = headers.indexOf("Video completions ")
-          const videoStartsIndex = headers.indexOf("Video starts")
+          const videoCompletionsIndex = headers.indexOf("Video completions")
           const totalEngagementsIndex = headers.indexOf("Total engagements")
           const veiculoIndex = headers.indexOf("Veículo")
           const tipoCompraIndex = headers.indexOf("Tipo de Compra")
@@ -162,7 +161,6 @@ const LinhaTempo: React.FC = () => {
             videoViews50: parseInteger(row[videoViews50Index]),
             videoViews75: parseInteger(row[videoViews75Index]),
             videoCompletions: parseInteger(row[videoCompletionsIndex]),
-            videoStarts: parseInteger(row[videoStartsIndex]),
             totalEngagements: parseInteger(row[totalEngagementsIndex]),
             veiculo: row[veiculoIndex] || "Outros",
             tipoCompra: row[tipoCompraIndex] || "",
@@ -199,7 +197,7 @@ const LinhaTempo: React.FC = () => {
       setAvailableVehicles(vehicles)
       setSelectedVehicles([])
     }
-  }, [apiData])
+  }, [data])
 
   // Filtrar dados baseado nos filtros selecionados
   useEffect(() => {
@@ -215,11 +213,16 @@ const LinhaTempo: React.FC = () => {
         })
       }
 
+      // Filtrar por campanha selecionada
+      if (selectedCampaign) {
+        filtered = filtered.filter((item) => item.campaignName === selectedCampaign)
+      }
+
       setFilteredData(filtered)
     } else {
       setFilteredData([])
     }
-  }, [processedData, dateRange])
+  }, [processedData, dateRange, selectedCampaign])
 
   // Função para obter o valor da métrica de um item de dado
   const getMetricValue = (item: DataPoint, metric: typeof selectedMetric): number => {
@@ -428,6 +431,7 @@ const LinhaTempo: React.FC = () => {
           processedData={processedData}
           availableVehicles={availableVehicles}
           platformColors={platformColors}
+          campaigns={campaigns}
           onBack={() => setIsWeeklyAnalysis(false)}
         />
       </div>
@@ -456,7 +460,37 @@ const LinhaTempo: React.FC = () => {
 
       {/* Filtros */}
       <div className="card-overlay rounded-lg shadow-lg p-4">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          {/* Filtro de Campanha */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+              <Filter className="w-4 h-4 mr-2" />
+              Campanha
+            </label>
+            <div className="relative">
+              <select
+                value={selectedCampaign || ""}
+                onChange={(e) => setSelectedCampaign(e.target.value || null)}
+                className="w-full px-4 py-2 bg-white border-2 border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 appearance-none cursor-pointer"
+              >
+                <option value="">Todas as campanhas</option>
+                {campaigns.map((campaign) => (
+                  <option key={campaign.name} value={campaign.name}>
+                    {campaign.name}
+                  </option>
+                ))}
+              </select>
+              <svg
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
+
           {/* Filtro de Data */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">

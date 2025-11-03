@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useEffect, useMemo } from "react"
 import { Users, Calendar, Filter, ShoppingCart, Info } from "lucide-react"
-import { useConsolidadoData } from "../../services/api"
+import { useData } from "../../contexts/DataContext"
 import Loading from "../../components/Loading/Loading"
 
 interface ProcessedData {
@@ -41,11 +41,12 @@ interface PlatformMetrics {
 }
 
 const Alcance: React.FC = () => {
-  const { data: apiData, loading, error } = useConsolidadoData()
+  const { data: apiData, campaigns, loading, error } = useData()
   const [processedData, setProcessedData] = useState<ProcessedData[]>([])
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: "", end: "" })
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
   const [selectedTiposCompra, setSelectedTiposCompra] = useState<string[]>([])
+  const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null)
   const [availablePlatforms, setAvailablePlatforms] = useState<string[]>([])
   const [availableTiposCompra, setAvailableTiposCompra] = useState<string[]>([])
 
@@ -84,9 +85,9 @@ const Alcance: React.FC = () => {
 
   // Processar dados da API
   useEffect(() => {
-    if (apiData?.values) {
-      const headers = apiData.values[0]
-      const rows = apiData.values.slice(1)
+    if (apiData?.success && apiData?.data?.values) {
+      const headers = apiData.data.values[0]
+      const rows = apiData.data.values.slice(1)
 
       const processed: ProcessedData[] = rows
         .map((row: string[]) => {
@@ -100,20 +101,32 @@ const Alcance: React.FC = () => {
             return Number.parseInt(value.replace(/[.\s]/g, "").replace(",", "")) || 0
           }
 
+          const rawPlatform = row[headers.indexOf("Veículo")] || "Outros"
+          // Normalizar plataforma: mapear "Audience Network" e "unknown" para "Meta"
+          const normalizedPlatform =
+            rawPlatform.toLowerCase() === 'audience network' || rawPlatform.toLowerCase() === 'unknown'
+              ? 'Meta'
+              : rawPlatform
+
+          const impressions = parseInteger(row[headers.indexOf("Impressions")])
+          const videoCompletions = parseInteger(row[headers.indexOf("Video completions")] || "0")
+          const videoViews = parseInteger(row[headers.indexOf("Video views")] || "0")
+          const cost = parseNumber(row[headers.indexOf("Total spent")])
+
           return {
             date: row[headers.indexOf("Date")] || "",
-            platform: row[headers.indexOf("Veículo")] || "Outros",
-            campaignName: row[headers.indexOf("Campaign name")] || "",
-            impressions: parseInteger(row[headers.indexOf("Impressions")]),
-            cost: parseNumber(row[headers.indexOf("Total spent")]),
+            platform: normalizedPlatform,
+            campaignName: row[headers.indexOf("Campanha")] || "",
+            impressions: impressions,
+            cost: cost,
             reach: parseInteger(row[headers.indexOf("Reach")]),
             clicks: parseInteger(row[headers.indexOf("Clicks")]),
             frequency: parseNumber(row[headers.indexOf("Frequency")]) || 1,
             cpm: parseNumber(row[headers.indexOf("CPM")]),
             linkClicks: parseInteger(row[headers.indexOf("Link clicks")]),
-            visualizacoes100: parseInteger(row[headers.indexOf("Video views")]),
-            cpv: parseNumber(row[headers.indexOf("CPV")]),
-            vtr100: parseNumber(row[headers.indexOf("VTR")]),
+            visualizacoes100: videoCompletions,
+            cpv: videoViews > 0 ? cost / videoViews : 0,
+            vtr100: impressions > 0 && videoCompletions > 0 ? (videoCompletions / impressions) * 100 : 0,
             tipoCompra: row[headers.indexOf("Tipo de Compra")] || "CPM",
           } as ProcessedData
         })
@@ -201,8 +214,13 @@ const Alcance: React.FC = () => {
       filtered = filtered.filter((item) => selectedTiposCompra.includes(item.tipoCompra))
     }
 
+    // Filtro por campanha
+    if (selectedCampaign) {
+      filtered = filtered.filter((item) => item.campaignName === selectedCampaign)
+    }
+
     return filtered
-  }, [processedData, dateRange, selectedPlatforms, selectedTiposCompra])
+  }, [processedData, dateRange, selectedPlatforms, selectedTiposCompra, selectedCampaign])
 
   // Função para ordenar tipos de compra na ordem correta
   const sortTiposCompra = (tipos: string[]): string[] => {
@@ -549,7 +567,37 @@ const Alcance: React.FC = () => {
 
       {/* Filtros */}
       <div className="card-overlay rounded-lg shadow-lg p-4">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          {/* Filtro de Campanha */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+              <Filter className="w-4 h-4 mr-2" />
+              Campanha
+            </label>
+            <div className="relative">
+              <select
+                value={selectedCampaign || ""}
+                onChange={(e) => setSelectedCampaign(e.target.value || null)}
+                className="w-full px-4 py-2 bg-white border-2 border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 appearance-none cursor-pointer"
+              >
+                <option value="">Todas as campanhas</option>
+                {campaigns.map((campaign) => (
+                  <option key={campaign.name} value={campaign.name}>
+                    {campaign.name}
+                  </option>
+                ))}
+              </select>
+              <svg
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
+
           {/* Filtro de Data */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">

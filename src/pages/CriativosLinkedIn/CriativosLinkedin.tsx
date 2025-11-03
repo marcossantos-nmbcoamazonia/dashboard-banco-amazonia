@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useEffect, useMemo } from "react"
 import { Linkedin, Calendar, Filter, ArrowUpDown } from "lucide-react"
-import { useCartaoLinkedInData, usePontuacaoLinkedInData } from "../../services/api"
+import { useLinkedInCreatives } from "../../services/consolidadoApi"
 import Loading from "../../components/Loading/Loading"
 
 interface CreativeData {
@@ -32,8 +32,7 @@ interface CreativeData {
 }
 
 const CriativosLinkedIn: React.FC = () => {
-  const { data: apiData, loading, error } = useCartaoLinkedInData()
-  const { data: pontuacaoData, loading: pontuacaoLoading, error: pontuacaoError } = usePontuacaoLinkedInData()
+  const { data: apiData, loading, error } = useLinkedInCreatives()
 
   const [processedData, setProcessedData] = useState<CreativeData[]>([])
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: "", end: "" })
@@ -51,25 +50,9 @@ const CriativosLinkedIn: React.FC = () => {
 
   // Processar dados da API
   useEffect(() => {
-    if (apiData?.values && pontuacaoData?.values) {
-      const pontuacaoHeaders = pontuacaoData.values[0]
-      const pontuacaoRows = pontuacaoData.values.slice(1)
-      const pontuacaoMap = new Map<string, any>()
-      pontuacaoRows.forEach((row: string[]) => {
-        const creativeTitle = row[pontuacaoHeaders.indexOf("Creative title")]
-        if (creativeTitle) {
-          pontuacaoMap.set(creativeTitle.trim(), {
-            pontuacao: Number.parseFloat(
-              row[pontuacaoHeaders.indexOf("Pontuacao de criativo")]?.replace(",", ".") || "0",
-            ),
-            tipoCompra: row[pontuacaoHeaders.indexOf("Tipo de Compra")],
-            videoEstaticoAudio: row[pontuacaoHeaders.indexOf("video_estatico_audio")],
-          })
-        }
-      })
-
-      const headers = apiData.values[0]
-      const rows = apiData.values.slice(1)
+    if (apiData?.success && apiData?.data?.values) {
+      const headers = apiData.data.values[0]
+      const rows = apiData.data.values.slice(1)
 
       const tiposCompraSet = new Set<string>()
       const videoEstaticoAudioSet = new Set<string>()
@@ -87,10 +70,12 @@ const CriativosLinkedIn: React.FC = () => {
           }
 
           const creativeTitle = row[headers.indexOf("Creative Direct Sponsored Content name")]?.trim() || ""
-          const scoreData = pontuacaoMap.get(creativeTitle)
+          const tipoCompra = row[headers.indexOf("Tipo de Compra")] || row[headers.indexOf("tipo_compra")] || ""
+          const videoEstaticoAudio = row[headers.indexOf("video_estatico_audio")] || row[headers.indexOf("Formato")] || ""
+          const pontuacaoCriativo = parseNumber(row[headers.indexOf("Pontuacao de criativo")] || row[headers.indexOf("pontuacao")] || "0")
 
-          if (scoreData?.tipoCompra) tiposCompraSet.add(scoreData.tipoCompra)
-          if (scoreData?.videoEstaticoAudio) videoEstaticoAudioSet.add(scoreData.videoEstaticoAudio)
+          if (tipoCompra) tiposCompraSet.add(tipoCompra)
+          if (videoEstaticoAudio) videoEstaticoAudioSet.add(videoEstaticoAudio)
 
           return {
             date: row[headers.indexOf("Date")] || "",
@@ -112,9 +97,9 @@ const CriativosLinkedIn: React.FC = () => {
             videoCompletions: parseInteger(row[headers.indexOf("Video completions ")]),
             videoStarts: parseInteger(row[headers.indexOf("Video starts")]),
             totalEngagements: parseInteger(row[headers.indexOf("Total engagements")]),
-            pontuacaoCriativo: scoreData?.pontuacao,
-            tipoCompra: scoreData?.tipoCompra,
-            videoEstaticoAudio: scoreData?.videoEstaticoAudio,
+            pontuacaoCriativo: pontuacaoCriativo > 0 ? pontuacaoCriativo : undefined,
+            tipoCompra: tipoCompra || undefined,
+            videoEstaticoAudio: videoEstaticoAudio || undefined,
           } as CreativeData
         })
         .filter((item: CreativeData) => item.date && item.impressions > 0)
@@ -138,7 +123,7 @@ const CriativosLinkedIn: React.FC = () => {
       })
       setAvailableCampaigns(Array.from(campaignSet).filter(Boolean))
     }
-  }, [apiData, pontuacaoData])
+  }, [apiData])
 
   // Filtrar dados
   const filteredData = useMemo(() => {
@@ -253,14 +238,14 @@ const CriativosLinkedIn: React.FC = () => {
     return text.substring(0, maxLength) + "..."
   }
 
-  if (loading || pontuacaoLoading) {
+  if (loading) {
     return <Loading message="Carregando criativos LinkedIn..." />
   }
 
-  if (error || pontuacaoError) {
+  if (error) {
     return (
       <div className="bg-red-50/90 backdrop-blur-sm border border-red-200 rounded-lg p-4">
-        <p className="text-red-600">Erro ao carregar dados: {error?.message || pontuacaoError?.message}</p>
+        <p className="text-red-600">Erro ao carregar dados: {error?.message}</p>
       </div>
     )
   }
