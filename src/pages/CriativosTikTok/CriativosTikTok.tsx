@@ -32,7 +32,6 @@ interface CreativeData {
   paidComments: number
   paidShares: number
   paidFollows: number
-  pontuacaoCriativo?: number
   tipoCompra?: string
   videoEstaticoAudio?: string
   ctr: number
@@ -76,41 +75,40 @@ const CriativosTikTok: React.FC = () => {
             return Number.parseInt(value.replace(/[.\s]/g, "").replace(",", "")) || 0
           }
 
-          const adName = row[headers.indexOf("Ad name")]?.trim() || ""
-          const tipoCompra = row[headers.indexOf("Tipo de Compra")] || row[headers.indexOf("tipo_compra")] || ""
-          const videoEstaticoAudio = row[headers.indexOf("video_estatico_audio")] || row[headers.indexOf("Formato")] || ""
-          const pontuacaoCriativo = parseNumber(row[headers.indexOf("Pontuacao de criativo")] || row[headers.indexOf("pontuacao")] || "0")
+          const adName = row[headers.indexOf("Nome do anúncio")]?.trim() || ""
+          const tipoCompra = row[headers.indexOf("Tipo de Compra")] || ""
+          const videoEstaticoAudio = row[headers.indexOf("Formato")] || ""
 
           if (tipoCompra) tiposCompraSet.add(tipoCompra)
           if (videoEstaticoAudio) videoEstaticoAudioSet.add(videoEstaticoAudio)
 
           return {
-            date: row[headers.indexOf("Date")] || "",
-            campaignName: row[headers.indexOf("Campaign name")] || "",
-            adGroupName: row[headers.indexOf("Ad group name")] || "",
+            date: row[headers.indexOf("Por dia")] || "",
+            campaignName: row[headers.indexOf("Nome da campanha")] || "",
+            adGroupName: row[headers.indexOf("Nome do grupo de anúncios")] || "",
             adName: adName,
-            adText: row[headers.indexOf("Ad text")] || "",
-            videoThumbnailUrl: row[headers.indexOf("Video thumbnail URL")] || "",
-            impressions: parseInteger(row[headers.indexOf("Impressions")]),
-            clicks: parseInteger(row[headers.indexOf("Clicks")]),
-            cost: parseNumber(row[headers.indexOf("Cost")]),
-            cpc: parseNumber(row[headers.indexOf("CPC")]),
-            cpm: parseNumber(row[headers.indexOf("CPM")]),
-            reach: parseInteger(row[headers.indexOf("Reach")]),
-            frequency: parseNumber(row[headers.indexOf("Frequency")]),
-            results: parseInteger(row[headers.indexOf("Results")]),
-            videoViews: parseInteger(row[headers.indexOf("Video views")]),
-            twoSecondVideoViews: parseInteger(row[headers.indexOf("2-second video views")]),
-            videoViews25: parseInteger(row[headers.indexOf("Video views at 25%")]),
-            videoViews50: parseInteger(row[headers.indexOf("Video views at 50%")]),
-            videoViews75: parseInteger(row[headers.indexOf("Video views at 75%")]),
-            videoViews100: parseInteger(row[headers.indexOf("Video views at 100%")]),
-            profileVisits: parseInteger(row[headers.indexOf("Profile visits")]),
-            paidLikes: parseInteger(row[headers.indexOf("Paid likes")]),
-            paidComments: parseInteger(row[headers.indexOf("Paid comments")]),
-            paidShares: parseInteger(row[headers.indexOf("Paid shares")]),
-            paidFollows: parseInteger(row[headers.indexOf("Paid follows")]),
-            pontuacaoCriativo: pontuacaoCriativo > 0 ? pontuacaoCriativo : undefined,
+            adText: row[headers.indexOf("Texto")] || "",
+            videoThumbnailUrl: row[headers.indexOf("Criativo")] || "",
+            impressions: parseInteger(row[headers.indexOf("Impressões")]),
+            clicks: parseInteger(row[headers.indexOf("Cliques (Destino)")]),
+            cost: parseNumber(row[headers.indexOf("Custo")]),
+            cpc: 0, // Calculated later
+            cpm: 0, // Calculated later
+            reach: parseInteger(row[headers.indexOf("Alcance")]),
+            frequency: 0, // Calculated later
+            results: 0, // Not available in API
+            videoViews: parseInteger(row[headers.indexOf("Visualizações de vídeo")]),
+            twoSecondVideoViews: parseInteger(row[headers.indexOf("Visualizações de vídeo por 2 segundos")]),
+            videoViews25: parseInteger(row[headers.indexOf("Visualizações de 25% do vídeo")]),
+            videoViews50: parseInteger(row[headers.indexOf("Visualizações de 50% do vídeo")]),
+            videoViews75: parseInteger(row[headers.indexOf("Visualizações de 75% do vídeo")]),
+            videoViews100: parseInteger(row[headers.indexOf("Visualizações de 100% do vídeo")]),
+            profileVisits: parseInteger(row[headers.indexOf("Visitas pagas ao perfil")]),
+            paidLikes: parseInteger(row[headers.indexOf("Curtidas pagas")]),
+            paidComments: parseInteger(row[headers.indexOf("Comentários pagos")]),
+            paidShares: parseInteger(row[headers.indexOf("Compartilhamentos pagos")]),
+            paidFollows: parseInteger(row[headers.indexOf("Seguidores pagos")]),
+            pontuacaoCriativo: undefined, // Not available in API
             tipoCompra: tipoCompra || undefined,
             videoEstaticoAudio: videoEstaticoAudio || undefined,
             ctr: 0,
@@ -198,12 +196,10 @@ const CriativosTikTok: React.FC = () => {
     }))
 
     finalData.sort((a, b) => {
-      const scoreA = a.pontuacaoCriativo ?? -1
-      const scoreB = b.pontuacaoCriativo ?? -1
       if (sortOrder === "desc") {
-        return scoreB - scoreA
+        return b.cost - a.cost
       }
-      return scoreA - scoreB
+      return a.cost - b.cost
     })
 
     return finalData
@@ -446,15 +442,6 @@ const CriativosTikTok: React.FC = () => {
                 <th className="text-right py-3 px-4 font-semibold min-w-[7.5rem]">CTR / VTR</th>
                 <th className="text-right py-3 px-4 font-semibold min-w-[7.5rem]">Tipo Compra</th>
                 <th className="text-right py-3 px-4 font-semibold min-w-[7.5rem]">Formato</th>
-                <th
-                  className="text-right py-3 px-4 font-semibold min-w-[7.5rem] cursor-pointer"
-                  onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-                >
-                  <div className="flex items-center justify-end">
-                    Pontuação
-                    <ArrowUpDown className="w-4 h-4 ml-2" />
-                  </div>
-                </th>
               </tr>
             </thead>
             <tbody>
@@ -517,9 +504,6 @@ const CriativosTikTok: React.FC = () => {
                     </td>
                     <td className="py-3 px-4 text-right min-w-[7.5rem]">{creative.tipoCompra || "-"}</td>
                     <td className="py-3 px-4 text-right min-w-[7.5rem]">{creative.videoEstaticoAudio || "-"}</td>
-                    <td className="py-3 px-4 text-right min-w-[7.5rem] font-bold">
-                      {creative.pontuacaoCriativo?.toFixed(2) ?? "-"}
-                    </td>
                   </tr>
                 )
               })}

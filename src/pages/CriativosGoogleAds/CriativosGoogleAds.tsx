@@ -14,11 +14,17 @@ interface CreativeData {
   impressions: number
   clicks: number
   cost: number
-  conversions: number
+  videoViews: number
+  videoViews25: number
+  videoViews50: number
+  videoViews75: number
+  videoViews100: number
+  engagements: number
+  tipoCompra: string
   ctr: number
   cpc: number
   cpm: number
-  conversionRate: number
+  vtr: number
 }
 
 const CriativosGoogleAds: React.FC = () => {
@@ -47,21 +53,27 @@ const CriativosGoogleAds: React.FC = () => {
         return Number.parseInt(value.replace(/[.\s]/g, "").replace(",", "")) || 0
       }
 
-      const dateIndex = headers.indexOf("Date")
-      const campaignIndex = headers.indexOf("Campaign") || headers.indexOf("Campanha")
-      const adGroupIndex = headers.indexOf("Ad group") || headers.indexOf("Grupo de anúncios")
-      const adIndex = headers.indexOf("Ad") || headers.indexOf("Anúncio")
-      const impressionsIndex = headers.indexOf("Impressions") || headers.indexOf("Impressões")
-      const clicksIndex = headers.indexOf("Clicks") || headers.indexOf("Cliques")
-      const costIndex = headers.indexOf("Cost") || headers.indexOf("Custo")
-      const conversionsIndex = headers.indexOf("Conversions") || headers.indexOf("Conversões")
+      const dateIndex = headers.indexOf("Day")
+      const campaignIndex = headers.indexOf("Campaign Name")
+      const adGroupIndex = headers.indexOf("Ad Group Name")
+      const adIndex = headers.indexOf("Ad Name")
+      const impressionsIndex = headers.indexOf("Impressions")
+      const clicksIndex = headers.indexOf("Clicks")
+      const costIndex = headers.indexOf("Cost (Spend)")
+      const videoViewsIndex = headers.indexOf("Video Views")
+      const videoViews25Index = headers.indexOf("Video played to 25%")
+      const videoViews50Index = headers.indexOf("Video played to 50%")
+      const videoViews75Index = headers.indexOf("Video played to 75%")
+      const videoViews100Index = headers.indexOf("Video played to 100%")
+      const engagementsIndex = headers.indexOf("Engagements")
+      const tipoCompraIndex = headers.indexOf("Tipo de Compra")
 
       const processed: CreativeData[] = rows
         .map((row: string[]) => {
           const impressions = parseInteger(row[impressionsIndex])
           const clicks = parseInteger(row[clicksIndex])
           const cost = parseNumber(row[costIndex])
-          const conversions = parseNumber(row[conversionsIndex])
+          const videoViews = parseInteger(row[videoViewsIndex])
 
           return {
             date: row[dateIndex] || "",
@@ -71,11 +83,17 @@ const CriativosGoogleAds: React.FC = () => {
             impressions,
             clicks,
             cost,
-            conversions,
+            videoViews,
+            videoViews25: parseInteger(row[videoViews25Index]),
+            videoViews50: parseInteger(row[videoViews50Index]),
+            videoViews75: parseInteger(row[videoViews75Index]),
+            videoViews100: parseInteger(row[videoViews100Index]),
+            engagements: parseInteger(row[engagementsIndex]),
+            tipoCompra: row[tipoCompraIndex] || "",
             ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
             cpc: clicks > 0 ? cost / clicks : 0,
             cpm: impressions > 0 ? cost / (impressions / 1000) : 0,
-            conversionRate: clicks > 0 ? (conversions / clicks) * 100 : 0,
+            vtr: impressions > 0 ? (videoViews / impressions) * 100 : 0,
           } as CreativeData
         })
         .filter((item: CreativeData) => item.date && item.impressions > 0)
@@ -121,7 +139,12 @@ const CriativosGoogleAds: React.FC = () => {
         groupedData[key].impressions += item.impressions
         groupedData[key].clicks += item.clicks
         groupedData[key].cost += item.cost
-        groupedData[key].conversions += item.conversions
+        groupedData[key].videoViews += item.videoViews
+        groupedData[key].videoViews25 += item.videoViews25
+        groupedData[key].videoViews50 += item.videoViews50
+        groupedData[key].videoViews75 += item.videoViews75
+        groupedData[key].videoViews100 += item.videoViews100
+        groupedData[key].engagements += item.engagements
       }
     })
 
@@ -130,7 +153,7 @@ const CriativosGoogleAds: React.FC = () => {
       cpm: item.impressions > 0 ? item.cost / (item.impressions / 1000) : 0,
       cpc: item.clicks > 0 ? item.cost / item.clicks : 0,
       ctr: item.impressions > 0 ? (item.clicks / item.impressions) * 100 : 0,
-      conversionRate: item.clicks > 0 ? (item.conversions / item.clicks) * 100 : 0,
+      vtr: item.impressions > 0 ? (item.videoViews / item.impressions) * 100 : 0,
     }))
 
     finalData.sort((a, b) => {
@@ -155,11 +178,11 @@ const CriativosGoogleAds: React.FC = () => {
       investment: filteredData.reduce((sum, item) => sum + item.cost, 0),
       impressions: filteredData.reduce((sum, item) => sum + item.impressions, 0),
       clicks: filteredData.reduce((sum, item) => sum + item.clicks, 0),
-      conversions: filteredData.reduce((sum, item) => sum + item.conversions, 0),
+      videoViews: filteredData.reduce((sum, item) => sum + item.videoViews, 0),
       avgCpm: 0,
       avgCpc: 0,
       ctr: 0,
-      conversionRate: 0,
+      vtr: 0,
     }
   }, [filteredData])
 
@@ -167,7 +190,7 @@ const CriativosGoogleAds: React.FC = () => {
     totals.avgCpm = totals.impressions > 0 ? totals.investment / (totals.impressions / 1000) : 0
     totals.avgCpc = totals.clicks > 0 ? totals.investment / totals.clicks : 0
     totals.ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0
-    totals.conversionRate = totals.clicks > 0 ? (totals.conversions / totals.clicks) * 100 : 0
+    totals.vtr = totals.impressions > 0 ? (totals.videoViews / totals.impressions) * 100 : 0
   }
 
   const formatNumber = (value: number): string => {
@@ -281,8 +304,8 @@ const CriativosGoogleAds: React.FC = () => {
         </div>
 
         <div className="card-overlay rounded-lg shadow-lg p-4 text-center">
-          <div className="text-sm text-gray-600 mb-1">Conversões</div>
-          <div className="text-lg font-bold text-gray-900">{formatNumber(totals.conversions)}</div>
+          <div className="text-sm text-gray-600 mb-1">Video Views</div>
+          <div className="text-lg font-bold text-gray-900">{formatNumber(totals.videoViews)}</div>
         </div>
 
         <div className="card-overlay rounded-lg shadow-lg p-4 text-center">
@@ -301,8 +324,8 @@ const CriativosGoogleAds: React.FC = () => {
         </div>
 
         <div className="card-overlay rounded-lg shadow-lg p-4 text-center">
-          <div className="text-sm text-gray-600 mb-1">Taxa Conversão</div>
-          <div className="text-lg font-bold text-gray-900">{totals.conversionRate.toFixed(2)}%</div>
+          <div className="text-sm text-gray-600 mb-1">VTR</div>
+          <div className="text-lg font-bold text-gray-900">{totals.vtr.toFixed(2)}%</div>
         </div>
       </div>
 
@@ -317,14 +340,16 @@ const CriativosGoogleAds: React.FC = () => {
                 <th className="text-right py-3 px-4 font-semibold min-w-[7.5rem]">Impressões</th>
                 <th className="text-right py-3 px-4 font-semibold min-w-[7.5rem]">Cliques</th>
                 <th className="text-right py-3 px-4 font-semibold min-w-[7.5rem]">CTR</th>
-                <th className="text-right py-3 px-4 font-semibold min-w-[7.5rem]">Conversões</th>
-                <th className="text-right py-3 px-4 font-semibold min-w-[7.5rem]">Taxa Conv.</th>
+                <th className="text-right py-3 px-4 font-semibold min-w-[7.5rem]">Video Views</th>
+                <th className="text-right py-3 px-4 font-semibold min-w-[7.5rem]">VTR</th>
+                <th className="text-right py-3 px-4 font-semibold min-w-[7.5rem]">Engajamentos</th>
+                <th className="text-right py-3 px-4 font-semibold min-w-[7.5rem]">Tipo de Compra</th>
                 <th
                   className="text-right py-3 px-4 font-semibold min-w-[7.5rem] cursor-pointer"
                   onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
                 >
                   <div className="flex items-center justify-end">
-                    CPC
+                    Custo
                     <ArrowUpDown className="w-4 h-4 ml-2" />
                   </div>
                 </th>
@@ -349,10 +374,12 @@ const CriativosGoogleAds: React.FC = () => {
                     <td className="py-3 px-4 text-right min-w-[7.5rem]">{formatNumber(creative.impressions)}</td>
                     <td className="py-3 px-4 text-right min-w-[7.5rem]">{formatNumber(creative.clicks)}</td>
                     <td className="py-3 px-4 text-right min-w-[7.5rem]">{creative.ctr.toFixed(2)}%</td>
-                    <td className="py-3 px-4 text-right min-w-[7.5rem]">{formatNumber(creative.conversions)}</td>
-                    <td className="py-3 px-4 text-right min-w-[7.5rem]">{creative.conversionRate.toFixed(2)}%</td>
+                    <td className="py-3 px-4 text-right min-w-[7.5rem]">{formatNumber(creative.videoViews)}</td>
+                    <td className="py-3 px-4 text-right min-w-[7.5rem]">{creative.vtr.toFixed(2)}%</td>
+                    <td className="py-3 px-4 text-right min-w-[7.5rem]">{formatNumber(creative.engagements)}</td>
+                    <td className="py-3 px-4 text-right min-w-[7.5rem]">{creative.tipoCompra}</td>
                     <td className="py-3 px-4 text-right min-w-[7.5rem] font-bold">
-                      {formatCurrency(creative.cpc)}
+                      {formatCurrency(creative.cost)}
                     </td>
                   </tr>
                 )

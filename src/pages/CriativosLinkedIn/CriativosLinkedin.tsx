@@ -14,7 +14,6 @@ interface CreativeData {
   creativeTitle: string
   creativeText: string
   creativeThumbnail: string
-  creativeThumbnailUrl: string
   reach: number
   impressions: number
   clicks: number
@@ -26,9 +25,6 @@ interface CreativeData {
   videoCompletions: number
   videoStarts: number
   totalEngagements: number
-  pontuacaoCriativo?: number
-  tipoCompra?: string
-  videoEstaticoAudio?: string
 }
 
 const CriativosLinkedIn: React.FC = () => {
@@ -54,59 +50,42 @@ const CriativosLinkedIn: React.FC = () => {
       const headers = apiData.data.values[0]
       const rows = apiData.data.values.slice(1)
 
-      const tiposCompraSet = new Set<string>()
-      const videoEstaticoAudioSet = new Set<string>()
+      const parseNumber = (value: string) => {
+        if (!value || value === "") return 0
+        return Number.parseFloat(value.replace(/[R$\s.]/g, "").replace(",", ".")) || 0
+      }
+
+      const parseInteger = (value: string) => {
+        if (!value || value === "") return 0
+        return Number.parseInt(value.replace(/[.\s]/g, "").replace(",", "")) || 0
+      }
 
       const processed: CreativeData[] = rows
         .map((row: string[]) => {
-          const parseNumber = (value: string) => {
-            if (!value || value === "") return 0
-            return Number.parseFloat(value.replace(/[R$\s.]/g, "").replace(",", ".")) || 0
-          }
-
-          const parseInteger = (value: string) => {
-            if (!value || value === "") return 0
-            return Number.parseInt(value.replace(/[.\s]/g, "").replace(",", "")) || 0
-          }
-
-          const creativeTitle = row[headers.indexOf("Creative Direct Sponsored Content name")]?.trim() || ""
-          const tipoCompra = row[headers.indexOf("Tipo de Compra")] || row[headers.indexOf("tipo_compra")] || ""
-          const videoEstaticoAudio = row[headers.indexOf("video_estatico_audio")] || row[headers.indexOf("Formato")] || ""
-          const pontuacaoCriativo = parseNumber(row[headers.indexOf("Pontuacao de criativo")] || row[headers.indexOf("pontuacao")] || "0")
-
-          if (tipoCompra) tiposCompraSet.add(tipoCompra)
-          if (videoEstaticoAudio) videoEstaticoAudioSet.add(videoEstaticoAudio)
-
           return {
-            date: row[headers.indexOf("Date")] || "",
-            accountName: row[headers.indexOf("Account name")] || "",
-            campaignGroupName: row[headers.indexOf("Campaign group name")] || "",
-            campaignName: row[headers.indexOf("Campaign name")] || "",
-            creativeTitle,
-            creativeText: row[headers.indexOf("Creative text")] || "",
-            creativeThumbnail: row[headers.indexOf("Creative thumbnail")] || "",
-            creativeThumbnailUrl: row[headers.indexOf("Creative thumbnail URL")] || "",
-            reach: parseInteger(row[headers.indexOf("Reach")]),
+            date: row[headers.indexOf("Day")] || "",
+            accountName: row[headers.indexOf("Account Name")] || "",
+            campaignGroupName: row[headers.indexOf("Campaign Group Name")] || "",
+            campaignName: row[headers.indexOf("Campaign Name")] || "",
+            creativeTitle: row[headers.indexOf("Ad Name")]?.trim() || "",
+            creativeText: row[headers.indexOf("Ad Text")] || "",
+            creativeThumbnail: row[headers.indexOf("Ad Thumbnail")] || "",
+            reach: parseInteger(row[headers.indexOf("Reach (new)")]),
             impressions: parseInteger(row[headers.indexOf("Impressions")]),
-            clicks: parseInteger(row[headers.indexOf("Clicks")]),
-            totalSpent: parseNumber(row[headers.indexOf("Total spent")]),
-            videoViews: parseInteger(row[headers.indexOf("Video views ")]),
-            videoViews25: parseInteger(row[headers.indexOf("Video views at 25%")]),
-            videoViews50: parseInteger(row[headers.indexOf("Video views at 50%")]),
-            videoViews75: parseInteger(row[headers.indexOf("Video views at 75%")]),
-            videoCompletions: parseInteger(row[headers.indexOf("Video completions ")]),
-            videoStarts: parseInteger(row[headers.indexOf("Video starts")]),
-            totalEngagements: parseInteger(row[headers.indexOf("Total engagements")]),
-            pontuacaoCriativo: pontuacaoCriativo > 0 ? pontuacaoCriativo : undefined,
-            tipoCompra: tipoCompra || undefined,
-            videoEstaticoAudio: videoEstaticoAudio || undefined,
+            clicks: parseInteger(row[headers.indexOf("Landing Page Clicks")]),
+            totalSpent: parseNumber(row[headers.indexOf("Cost In Local Currency (Spend)")]),
+            videoViews: parseInteger(row[headers.indexOf("Video Views")]),
+            videoViews25: parseInteger(row[headers.indexOf("Video First Quartile Completions")]),
+            videoViews50: parseInteger(row[headers.indexOf("Video Midpoint Completions")]),
+            videoViews75: parseInteger(row[headers.indexOf("Video Third Quartile Completions")]),
+            videoCompletions: parseInteger(row[headers.indexOf("Video Completions")]),
+            videoStarts: parseInteger(row[headers.indexOf("Video Starts")]),
+            totalEngagements: parseInteger(row[headers.indexOf("Total Engagements")]),
           } as CreativeData
         })
         .filter((item: CreativeData) => item.date && item.impressions > 0)
 
       setProcessedData(processed)
-      setAvailableTiposCompra(Array.from(tiposCompraSet))
-      setAvailableVideoEstaticoAudio(Array.from(videoEstaticoAudioSet))
 
       if (processed.length > 0) {
         const dates = processed.map((item) => new Date(item.date)).sort((a, b) => a.getTime() - b.getTime())
@@ -142,17 +121,9 @@ const CriativosLinkedIn: React.FC = () => {
       filtered = filtered.filter((item) => item.campaignName.includes(selectedCampaign))
     }
 
-    if (selectedTipoCompra) {
-      filtered = filtered.filter((item) => item.tipoCompra === selectedTipoCompra)
-    }
-
-    if (selectedVideoEstaticoAudio) {
-      filtered = filtered.filter((item) => item.videoEstaticoAudio === selectedVideoEstaticoAudio)
-    }
-
     const groupedData: Record<string, CreativeData> = {}
     filtered.forEach((item) => {
-      const key = `${item.creativeTitle}_${item.creativeThumbnailUrl}`
+      const key = `${item.creativeTitle}_${item.creativeThumbnail}`
       if (!groupedData[key]) {
         groupedData[key] = { ...item }
       } else {
@@ -172,16 +143,14 @@ const CriativosLinkedIn: React.FC = () => {
 
     const finalData = Object.values(groupedData)
     finalData.sort((a, b) => {
-      const scoreA = a.pontuacaoCriativo ?? -1
-      const scoreB = b.pontuacaoCriativo ?? -1
       if (sortOrder === "desc") {
-        return scoreB - scoreA
+        return b.totalSpent - a.totalSpent
       }
-      return scoreA - scoreB
+      return a.totalSpent - b.totalSpent
     })
 
     return finalData
-  }, [processedData, selectedCampaign, dateRange, selectedTipoCompra, selectedVideoEstaticoAudio, sortOrder])
+  }, [processedData, selectedCampaign, dateRange, sortOrder])
 
   // Paginação
   const paginatedData = useMemo(() => {
@@ -314,46 +283,6 @@ const CriativosLinkedIn: React.FC = () => {
               ))}
             </select>
           </div>
-
-          {/* Filtro Tipo de Compra */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
-              <Filter className="w-4 h-4 mr-2" />
-              Tipo de Compra
-            </label>
-            <select
-              value={selectedTipoCompra}
-              onChange={(e) => setSelectedTipoCompra(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            >
-              <option value="">Todos</option>
-              {availableTiposCompra.map((tipo, index) => (
-                <option key={index} value={tipo}>
-                  {tipo}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Filtro Formato */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
-              <Filter className="w-4 h-4 mr-2" />
-              Formato
-            </label>
-            <select
-              value={selectedVideoEstaticoAudio}
-              onChange={(e) => setSelectedVideoEstaticoAudio(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            >
-              <option value="">Todos</option>
-              {availableVideoEstaticoAudio.map((formato, index) => (
-                <option key={index} value={formato}>
-                  {formato}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
       </div>
 
@@ -412,17 +341,6 @@ const CriativosLinkedIn: React.FC = () => {
                 <th className="text-right py-3 px-4 font-semibold min-w-[7.5rem]">Impressões</th>
                 <th className="text-right py-3 px-4 font-semibold min-w-[7.5rem]">Cliques</th>
                 <th className="text-right py-3 px-4 font-semibold min-w-[7.5rem]">CTR</th>
-                <th className="text-right py-3 px-4 font-semibold min-w-[7.5rem]">Tipo Compra</th>
-                <th className="text-right py-3 px-4 font-semibold min-w-[7.5rem]">Formato</th>
-                <th
-                  className="text-right py-3 px-4 font-semibold min-w-[7.5rem] cursor-pointer"
-                  onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-                >
-                  <div className="flex items-center justify-end">
-                    Pontuação
-                    <ArrowUpDown className="w-4 h-4 ml-2" />
-                  </div>
-                </th>
               </tr>
             </thead>
             <tbody>
@@ -433,9 +351,9 @@ const CriativosLinkedIn: React.FC = () => {
                   <tr key={index} className={index % 2 === 0 ? "bg-blue-50" : "bg-white"}>
                     <td className="py-3 px-4 w-[5rem]">
                       <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
-                        {creative.creativeThumbnailUrl ? (
+                        {creative.creativeThumbnail ? (
                           <img
-                            src={creative.creativeThumbnailUrl || "/placeholder.svg"}
+                            src={creative.creativeThumbnail || "/placeholder.svg"}
                             alt="Criativo"
                             className="w-full h-full object-cover"
                             onError={(e) => {
@@ -472,11 +390,6 @@ const CriativosLinkedIn: React.FC = () => {
                     <td className="py-3 px-4 text-right min-w-[7.5rem]">{formatNumber(creative.impressions)}</td>
                     <td className="py-3 px-4 text-right min-w-[7.5rem]">{formatNumber(creative.clicks)}</td>
                     <td className="py-3 px-4 text-right min-w-[7.5rem]">{ctr.toFixed(2)}%</td>
-                    <td className="py-3 px-4 text-right min-w-[7.5rem]">{creative.tipoCompra || "-"}</td>
-                    <td className="py-3 px-4 text-right min-w-[7.5rem]">{creative.videoEstaticoAudio || "-"}</td>
-                    <td className="py-3 px-4 text-right min-w-[7.5rem] font-bold">
-                      {creative.pontuacaoCriativo?.toFixed(2) ?? "-"}
-                    </td>
                   </tr>
                 )
               })}

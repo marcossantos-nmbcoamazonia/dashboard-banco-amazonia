@@ -153,10 +153,10 @@ const Capa: React.FC = () => {
 
     const dateIndex = headers.indexOf("Date")
     const campaignIndex = headers.indexOf("Campanha")
-    const spentIndex = headers.indexOf("Total spent")
+    const spentIndex = headers.indexOf("Cost (Spend)")
     const impressionsIndex = headers.indexOf("Impressions")
     const clicksIndex = headers.indexOf("Clicks")
-    const videoViewsIndex = headers.indexOf("Video views")
+    const videoViewsIndex = headers.indexOf("Video Views")
 
     // Parsear números brasileiros
     const parseBrazilianCurrency = (value: string): number => {

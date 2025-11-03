@@ -146,11 +146,11 @@ export const processCampaigns = (data: ConsolidadoData): Campaign[] => {
   // Índices das colunas
   const dateIndex = headers.indexOf("Date")
   const campaignIndex = headers.indexOf("Campanha")
-  const spentIndex = headers.indexOf("Total spent")
+  const spentIndex = headers.indexOf("Cost (Spend)")
   const impressionsIndex = headers.indexOf("Impressions")
   const clicksIndex = headers.indexOf("Clicks")
-  const videoViewsIndex = headers.indexOf("Video views")
-  const engagementsIndex = headers.indexOf("Total engagements")
+  const videoViewsIndex = headers.indexOf("Video Views")
+  const engagementsIndex = headers.indexOf("Engagements")
   const reachIndex = headers.indexOf("Reach")
 
   // Mapa para armazenar campanhas
@@ -241,10 +241,10 @@ export const getLast7DaysMetrics = (data: ConsolidadoData): Last7DaysMetrics[] =
   const rows = data.data.values.slice(1)
 
   const dateIndex = headers.indexOf("Date")
-  const spentIndex = headers.indexOf("Total spent")
+  const spentIndex = headers.indexOf("Cost (Spend)")
   const impressionsIndex = headers.indexOf("Impressions")
   const clicksIndex = headers.indexOf("Clicks")
-  const videoViewsIndex = headers.indexOf("Video views")
+  const videoViewsIndex = headers.indexOf("Video Views")
 
   // Data de referência: ontem (não hoje, para evitar dados parciais)
   const yesterday = new Date()
