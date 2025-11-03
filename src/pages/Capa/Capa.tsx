@@ -153,7 +153,7 @@ const Capa: React.FC = () => {
 
     const dateIndex = headers.indexOf("Date")
     const campaignIndex = headers.indexOf("Campanha")
-    const spentIndex = headers.indexOf("Cost (Spend)")
+    const spentIndex = headers.indexOf("Total spent")
     const impressionsIndex = headers.indexOf("Impressions")
     const clicksIndex = headers.indexOf("Clicks")
     const videoViewsIndex = headers.indexOf("Video Views")

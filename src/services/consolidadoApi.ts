@@ -146,7 +146,7 @@ export const processCampaigns = (data: ConsolidadoData): Campaign[] => {
   // Índices das colunas
   const dateIndex = headers.indexOf("Date")
   const campaignIndex = headers.indexOf("Campanha")
-  const spentIndex = headers.indexOf("Cost (Spend)")
+  const spentIndex = headers.indexOf("Total spent")
   const impressionsIndex = headers.indexOf("Impressions")
   const clicksIndex = headers.indexOf("Clicks")
   const videoViewsIndex = headers.indexOf("Video Views")
@@ -241,7 +241,7 @@ export const getLast7DaysMetrics = (data: ConsolidadoData): Last7DaysMetrics[] =
   const rows = data.data.values.slice(1)
 
   const dateIndex = headers.indexOf("Date")
-  const spentIndex = headers.indexOf("Cost (Spend)")
+  const spentIndex = headers.indexOf("Total spent")
   const impressionsIndex = headers.indexOf("Impressions")
   const clicksIndex = headers.indexOf("Clicks")
   const videoViewsIndex = headers.indexOf("Video Views")
