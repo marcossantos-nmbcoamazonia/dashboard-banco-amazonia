@@ -277,10 +277,10 @@ const VisaoGeral: React.FC = () => {
           const videoCompletionsIndex = headers.indexOf("Video completions")
 
           const rawPlatform = row[veiculoIndex] || "Outros"
-          // Normalizar plataforma: mapear "Audience Network", "unknown" e "threads" para "Meta"
+          // Normalizar plataforma: mapear "Audience Network", "unknown", "threads" e "messenger" para "Meta"
           const normalizedPlatform = (() => {
             const lower = rawPlatform.toLowerCase()
-            if (lower === 'audience network' || lower === 'unknown' || lower === 'threads') {
+            if (lower === 'audience network' || lower === 'unknown' || lower === 'threads' || lower === 'messenger') {
               return 'Meta'
             }
             return rawPlatform
@@ -456,7 +456,7 @@ const VisaoGeral: React.FC = () => {
 
   const vtrChartData: ChartDataPoint[] = platformMetrics.map((metric) => ({
     platform: metric.platform,
-    value: metric.videoPlays > 0 ? (metric.videoCompletions / metric.videoPlays) * 100 : 0,
+    value: metric.impressions > 0 ? (metric.videoCompletions / metric.impressions) * 100 : 0,
     color: metric.color,
   }))
 

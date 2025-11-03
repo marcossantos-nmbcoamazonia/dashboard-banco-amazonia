@@ -806,6 +806,21 @@ export const fetchGA4EventData = async () => {
   }
 }
 
+// Função para buscar dados do GA4 Pages (páginas mais acessadas)
+export const fetchGA4PagesData = async () => {
+  try {
+    const url = `${GA4_API_BASE}?range=GA4%20-%20Pages`
+    console.log("GA4 Pages URL:", url)
+    const response = await axios.get(url)
+    console.log("GA4 Pages Response:", response.data)
+    console.log("GA4 Pages Range retornado:", response.data?.data?.range)
+    return response.data
+  } catch (error) {
+    console.error("Erro ao buscar dados do GA4 Pages:", error)
+    throw error
+  }
+}
+
 // Tipos de dados para as novas APIs do GA4
 interface GA4Data {
   success: boolean
@@ -904,6 +919,32 @@ export const useGA4EventData = () => {
     try {
       setLoading(true)
       const result = await fetchGA4EventData()
+      setData(result)
+      setError(null)
+    } catch (err) {
+      setError(err as Error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  return { data, loading, error, refetch: loadData }
+}
+
+// Hook para dados do GA4 Pages (páginas mais acessadas)
+export const useGA4PagesData = () => {
+  const [data, setData] = useState<GA4Data | null>(null)
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  const loadData = React.useCallback(async () => {
+    try {
+      setLoading(true)
+      const result = await fetchGA4PagesData()
       setData(result)
       setError(null)
     } catch (err) {

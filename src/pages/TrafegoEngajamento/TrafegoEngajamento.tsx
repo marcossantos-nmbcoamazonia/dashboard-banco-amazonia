@@ -9,6 +9,7 @@ import {
   useGA4EstadosData,
   useGA4ConsolidadoData,
   useGA4EventData,
+  useGA4PagesData,
 } from "../../services/api"
 import BrazilMap from "../../components/BrazilMap/BrazilMap"
 
@@ -50,6 +51,7 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
   const { data: ga4EstadosData, loading: estadosLoading, error: estadosError } = useGA4EstadosData()
   const { data: ga4ConsolidadoData, loading: consolidadoLoading, error: consolidadoError } = useGA4ConsolidadoData()
   const { data: ga4EventData, loading: eventLoading, error: eventError } = useGA4EventData()
+  const { data: ga4PagesData, loading: pagesLoading, error: pagesError } = useGA4PagesData()
 
   // Calcular a primeira data dos dados e a última data disponível como padrão
   const getDefaultDateRange = useMemo(() => {
@@ -337,6 +339,52 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
     }
   }, [ga4EventData, dateRange])
 
+  // Processamento dos dados de Páginas
+  const processedPagesData = useMemo(() => {
+    if (!ga4PagesData?.data?.values || ga4PagesData.data.values.length <= 1) {
+      return {
+        topPages: [],
+      }
+    }
+
+    const headers = ga4PagesData.data.values[0]
+    const rows = ga4PagesData.data.values.slice(1)
+
+    const dateIndex = headers.indexOf("Date")
+    const pageTitleIndex = headers.indexOf("Page title")
+    const sessionsIndex = headers.indexOf("Sessions")
+
+    const pageMap: { [key: string]: number } = {}
+
+    rows.forEach((row: any[]) => {
+      const date = row[dateIndex] || ""
+      if (!isDateInRange(date)) return
+
+      const pageTitle = row[pageTitleIndex] || "(not set)"
+      const sessions = Number.parseInt(row[sessionsIndex]) || 0
+
+      if (sessions > 0) {
+        pageMap[pageTitle] = (pageMap[pageTitle] || 0) + sessions
+      }
+    })
+
+    const totalSessions = Object.values(pageMap).reduce((a, b) => a + b, 0)
+
+    const topPages = Object.entries(pageMap)
+      .map(([pagina, sessions]) => ({
+        pagina,
+        sessions,
+        sessoes: sessions,
+        percentual: totalSessions > 0 ? (sessions / totalSessions) * 100 : 0,
+      }))
+      .sort((a, b) => b.sessions - a.sessions)
+      .slice(0, 10)
+
+    return {
+      topPages,
+    }
+  }, [ga4PagesData, dateRange])
+
   // Função para formatar números
   const formatNumber = (value: number): string => {
     if (value >= 1000000) {
@@ -357,6 +405,7 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
       medium?: string
       source?: string
       evento?: string
+      pagina?: string
       sessions?: number
       sessoes?: number
       count?: number
@@ -375,7 +424,7 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
             <div key={index} className="space-y-1 relative">
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium text-gray-700">
-                  {item.categoria || item.tipo || item.medium || item.source || item.evento}
+                  {item.categoria || item.tipo || item.medium || item.source || item.evento || item.pagina}
                 </span>
                 {showValues && (
                   <span className="text-sm text-gray-600">
@@ -397,7 +446,7 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
                 />
                 {hoveredIndex === index && (
                   <div className="absolute top-full mt-2 left-0 z-10 bg-gray-900 text-white text-xs rounded px-2 py-1 shadow-lg">
-                    {item.categoria || item.tipo || item.medium || item.source || item.evento}: {formatNumber(item.sessions || item.sessoes || item.count || 0)}
+                    {item.categoria || item.tipo || item.medium || item.source || item.evento || item.pagina}: {formatNumber(item.sessions || item.sessoes || item.count || 0)}
                   </div>
                 )}
               </div>
@@ -468,11 +517,11 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
     }
   }
 
-  if (ga4Loading || estadosLoading || consolidadoLoading || eventLoading) {
+  if (ga4Loading || estadosLoading || consolidadoLoading || eventLoading || pagesLoading) {
     return <Loading message="Carregando dados de tráfego e engajamento..." />
   }
 
-  if (ga4Error || estadosError || consolidadoError || eventError) {
+  if (ga4Error || estadosError || consolidadoError || eventError || pagesError) {
     return (
       <div className="p-6 text-center">
         <div className="text-red-500 mb-2">Erro ao carregar dados</div>
@@ -481,6 +530,7 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
         {estadosError && <p className="text-xs text-red-400">{estadosError.message}</p>}
         {consolidadoError && <p className="text-xs text-red-400">{consolidadoError.message}</p>}
         {eventError && <p className="text-xs text-red-400">{eventError.message}</p>}
+        {pagesError && <p className="text-xs text-red-400">{pagesError.message}</p>}
       </div>
     )
   }
@@ -608,9 +658,13 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
           <BrazilMap regionData={processedEstadosData} getIntensityColor={getIntensityColor} />
         </div>
 
-        {/* Top Eventos */}
-        <div className="card-overlay rounded-lg shadow-lg p-6 col-span-full">
+        {/* Top Eventos e Páginas Mais Acessadas */}
+        <div className="card-overlay rounded-lg shadow-lg p-6 col-span-full lg:col-span-1">
           <HorizontalBarChart title="Top 10 Eventos com Maior Interação" data={processedEventData.topEvents} />
+        </div>
+
+        <div className="card-overlay rounded-lg shadow-lg p-6 col-span-full lg:col-span-1">
+          <HorizontalBarChart title="Páginas Mais Acessadas" data={processedPagesData.topPages} />
         </div>
       </div>
 

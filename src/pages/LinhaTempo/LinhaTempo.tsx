@@ -147,11 +147,11 @@ const LinhaTempo: React.FC = () => {
           const originalDate = row[dateIndex]
           const formattedDate = parseDate(originalDate)
 
-          // Normalizar veículo: mapear "Audience Network", "unknown" e "threads" para "Meta"
+          // Normalizar veículo: mapear "Audience Network", "unknown", "threads" e "messenger" para "Meta"
           const rawVeiculo = row[veiculoIndex] || "Outros"
           const normalizedVeiculo = (() => {
             const lower = rawVeiculo.toLowerCase()
-            if (lower === 'audience network' || lower === 'unknown' || lower === 'threads') {
+            if (lower === 'audience network' || lower === 'unknown' || lower === 'threads' || lower === 'messenger') {
               return 'Meta'
             }
             return rawVeiculo

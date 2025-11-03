@@ -149,10 +149,10 @@ const Visualizacoes: React.FC = () => {
           const cost = parseNumber(row[totalSpentIndex])
 
           const rawPlatform = row[veiculoIndex] || "Outros"
-          // Normalizar plataforma: mapear "Audience Network", "unknown" e "threads" para "Meta"
+          // Normalizar plataforma: mapear "Audience Network", "unknown", "threads" e "messenger" para "Meta"
           const normalizedPlatform = (() => {
             const lower = rawPlatform.toLowerCase()
-            if (lower === 'audience network' || lower === 'unknown' || lower === 'threads') {
+            if (lower === 'audience network' || lower === 'unknown' || lower === 'threads' || lower === 'messenger') {
               return 'Meta'
             }
             return rawPlatform

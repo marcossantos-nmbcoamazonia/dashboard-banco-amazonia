@@ -69,12 +69,14 @@ const BrazilMap: React.FC<BrazilMapProps> = ({ regionData, getIntensityColor }) 
     y: number
     stateName: string
     sessions: number
+    percentage: number
   }>({
     visible: false,
     x: 0,
     y: 0,
     stateName: "",
     sessions: 0,
+    percentage: 0,
   })
 
   // Load Brazil GeoJSON data
@@ -150,6 +152,8 @@ const BrazilMap: React.FC<BrazilMapProps> = ({ regionData, getIntensityColor }) 
       .on("mouseover", function (this: SVGPathElement, event: MouseEvent, d: StateFeature) {
         const stateName = d.properties.name
         const sessions = regionData[stateName] || 0
+        const totalSessions = Object.values(regionData).reduce((a, b) => a + b, 0)
+        const percentage = totalSessions > 0 ? (sessions / totalSessions) * 100 : 0
 
         // Get mouse position relative to the page
         const [x, y] = d3.pointer(event, document.body)
@@ -159,6 +163,7 @@ const BrazilMap: React.FC<BrazilMapProps> = ({ regionData, getIntensityColor }) 
           y: y - 15,
           stateName: stateName,
           sessions: sessions,
+          percentage: percentage,
         })
         d3.select(this).attr("opacity", 0.8)
       })
@@ -263,6 +268,7 @@ const BrazilMap: React.FC<BrazilMapProps> = ({ regionData, getIntensityColor }) 
             >
               <div className="font-semibold mb-1">{tooltip.stateName}</div>
               <div className="text-blue-200">{formatNumber(tooltip.sessions)}</div>
+              <div className="text-green-200 text-xs mt-1">{tooltip.percentage.toFixed(1)}% do total</div>
             </div>
           )}
         </div>
