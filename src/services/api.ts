@@ -47,7 +47,7 @@ export const fetchResumoData = async () => {
 // NOVA FUNÇÃO para buscar dados off-line
 export const fetchOfflineData = async () => {
   try {
-    const response = await api.get("/cartao/off-line")
+    const response = await axios.get("https://nmbcoamazonia-api.vercel.app/google/sheets/1R1ehp35FAxdP1vhI1rT-mIYw3h9fuatHMiS__5V6Yok/data?range=Offline")
     return response.data
   } catch (error) {
     console.error("Erro ao buscar dados off-line:", error)
@@ -359,6 +359,43 @@ export const useCartaoLinkedInData = () => {
     try {
       setLoading(true)
       const result = await fetchCartaoLinkedInData()
+      setData(result)
+      setError(null)
+    } catch (err) {
+      setError(err as Error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  return { data, loading, error, refetch: loadData }
+}
+
+// Função para buscar dados do Kwai
+export const fetchCartaoKwaiData = async () => {
+  try {
+    const response = await axios.get("https://nmbcoamazonia-api.vercel.app/google/sheets/1R1ehp35FAxdP1vhI1rT-mIYw3h9fuatHMiS__5V6Yok/data?range=Kwai")
+    return response.data
+  } catch (error) {
+    console.error("Erro ao buscar dados do Kwai:", error)
+    throw error
+  }
+}
+
+// Hook personalizado para usar os dados do Kwai
+export const useCartaoKwaiData = () => {
+  const [data, setData] = React.useState<any>(null)
+  const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState<Error | null>(null)
+
+  const loadData = React.useCallback(async () => {
+    try {
+      setLoading(true)
+      const result = await fetchCartaoKwaiData()
       setData(result)
       setError(null)
     } catch (err) {

@@ -4,7 +4,6 @@ import { useState, useMemo } from "react"
 import { ResponsiveLine } from "@nivo/line"
 import {
   Clock,
-  Globe,
   BarChart3,
   Users,
   Eye,
@@ -41,13 +40,6 @@ const navigationCards: NavigationCard[] = [
     path: "/linha-tempo",
     icon: <Clock className="w-6 h-6" />,
     color: "bg-green-500",
-  },
-  {
-    title: "Estratégia Online",
-    description: "Planejamento e execução da estratégia digital",
-    path: "/estrategia-online",
-    icon: <Globe className="w-6 h-6" />,
-    color: "bg-purple-500",
   },
   {
     title: "Visão Geral",
@@ -120,6 +112,19 @@ const navigationCards: NavigationCard[] = [
       </svg>
     ),
     color: "bg-blue-700",
+  },
+  {
+    title: "Criativos - Kwai",
+    description: "Performance dos criativos na plataforma Kwai",
+    path: "/criativos-kwai",
+    icon: (
+      <img
+        className="w-5 h-5"
+        src="https://www.svgrepo.com/show/517319/kwai.svg"
+        alt="Kwai"
+      />
+    ),
+    color: "bg-yellow-500",
   },
   {
     title: "Veiculação Off-line",

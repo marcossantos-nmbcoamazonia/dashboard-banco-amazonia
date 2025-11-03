@@ -123,13 +123,13 @@ const LinhaTempo: React.FC = () => {
           const reachIndex = headers.indexOf("Reach")
           const impressionsIndex = headers.indexOf("Impressions")
           const clicksIndex = headers.indexOf("Clicks")
-          const totalSpentIndex = headers.indexOf("Cost (Spend)")
-          const videoViewsIndex = headers.indexOf("Video Views")
+          const totalSpentIndex = headers.indexOf("Total spent")
+          const videoViewsIndex = headers.indexOf("Video views")
           const videoViews25Index = headers.indexOf("Video views at 25%")
           const videoViews50Index = headers.indexOf("Video views at 50%")
           const videoViews75Index = headers.indexOf("Video views at 75%")
           const videoCompletionsIndex = headers.indexOf("Video completions")
-          const totalEngagementsIndex = headers.indexOf("Engagements")
+          const totalEngagementsIndex = headers.indexOf("Total engagements")
           const veiculoIndex = headers.indexOf("Veículo")
           const tipoCompraIndex = headers.indexOf("Tipo de Compra")
 
@@ -147,11 +147,21 @@ const LinhaTempo: React.FC = () => {
           const originalDate = row[dateIndex]
           const formattedDate = parseDate(originalDate)
 
+          // Normalizar veículo: mapear "Audience Network", "unknown" e "threads" para "Meta"
+          const rawVeiculo = row[veiculoIndex] || "Outros"
+          const normalizedVeiculo = (() => {
+            const lower = rawVeiculo.toLowerCase()
+            if (lower === 'audience network' || lower === 'unknown' || lower === 'threads') {
+              return 'Meta'
+            }
+            return rawVeiculo
+          })()
+
           const dataPoint: DataPoint = {
             date: formattedDate,
             campaignName: row[campaignNameIndex] || "",
             creativeTitle: row[creativeTitleIndex] || "",
-            platform: row[veiculoIndex] || "Outros",
+            platform: normalizedVeiculo,
             reach: parseInteger(row[reachIndex]),
             impressions: parseInteger(row[impressionsIndex]),
             clicks: parseInteger(row[clicksIndex]),
@@ -162,7 +172,7 @@ const LinhaTempo: React.FC = () => {
             videoViews75: parseInteger(row[videoViews75Index]),
             videoCompletions: parseInteger(row[videoCompletionsIndex]),
             totalEngagements: parseInteger(row[totalEngagementsIndex]),
-            veiculo: row[veiculoIndex] || "Outros",
+            veiculo: normalizedVeiculo,
             tipoCompra: row[tipoCompraIndex] || "",
           }
 

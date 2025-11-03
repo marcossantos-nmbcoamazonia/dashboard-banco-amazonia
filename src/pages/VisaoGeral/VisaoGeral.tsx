@@ -264,25 +264,40 @@ const VisaoGeral: React.FC = () => {
             return Number.parseInt(value.replace(/[.\s]/g, "").replace(",", "")) || 0
           }
 
-          const rawPlatform = row[headers.indexOf("Veículo")] || "Outros"
-          // Normalizar plataforma: mapear "Audience Network" e "unknown" para "Meta"
-          const normalizedPlatform =
-            rawPlatform.toLowerCase() === 'audience network' || rawPlatform.toLowerCase() === 'unknown'
-              ? 'Meta'
-              : rawPlatform
+          const dateIndex = headers.indexOf("Date")
+          const veiculoIndex = headers.indexOf("Veículo")
+          const campanhaIndex = headers.indexOf("Campanha")
+          const impressionsIndex = headers.indexOf("Impressions")
+          const totalSpentIndex = headers.indexOf("Total spent")
+          const reachIndex = headers.indexOf("Reach")
+          const clicksIndex = headers.indexOf("Clicks")
+          const frequencyIndex = headers.indexOf("Frequency")
+          const cpmIndex = headers.indexOf("CPM")
+          const videoViewsIndex = headers.indexOf("Video views")
+          const videoCompletionsIndex = headers.indexOf("Video completions")
+
+          const rawPlatform = row[veiculoIndex] || "Outros"
+          // Normalizar plataforma: mapear "Audience Network", "unknown" e "threads" para "Meta"
+          const normalizedPlatform = (() => {
+            const lower = rawPlatform.toLowerCase()
+            if (lower === 'audience network' || lower === 'unknown' || lower === 'threads') {
+              return 'Meta'
+            }
+            return rawPlatform
+          })()
 
           return {
-            date: row[headers.indexOf("Date")] || "",
+            date: row[dateIndex] || "",
             platform: normalizedPlatform,
-            campaignName: row[headers.indexOf("Campanha")] || "",
-            impressions: parseInteger(row[headers.indexOf("Impressions")]),
-            cost: parseNumber(row[headers.indexOf("Total spent")]),
-            reach: parseInteger(row[headers.indexOf("Reach")]),
-            clicks: parseInteger(row[headers.indexOf("Clicks")]),
-            frequency: parseNumber(row[headers.indexOf("Frequency")]) || 1,
-            cpm: parseNumber(row[headers.indexOf("CPM")]),
-            videoPlays: parseInteger(row[headers.indexOf("Video views")] || "0"),
-            videoCompletions: parseInteger(row[headers.indexOf("Video completions")] || "0"),
+            campaignName: row[campanhaIndex] || "",
+            impressions: parseInteger(row[impressionsIndex]),
+            cost: parseNumber(row[totalSpentIndex]),
+            reach: parseInteger(row[reachIndex]),
+            clicks: parseInteger(row[clicksIndex]),
+            frequency: parseNumber(row[frequencyIndex]) || 1,
+            cpm: parseNumber(row[cpmIndex]),
+            videoPlays: parseInteger(row[videoViewsIndex] || "0"),
+            videoCompletions: parseInteger(row[videoCompletionsIndex] || "0"),
           } as ProcessedData
         })
         .filter((item: ProcessedData) => item.date && item.impressions > 0)

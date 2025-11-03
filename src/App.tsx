@@ -4,7 +4,7 @@ import { DataProvider } from "./contexts/DataContext"
 import Capa from "./pages/Capa/Capa"
 // import EstrategiaDocumentacao from "./pages/EstrategiaDocumentacao/EstrategiaDocumentacao" // Removido conforme solicitação
 import LinhaTempo from "./pages/LinhaTempo/LinhaTempo"
-import EstrategiaOnline from "./pages/EstrategiaOnline/EstrategiaOnline"
+// import EstrategiaOnline from "./pages/EstrategiaOnline/EstrategiaOnline" // Removido conforme solicitação
 import VisaoGeral from "./pages/VisaoGeral/VisaoGeral"
 import Alcance from "./pages/Alcance/Alcance"
 import Visualizacoes from "./pages/Visualizacoes/Visualizacoes"
@@ -14,6 +14,7 @@ import CriativosTikTok from "./pages/CriativosTikTok/CriativosTikTok"
 import CriativosMetaAds from "./pages/CriativosMetaAds/CriativosMetaAds"
 import CriativosGoogleAds from "./pages/CriativosGoogleAds/CriativosGoogleAds"
 import CriativosLinkedIn from "./pages/CriativosLinkedIn/CriativosLinkedin"
+import CriativosKwai from "./pages/CriativosKwai/CriativosKwai"
 import Glossario from "./pages/Glossario/Glossario" // Nova importação para Glossario
 import "./App.css"
 
@@ -29,7 +30,8 @@ function App() {
             {/* <Route path="/estrategia-documentacao" element={<EstrategiaDocumentacao />} /> */}{" "}
             {/* Removido conforme solicitação */}
             <Route path="/linha-tempo" element={<LinhaTempo />} />
-            <Route path="/estrategia-online" element={<EstrategiaOnline />} />
+            {/* <Route path="/estrategia-online" element={<EstrategiaOnline />} /> */}{" "}
+            {/* Removido conforme solicitação */}
             <Route path="/visao-geral" element={<VisaoGeral />} />
             <Route path="/alcance" element={<Alcance />} />
             <Route path="/visualizacoes" element={<Visualizacoes />} />
@@ -39,6 +41,7 @@ function App() {
             <Route path="/criativos-tiktok" element={<CriativosTikTok />} />
             <Route path="/criativos-google-ads" element={<CriativosGoogleAds />} />
             <Route path="/criativos-linkedin" element={<CriativosLinkedIn />} />
+            <Route path="/criativos-kwai" element={<CriativosKwai />} />
             <Route path="/glossario" element={<Glossario />} /> {/* Nova rota para Glossario */}
           </Routes>
         </Layout>

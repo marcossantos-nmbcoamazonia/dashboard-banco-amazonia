@@ -126,38 +126,58 @@ const Visualizacoes: React.FC = () => {
             return Number.parseInt(value.replace(/[.\s]/g, "").replace(",", "")) || 0
           }
 
-          const impressions = parseInteger(row[headers.indexOf("Impressions")])
-          const videoViews = parseInteger(row[headers.indexOf("Video views")])
-          const videoCompletions = parseInteger(row[headers.indexOf("Video completions")])
-          const cost = parseNumber(row[headers.indexOf("Total spent")])
+          const dateIndex = headers.indexOf("Date")
+          const veiculoIndex = headers.indexOf("Veículo")
+          const campanhaIndex = headers.indexOf("Campanha")
+          const impressionsIndex = headers.indexOf("Impressions")
+          const totalSpentIndex = headers.indexOf("Total spent")
+          const reachIndex = headers.indexOf("Reach")
+          const clicksIndex = headers.indexOf("Clicks")
+          const frequencyIndex = headers.indexOf("Frequency")
+          const cpmIndex = headers.indexOf("CPM")
+          const linkClicksIndex = headers.indexOf("Link clicks")
+          const videoViewsIndex = headers.indexOf("Video views")
+          const videoViews25Index = headers.indexOf("Video views at 25%")
+          const videoViews50Index = headers.indexOf("Video views at 50%")
+          const videoViews75Index = headers.indexOf("Video views at 75%")
+          const videoCompletionsIndex = headers.indexOf("Video completions")
+          const tipoCompraIndex = headers.indexOf("Tipo de Compra")
 
-          const rawPlatform = row[headers.indexOf("Veículo")] || "Outros"
-          // Normalizar plataforma: mapear "Audience Network" e "unknown" para "Meta"
-          const normalizedPlatform =
-            rawPlatform.toLowerCase() === 'audience network' || rawPlatform.toLowerCase() === 'unknown'
-              ? 'Meta'
-              : rawPlatform
+          const impressions = parseInteger(row[impressionsIndex])
+          const videoViews = parseInteger(row[videoViewsIndex])
+          const videoCompletions = parseInteger(row[videoCompletionsIndex])
+          const cost = parseNumber(row[totalSpentIndex])
+
+          const rawPlatform = row[veiculoIndex] || "Outros"
+          // Normalizar plataforma: mapear "Audience Network", "unknown" e "threads" para "Meta"
+          const normalizedPlatform = (() => {
+            const lower = rawPlatform.toLowerCase()
+            if (lower === 'audience network' || lower === 'unknown' || lower === 'threads') {
+              return 'Meta'
+            }
+            return rawPlatform
+          })()
 
           return {
-            date: row[headers.indexOf("Date")] || "",
+            date: row[dateIndex] || "",
             platform: normalizedPlatform,
-            campaignName: row[headers.indexOf("Campanha")] || "",
+            campaignName: row[campanhaIndex] || "",
             impressions: impressions,
             cost: cost,
-            reach: parseInteger(row[headers.indexOf("Reach")]),
-            clicks: parseInteger(row[headers.indexOf("Clicks")]),
-            frequency: parseNumber(row[headers.indexOf("Frequency")]) || 1,
-            cpm: parseNumber(row[headers.indexOf("CPM")]),
-            linkClicks: parseInteger(row[headers.indexOf("Link clicks")]),
+            reach: parseInteger(row[reachIndex]),
+            clicks: parseInteger(row[clicksIndex]),
+            frequency: parseNumber(row[frequencyIndex]) || 1,
+            cpm: parseNumber(row[cpmIndex]),
+            linkClicks: parseInteger(row[linkClicksIndex]),
             videoViews: videoViews,
-            videoViews25: parseInteger(row[headers.indexOf("Video views at 25%")]),
-            videoViews50: parseInteger(row[headers.indexOf("Video views at 50%")]),
-            videoViews75: parseInteger(row[headers.indexOf("Video views at 75%")]),
+            videoViews25: parseInteger(row[videoViews25Index]),
+            videoViews50: parseInteger(row[videoViews50Index]),
+            videoViews75: parseInteger(row[videoViews75Index]),
             videoCompletions: videoCompletions,
             cpv: videoViews > 0 ? cost / videoViews : 0,
             cpvc: videoCompletions > 0 ? cost / videoCompletions : 0,
             vtr100: impressions > 0 && videoCompletions > 0 ? (videoCompletions / impressions) * 100 : 0,
-            tipoCompra: row[headers.indexOf("Tipo de Compra")] || "CPM",
+            tipoCompra: row[tipoCompraIndex] || "CPM",
           } as ProcessedData
         })
         .filter((item: ProcessedData) => item.date && item.impressions > 0 && item.videoViews > 0) // Filtrar apenas itens com video views
