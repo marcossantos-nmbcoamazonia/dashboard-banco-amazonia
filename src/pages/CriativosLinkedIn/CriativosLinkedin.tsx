@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect, useMemo } from "react"
-import { Linkedin, Calendar, Filter, ArrowUpDown } from "lucide-react"
+import { Linkedin, Calendar, Filter } from "lucide-react"
 import { useLinkedInCreatives } from "../../services/consolidadoApi"
 import Loading from "../../components/Loading/Loading"
 
@@ -38,12 +38,7 @@ const CriativosLinkedIn: React.FC = () => {
   const [itemsPerPage] = useState(10)
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc")
 
-  // New filters state
-  const [selectedTipoCompra, setSelectedTipoCompra] = useState<string>("")
-  const [availableTiposCompra, setAvailableTiposCompra] = useState<string[]>([])
-  const [selectedVideoEstaticoAudio, setSelectedVideoEstaticoAudio] = useState<string>("")
-  const [availableVideoEstaticoAudio, setAvailableVideoEstaticoAudio] = useState<string[]>([])
-
+  
   // Processar dados da API
   useEffect(() => {
     if (apiData?.success && apiData?.data?.values) {

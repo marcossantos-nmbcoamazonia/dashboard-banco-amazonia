@@ -62,8 +62,8 @@ const Visualizacoes: React.FC = () => {
   const [availablePlatforms, setAvailablePlatforms] = useState<string[]>([])
   const [availableTiposCompra, setAvailableTiposCompra] = useState<string[]>([])
 
-  // Cores para as plataformas (seguindo o modelo da imagem)
-  const platformColors: Record<string, string> = {
+  // Cores para as plataformas (memoizado para evitar recriação em cada render)
+  const platformColors = useMemo<Record<string, string>>(() => ({
     YouTube: "#ff6b6b", // Rosa/vermelho claro
     TikTok: "#ff4757", // Vermelho
     Google: "#5f27cd", // Roxo escuro
@@ -79,7 +79,7 @@ const Visualizacoes: React.FC = () => {
     GDN: "#34A853",
     "Demand-Gen": "#EA4335",
     Default: "#6c5ce7",
-  }
+  }), [])
 
   // Cores para tipos de compra
   const tipoCompraColors: Record<string, string> = {

@@ -78,8 +78,8 @@ const VisaoGeral: React.FC = () => {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
   const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null)
 
-  // Cores para as plataformas
-  const platformColors: Record<string, string> = {
+  // Cores para as plataformas (memoizado para evitar recriação em cada render)
+  const platformColors = useMemo<Record<string, string>>(() => ({
     Google: "#4285f4",
     Meta: "#0668E1",
     TikTok: "#ff0050",
@@ -92,7 +92,7 @@ const VisaoGeral: React.FC = () => {
     LinkedIn: "#0077b5",
     Pinterest: "#bd081c",
     Default: "#6366f1",
-  }
+  }), [])
 
   // Processar dados de benchmark
   useEffect(() => {

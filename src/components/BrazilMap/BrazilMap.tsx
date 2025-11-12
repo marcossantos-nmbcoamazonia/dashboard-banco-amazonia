@@ -36,13 +36,6 @@ const STATE_NAMES_TO_ABBR: { [key: string]: string } = {
   Tocantins: "TO",
 }
 
-const ABBR_TO_STATE_NAMES: { [key: string]: string } = Object.entries(STATE_NAMES_TO_ABBR).reduce(
-  (acc: { [key: string]: string }, [name, abbr]) => {
-    acc[abbr] = name
-    return acc
-  },
-  {},
-)
 
 // Tipos para as propriedades dos estados brasileiros
 interface StateProperties {

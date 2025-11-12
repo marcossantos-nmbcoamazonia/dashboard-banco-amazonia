@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect, useMemo } from "react"
-import { Video, Calendar, Filter, ArrowUpDown } from "lucide-react"
+import { Video, Calendar, Filter } from "lucide-react"
 import { useTikTokCreatives } from "../../services/consolidadoApi"
 import Loading from "../../components/Loading/Loading"
 

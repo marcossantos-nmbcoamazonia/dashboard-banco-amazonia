@@ -78,7 +78,6 @@ const CriativosMetaAds: React.FC = () => {
           const adName = row[headers.indexOf("Ad Name")]?.trim() || ""
           const tipoCompra = row[headers.indexOf("Tipo de Compra")] || ""
           const placement = row[headers.indexOf("Placement")] || ""
-          const platform = row[headers.indexOf("Platform")] || ""
 
           if (tipoCompra) tiposCompraSet.add(tipoCompra)
           if (placement) videoEstaticoAudioSet.add(placement)

@@ -50,8 +50,8 @@ const Alcance: React.FC = () => {
   const [availablePlatforms, setAvailablePlatforms] = useState<string[]>([])
   const [availableTiposCompra, setAvailableTiposCompra] = useState<string[]>([])
 
-  // Cores para as plataformas
-  const platformColors: Record<string, string> = {
+  // Cores para as plataformas (memoizado)
+  const platformColors = useMemo<Record<string, string>>(() => ({
     Google: "#4285f4",
     Meta: "#0668E1",
     TikTok: "#ff0050",
@@ -73,15 +73,15 @@ const Alcance: React.FC = () => {
     GDN: "#34A853",
     "Demand-Gen": "#EA4335",
     Default: "#6366f1",
-  }
+  }), [])
 
-  // Cores para tipos de compra
-  const tipoCompraColors: Record<string, string> = {
+  // Cores para tipos de compra (memoizado)
+  const tipoCompraColors = useMemo<Record<string, string>>(() => ({
     CPM: "#3B82F6", // Azul
     CPC: "#10B981", // Verde
     CPV: "#F59E0B", // Amarelo/Laranja
     Default: "#6B7280", // Cinza
-  }
+  }), [])
 
   // Processar dados da API
   useEffect(() => {
@@ -305,7 +305,7 @@ const Alcance: React.FC = () => {
     })
 
     return Object.values(metrics).sort((a, b) => b.reach - a.reach)
-  }, [filteredData])
+  }, [filteredData, platformColors])
 
   // Calcular métricas por tipo de compra
   const tipoCompraMetrics = useMemo(() => {
@@ -353,7 +353,7 @@ const Alcance: React.FC = () => {
     })
 
     return Object.values(metrics).sort((a: any, b: any) => b.reach - a.reach)
-  }, [filteredData])
+  }, [filteredData, tipoCompraColors])
 
   // Calcular custos médios por tipo de compra
   const custoMedioTipoCompra = useMemo(() => {
@@ -401,7 +401,7 @@ const Alcance: React.FC = () => {
         if (indexB === -1) return -1
         return indexA - indexB
       })
-  }, [filteredData])
+  }, [filteredData, tipoCompraColors])
 
   // Calcular totais
   const totals = useMemo(() => {

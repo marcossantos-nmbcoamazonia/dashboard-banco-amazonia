@@ -56,8 +56,8 @@ const LinhaTempo: React.FC = () => {
     "impressions" | "clicks" | "totalSpent" | "videoViews" | "cpm" | "cpc" | "ctr" | "vtr"
   >("impressions")
 
-  // Cores para diferentes plataformas/veículos
-  const platformColors: Record<string, string> = {
+  // Cores para diferentes plataformas/veículos (memoizado)
+  const platformColors = useMemo<Record<string, string>>(() => ({
     TikTok: "#ff0050",
     LinkedIn: "#0077b5",
     Meta: "#0668E1",
@@ -70,7 +70,7 @@ const LinhaTempo: React.FC = () => {
     YouTube: "#ff0000",
     Pinterest: "#bd081c",
     Default: "#6366f1", // Cor padrão para veículos não mapeados
-  }
+  }), [])
 
   // Função para criar datas locais sem problemas de timezone
   const createLocalDate = (dateStr: string) => {
@@ -234,27 +234,7 @@ const LinhaTempo: React.FC = () => {
     }
   }, [processedData, dateRange, selectedCampaign])
 
-  // Função para obter o valor da métrica de um item de dado
-  const getMetricValue = (item: DataPoint, metric: typeof selectedMetric): number => {
-    switch (metric) {
-      case "impressions":
-        return item.impressions || 0
-      case "clicks":
-        return item.clicks || 0
-      case "totalSpent":
-        return item.totalSpent || 0
-      case "videoViews":
-        return item.videoViews || item.videoCompletions || 0
-      // Para métricas compostas, retornamos os valores base para agregação posterior
-      case "cpm":
-      case "cpc":
-      case "ctr":
-      case "vtr":
-        return 0 // Será calculado na agregação
-      default:
-        return 0
-    }
-  }
+  
 
   // Preparar dados para o gráfico
   const chartData: ChartData[] = useMemo(() => {
@@ -370,7 +350,7 @@ const LinhaTempo: React.FC = () => {
         color: platformColors[platform] || platformColors.Default,
       }))
       .sort((a, b) => new Date(a.firstDate).getTime() - new Date(b.firstDate).getTime())
-  }, [processedData])
+  }, [processedData, platformColors])
 
   // Calcular estatísticas
   const totalInvestment = useMemo(() => {

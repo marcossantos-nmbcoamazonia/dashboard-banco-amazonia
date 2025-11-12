@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState } from "react"
 import { Link, useLocation } from "react-router-dom"
-import { Home, Clock, Globe, Eye, TrendingUp, BarChart3, Users, BookOpenText, Radio, Activity } from "lucide-react"
+import { Home, Clock, Eye, TrendingUp, BarChart3, Users, BookOpenText, Radio, Activity } from "lucide-react"
 
 interface MenuItem {
   id: string

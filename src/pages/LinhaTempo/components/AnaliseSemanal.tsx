@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useMemo, useRef, useEffect } from "react"
+import { useState, useMemo, useRef, useEffect, useCallback } from "react"
 import { ResponsiveLine } from "@nivo/line"
 import {
   Calendar,
@@ -128,8 +128,8 @@ const AnaliseSemanal: React.FC<AnaliseSemanalProps> = ({
     }
   }, [processedData])
 
-  // Função para obter dados baseado no período selecionado
-  const getFilteredDataByPeriod = (isCurrentPeriod: boolean): DataPoint[] => {
+  // Função para obter dados baseado no período selecionado (memoizada)
+  const getFilteredDataByPeriod = useCallback((isCurrentPeriod: boolean): DataPoint[] => {
     console.log("getFilteredDataByPeriod called with:", { isCurrentPeriod, dateRange, selectedVehicles })
 
     // Se não há filtro de data, usar últimos 7 dias
@@ -166,7 +166,7 @@ const AnaliseSemanal: React.FC<AnaliseSemanalProps> = ({
       const isCampaignSelected = !selectedCampaign || item.campaignName === selectedCampaign
       return isInDateRange && isVehicleSelected && isCampaignSelected
     })
-  }
+  }, [processedData, dateRange, selectedVehicles, selectedCampaign])
 
   // Calcular métricas semanais com tratamento de valores zerados
   const calculateWeeklyMetrics = (data: DataPoint[]): WeeklyMetrics => {
@@ -221,7 +221,7 @@ const AnaliseSemanal: React.FC<AnaliseSemanalProps> = ({
     }
 
     return { current, previous, comparison }
-  }, [processedData, selectedVehicles, dateRange, selectedCampaign])
+  }, [getFilteredDataByPeriod])
 
   // Dados do gráfico semanal comparativo
   const weeklyChartData: ChartData[] = useMemo(() => {
@@ -330,7 +330,7 @@ const AnaliseSemanal: React.FC<AnaliseSemanalProps> = ({
     }
 
     return result
-  }, [selectedMetric, processedData, selectedVehicles, dateRange, selectedCampaign])
+  }, [selectedMetric, getFilteredDataByPeriod])
 
   // Função para formatar valor monetário
   const formatCurrency = (value: number): string => {

@@ -3,7 +3,6 @@
 import type React from "react"
 import { useState, useEffect, useMemo } from "react"
 import { BarChart3, Filter, TrendingUp, MousePointerClick, Eye, Video, Activity } from "lucide-react"
-import { ResponsiveBar } from "@nivo/bar"
 import Loading from "../../components/Loading/Loading"
 
 interface AdServerData {
@@ -62,7 +61,6 @@ const Portais: React.FC = () => {
         const result = await response.json()
 
         if (result.success && result.data.values) {
-          const headers = result.data.values[0]
           const rows = result.data.values.slice(1)
 
           const processedData: AdServerData[] = rows.map((row: any[]) => {
