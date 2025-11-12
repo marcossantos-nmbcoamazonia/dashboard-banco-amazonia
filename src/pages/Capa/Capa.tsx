@@ -17,7 +17,7 @@ import {
   Target,
 } from "lucide-react"
 import { useConsolidadoGeral, usePlanoMidia } from "../../services/consolidadoApi"
-import { useGA4ConsolidadoData } from "../../services/api"
+import { useGA4Data } from "../../services/api"
 import Loading from "../../components/Loading/Loading"
 import axios from "axios"
 
@@ -32,7 +32,7 @@ interface PortaisData {
 const Capa: React.FC = () => {
   const { campaigns, last7Days, loading: consolidadoLoading, error: consolidadoError, data: consolidadoData } = useConsolidadoGeral()
   const { data: planoData, loading: planoLoading, error: planoError } = usePlanoMidia()
-  const { data: ga4Data, loading: ga4Loading, error: ga4Error } = useGA4ConsolidadoData()
+  const { data: ga4Data, loading: ga4Loading, error: ga4Error } = useGA4Data()
 
   const [selectedMetric, setSelectedMetric] = useState<MetricType>("impressions")
   const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null)
@@ -327,7 +327,7 @@ const Capa: React.FC = () => {
     }
   }, [consolidadoData, portaisData])
 
-  // Processar sessões totais de 2025 do GA4
+  // Processar sessões totais do GA4 (sem filtro de data)
   const sessoes2025 = useMemo(() => {
     if (!ga4Data?.data?.values || ga4Data.data.values.length < 2) {
       return 0
@@ -336,17 +336,13 @@ const Capa: React.FC = () => {
     const headers = ga4Data.data.values[0]
     const rows = ga4Data.data.values.slice(1)
 
-    const dateIndex = headers.indexOf("Date")
     const sessionsIndex = headers.indexOf("Sessions")
 
     let totalSessions = 0
 
     rows.forEach((row) => {
-      const dateStr = row[dateIndex]
-      if (dateStr && dateStr.includes("2025")) {
-        const sessions = parseInt(row[sessionsIndex]) || 0
-        totalSessions += sessions
-      }
+      const sessions = parseInt(row[sessionsIndex]) || 0
+      totalSessions += sessions
     })
 
     return totalSessions
@@ -585,7 +581,7 @@ const Capa: React.FC = () => {
             <div className="space-y-1">
               <div className="flex items-center space-x-1 mb-1">
                 <Users className="w-3 h-3 text-green-600" />
-                <p className="text-xs text-gray-600">Sessões 2025</p>
+                <p className="text-xs text-gray-600">Sessões</p>
               </div>
               <p className="text-2xl font-bold text-green-600">{formatNumber(sessoes2025)}</p>
               <p className="text-xs text-gray-400 mt-1">Google Analytics 4</p>

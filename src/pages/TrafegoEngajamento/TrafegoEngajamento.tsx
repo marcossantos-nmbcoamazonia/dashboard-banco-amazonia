@@ -134,55 +134,103 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
 
   // Processamento dos dados do GA4 (Source, Medium, Campaign) - alterna entre geral e filtrado
   const processedGA4Data = useMemo(() => {
-    // Se uma página estiver selecionada, usar os dados filtrados
-    const sourceData = selectedPageTitle ? ga4PagesSourceData : ga4Data
-
-    if (!sourceData?.data?.values || sourceData.data.values.length <= 1) {
-      return {
-        totalSessions: 0,
-        totalViews: 0,
-        mediumData: [],
-        sourceData: [],
-      }
-    }
-
-    const headers = sourceData.data.values[0]
-    const rows = sourceData.data.values.slice(1)
-
-    const dateIndex = headers.indexOf("Date")
-    const sessionsIndex = headers.indexOf("Sessions")
-    const viewsIndex = headers.indexOf("Views")
-    const mediumIndex = headers.indexOf("Session medium")
-    const sourceIndex = headers.indexOf("Session source")
-    const pageTitleIndex = selectedPageTitle ? headers.indexOf("Page title") : -1
-
     let totalSessions = 0
     let totalViews = 0
     const mediumMap: { [key: string]: number } = {}
     const sourceMap: { [key: string]: number } = {}
 
-    rows.forEach((row: any[]) => {
-      const date = row[dateIndex] || ""
-      if (!isDateInRange(date)) return
+    if (selectedPageTitle) {
+      // IMPORTANTE: Quando filtrado, usar ga4PagesData para sessões/views totais
+      // para manter consistência com o card "Páginas Mais Acessadas"
+      if (ga4PagesData?.data?.values && ga4PagesData.data.values.length > 1) {
+        const pagesHeaders = ga4PagesData.data.values[0]
+        const pagesRows = ga4PagesData.data.values.slice(1)
 
-      // Se página estiver selecionada, filtrar apenas os dados dessa página
-      if (selectedPageTitle && pageTitleIndex !== -1) {
-        const pageTitle = row[pageTitleIndex] || ""
-        if (pageTitle !== selectedPageTitle) return
+        const pagesDateIndex = pagesHeaders.indexOf("Date")
+        const pageTitleIndex = pagesHeaders.indexOf("Page title")
+        const pagesSessionsIndex = pagesHeaders.indexOf("Sessions")
+        const pagesViewsIndex = pagesHeaders.indexOf("Views")
+
+        pagesRows.forEach((row: any[]) => {
+          const date = row[pagesDateIndex] || ""
+          if (!isDateInRange(date)) return
+
+          const pageTitle = row[pageTitleIndex] || ""
+          if (pageTitle !== selectedPageTitle) return
+
+          const sessions = Number.parseInt(row[pagesSessionsIndex]) || 0
+          const views = pagesViewsIndex !== -1 ? Number.parseInt(row[pagesViewsIndex]) || 0 : 0
+
+          totalSessions += sessions
+          totalViews += views
+        })
       }
 
-      const sessions = Number.parseInt(row[sessionsIndex]) || 0
-      const views = viewsIndex !== -1 ? Number.parseInt(row[viewsIndex]) || 0 : 0
-      const medium = mediumIndex !== -1 ? row[mediumIndex] || "(not set)" : "(not set)"
-      const source = sourceIndex !== -1 ? row[sourceIndex] || "(not set)" : "(not set)"
+      // Usar ga4PagesSourceData apenas para breakdown de medium/source
+      if (ga4PagesSourceData?.data?.values && ga4PagesSourceData.data.values.length > 1) {
+        const sourceHeaders = ga4PagesSourceData.data.values[0]
+        const sourceRows = ga4PagesSourceData.data.values.slice(1)
 
-      if (sessions > 0) {
-        totalSessions += sessions
-        totalViews += views
-        mediumMap[medium] = (mediumMap[medium] || 0) + sessions
-        sourceMap[source] = (sourceMap[source] || 0) + sessions
+        const sourceDateIndex = sourceHeaders.indexOf("Date")
+        const sourcePageTitleIndex = sourceHeaders.indexOf("Page title")
+        const sourceSessionsIndex = sourceHeaders.indexOf("Sessions")
+        const mediumIndex = sourceHeaders.indexOf("Session medium")
+        const sourceIndex = sourceHeaders.indexOf("Session source")
+
+        sourceRows.forEach((row: any[]) => {
+          const date = row[sourceDateIndex] || ""
+          if (!isDateInRange(date)) return
+
+          const pageTitle = row[sourcePageTitleIndex] || ""
+          if (pageTitle !== selectedPageTitle) return
+
+          const sessions = Number.parseInt(row[sourceSessionsIndex]) || 0
+          const medium = mediumIndex !== -1 ? row[mediumIndex] || "(not set)" : "(not set)"
+          const source = sourceIndex !== -1 ? row[sourceIndex] || "(not set)" : "(not set)"
+
+          if (sessions > 0) {
+            mediumMap[medium] = (mediumMap[medium] || 0) + sessions
+            sourceMap[source] = (sourceMap[source] || 0) + sessions
+          }
+        })
       }
-    })
+    } else {
+      // Quando não filtrado, usar ga4Data normalmente
+      if (!ga4Data?.data?.values || ga4Data.data.values.length <= 1) {
+        return {
+          totalSessions: 0,
+          totalViews: 0,
+          mediumData: [],
+          sourceData: [],
+        }
+      }
+
+      const headers = ga4Data.data.values[0]
+      const rows = ga4Data.data.values.slice(1)
+
+      const dateIndex = headers.indexOf("Date")
+      const sessionsIndex = headers.indexOf("Sessions")
+      const viewsIndex = headers.indexOf("Views")
+      const mediumIndex = headers.indexOf("Session medium")
+      const sourceIndex = headers.indexOf("Session source")
+
+      rows.forEach((row: any[]) => {
+        const date = row[dateIndex] || ""
+        if (!isDateInRange(date)) return
+
+        const sessions = Number.parseInt(row[sessionsIndex]) || 0
+        const views = viewsIndex !== -1 ? Number.parseInt(row[viewsIndex]) || 0 : 0
+        const medium = mediumIndex !== -1 ? row[mediumIndex] || "(not set)" : "(not set)"
+        const source = sourceIndex !== -1 ? row[sourceIndex] || "(not set)" : "(not set)"
+
+        if (sessions > 0) {
+          totalSessions += sessions
+          totalViews += views
+          mediumMap[medium] = (mediumMap[medium] || 0) + sessions
+          sourceMap[source] = (sourceMap[source] || 0) + sessions
+        }
+      })
+    }
 
     const mediumData = Object.entries(mediumMap)
       .map(([medium, sessions]) => ({
@@ -209,7 +257,7 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
       mediumData,
       sourceData: sourceDataProcessed,
     }
-  }, [ga4Data, ga4PagesSourceData, isDateInRange, selectedPageTitle])
+  }, [ga4Data, ga4PagesData, ga4PagesSourceData, isDateInRange, selectedPageTitle])
 
   // Processamento dos dados de Estados (para o mapa) - alterna entre geral e filtrado por página
   const processedEstadosData = useMemo(() => {
