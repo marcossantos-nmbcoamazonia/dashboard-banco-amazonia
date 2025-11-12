@@ -377,7 +377,7 @@ const VisaoGeral: React.FC = () => {
     })
 
     return Object.values(metrics).sort((a, b) => b.impressions - a.impressions)
-  }, [filteredData])
+  }, [filteredData, platformColors])
 
   // Calcular totais
   const totals = useMemo(() => {

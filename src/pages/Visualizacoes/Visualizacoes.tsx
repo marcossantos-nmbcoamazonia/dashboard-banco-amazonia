@@ -328,7 +328,7 @@ const Visualizacoes: React.FC = () => {
     })
 
     return Object.values(metrics).sort((a, b) => b.cost - a.cost)
-  }, [filteredData])
+  }, [filteredData, platformColors])
 
   // Calcular totais
   const totals = useMemo(() => {
@@ -547,49 +547,6 @@ const Visualizacoes: React.FC = () => {
               impressões totais
             </p>
           </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Componente de gráfico de barras verticais
-  const VerticalBarChart: React.FC<{
-    title: string
-    data: PlatformMetrics[]
-    getValue: (item: PlatformMetrics) => number
-    format?: (value: number) => string
-    showPercentage?: boolean
-  }> = ({ title, data, getValue, format = formatNumber, showPercentage = false }) => {
-    const maxValue = Math.max(...data.map(getValue))
-
-    return (
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-        <div className="flex items-end space-x-2 h-32">
-          {data.slice(0, 8).map((item, index) => {
-            const value = getValue(item)
-            const height = maxValue > 0 ? (value / maxValue) * 100 : 0
-
-            return (
-              <div key={index} className="flex-1 flex flex-col items-center space-y-1">
-                <div className="w-full flex flex-col items-center">
-                  <div
-                    className="w-full rounded-t transition-all duration-500 flex items-end justify-center text-xs font-medium text-white p-1"
-                    style={{
-                      height: `${height}%`,
-                      backgroundColor: item.color,
-                      minHeight: value > 0 ? "20px" : "0",
-                    }}
-                  >
-                    {value > 0 && (
-                      <span className="text-center">{showPercentage ? `${value.toFixed(2)}%` : format(value)}</span>
-                    )}
-                  </div>
-                </div>
-                <span className="text-xs text-gray-600 text-center truncate w-full">{item.platform}</span>
-              </div>
-            )
-          })}
         </div>
       </div>
     )

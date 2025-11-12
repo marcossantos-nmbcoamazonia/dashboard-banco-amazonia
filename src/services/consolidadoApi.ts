@@ -134,17 +134,6 @@ const parseBrazilianNumber = (value: string): number => {
   return parseFloat(value.replace(/\./g, '').replace(',', '.'))
 }
 
-// Função auxiliar para normalizar nomes de veículos
-const normalizeVehicleName = (vehicle: string): string => {
-  if (!vehicle) return vehicle
-  const normalized = vehicle.trim()
-  // Mapear "Audience Network" e "unknown" para "Facebook"
-  if (normalized.toLowerCase() === 'audience network' || normalized.toLowerCase() === 'unknown') {
-    return 'Meta'
-  }
-  return normalized
-}
-
 // Função para processar campanhas únicas e verificar status de atividade
 export const processCampaigns = (data: ConsolidadoData): Campaign[] => {
   if (!data.success || !data.data.values || data.data.values.length < 2) {

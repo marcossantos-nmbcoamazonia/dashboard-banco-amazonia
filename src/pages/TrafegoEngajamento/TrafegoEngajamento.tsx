@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import { TrendingUp, Calendar, Users, Clock, BarChart3, Target, UserPlus } from "lucide-react"
 import Loading from "../../components/Loading/Loading"
 import {
@@ -94,7 +94,7 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
   }, [getDefaultDateRange])
 
   // Função para verificar se uma data está dentro do range selecionado
-  const isDateInRange = (dateStr: string): boolean => {
+  const isDateInRange = useCallback((dateStr: string): boolean => {
     if (!dateStr || !dateRange.start || !dateRange.end) return true
 
     // Normalizar datas para YYYY-MM-DD
@@ -104,7 +104,7 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
 
     const result = date >= dateRange.start && date <= dateRange.end
     return result
-  }
+  }, [dateRange])
 
   // Função para obter cor da plataforma/medium
   const getMediumColor = (medium: string): string => {
@@ -186,7 +186,7 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
       mediumData,
       sourceData,
     }
-  }, [ga4Data, dateRange])
+  }, [ga4Data, isDateInRange])
 
   // Processamento dos dados de Estados (para o mapa)
   const processedEstadosData = useMemo(() => {
@@ -220,7 +220,7 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
 
     console.log("Region Data processado:", regionMap)
     return regionMap
-  }, [ga4EstadosData, dateRange])
+  }, [ga4EstadosData, isDateInRange])
 
   // Processamento dos dados Consolidados (dispositivos, novos usuários, etc.)
   const processedConsolidadoData = useMemo(() => {
@@ -288,7 +288,7 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
       deviceData,
       totalEngagedSessions,
     }
-  }, [ga4ConsolidadoData, dateRange])
+  }, [ga4ConsolidadoData, isDateInRange])
 
   // Processamento dos dados de Eventos
   const processedEventData = useMemo(() => {
@@ -337,7 +337,7 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
       totalConversions,
       topEvents,
     }
-  }, [ga4EventData, dateRange])
+  }, [ga4EventData, isDateInRange])
 
   // Processamento dos dados de Páginas
   const processedPagesData = useMemo(() => {
@@ -383,7 +383,7 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
     return {
       topPages,
     }
-  }, [ga4PagesData, dateRange])
+  }, [ga4PagesData, isDateInRange])
 
   // Função para formatar números
   const formatNumber = (value: number): string => {
