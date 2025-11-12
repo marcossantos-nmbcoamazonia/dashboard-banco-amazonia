@@ -16,6 +16,7 @@ import CriativosGoogleAds from "./pages/CriativosGoogleAds/CriativosGoogleAds"
 import CriativosLinkedIn from "./pages/CriativosLinkedIn/CriativosLinkedin"
 import CriativosKwai from "./pages/CriativosKwai/CriativosKwai"
 import Glossario from "./pages/Glossario/Glossario" // Nova importação para Glossario
+import Portais from "./pages/Portais/Portais" // Nova importação para Portais
 import "./App.css"
 
 function App() {
@@ -42,6 +43,7 @@ function App() {
             <Route path="/criativos-google-ads" element={<CriativosGoogleAds />} />
             <Route path="/criativos-linkedin" element={<CriativosLinkedIn />} />
             <Route path="/criativos-kwai" element={<CriativosKwai />} />
+            <Route path="/portais" element={<Portais />} /> {/* Nova rota para Portais */}
             <Route path="/glossario" element={<Glossario />} /> {/* Nova rota para Glossario */}
           </Routes>
         </Layout>

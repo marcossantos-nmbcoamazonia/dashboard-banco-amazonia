@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState } from "react"
 import { Link, useLocation } from "react-router-dom"
-import { Home, Clock, Globe, Eye, TrendingUp, BarChart3, Users, BookOpenText, Radio } from "lucide-react"
+import { Home, Clock, Globe, Eye, TrendingUp, BarChart3, Users, BookOpenText, Radio, Activity } from "lucide-react"
 
 interface MenuItem {
   id: string
@@ -120,6 +120,12 @@ const menuItems: MenuItem[] = [
         alt="Kwai"
       />
     ),
+  },
+  {
+    id: "portais",
+    label: "Portais",
+    path: "/portais",
+    icon: <Activity className="w-5 h-5" />,
   },
   {
     id: "veiculacao-offline",

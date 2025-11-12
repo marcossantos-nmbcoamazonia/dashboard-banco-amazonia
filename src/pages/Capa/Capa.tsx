@@ -1,169 +1,371 @@
+"use client"
+
 import type React from "react"
-import { Link } from "react-router-dom"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { ResponsiveLine } from "@nivo/line"
 import {
-  Clock,
-  BarChart3,
-  Users,
-  Eye,
   TrendingUp,
-  Video,
-  ArrowRight,
-  Calendar,
-  Target,
-  User,
-  TargetIcon as Bullseye,
-  Linkedin,
-  ImageIcon as MetaIcon,
-  BookOpenText,
-  CircleDot,
   DollarSign,
-  MousePointerClick,
+  Building2,
+  Megaphone,
   Radio,
+  Eye,
+  MousePointerClick,
+  Video,
+  Users,
+  BarChart3,
+  Target,
 } from "lucide-react"
-import { useConsolidadoGeral } from "../../services/consolidadoApi"
-
-interface NavigationCard {
-  title: string
-  description: string
-  path: string
-  icon: React.ReactNode
-  color: string
-}
-
-const navigationCards: NavigationCard[] = [
-  // Card "Estratégia Documentação" removido conforme solicitação
-  {
-    title: "Linha do Tempo",
-    description: "Cronograma e marcos importantes da campanha",
-    path: "/linha-tempo",
-    icon: <Clock className="w-6 h-6" />,
-    color: "bg-green-500",
-  },
-  {
-    title: "Visão Geral",
-    description: "Panorama geral das métricas e resultados",
-    path: "/visao-geral",
-    icon: <BarChart3 className="w-6 h-6" />,
-    color: "bg-indigo-500",
-  },
-  {
-    title: "Alcance",
-    description: "Métricas de alcance e impressões da campanha",
-    path: "/alcance",
-    icon: <Users className="w-6 h-6" />,
-    color: "bg-cyan-500",
-  },
-  {
-    title: "Visualizações",
-    description: "Dados de visualizações e engajamento visual",
-    path: "/visualizacoes",
-    icon: <Eye className="w-6 h-6" />,
-    color: "bg-orange-500",
-  },
-  {
-    title: "Tráfego e Engajamento",
-    description: "Análise de tráfego e interações dos usuários",
-    path: "/trafego-engajamento",
-    icon: <TrendingUp className="w-6 h-6" />,
-    color: "bg-red-500",
-  },
-  {
-    title: "Criativos - TikTok",
-    description: "Performance dos criativos na plataforma TikTok",
-    path: "/criativos-tiktok",
-    icon: (
-      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z" />
-      </svg>
-    ),
-    color: "bg-pink-500",
-  },
-  {
-    title: "Criativos - Meta Ads",
-    description: "Análise dos criativos no Facebook e Instagram",
-    path: "/criativos-meta-ads",
-    icon: (
-      <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" width="50" height="50" viewBox="0 0 50 50" fill="currentColor">
-        <path d="M47.3,21.01c-0.58-1.6-1.3-3.16-2.24-4.66c-0.93-1.49-2.11-2.93-3.63-4.13c-1.51-1.19-3.49-2.09-5.59-2.26l-0.78-0.04	c-0.27,0.01-0.57,0.01-0.85,0.04c-0.57,0.06-1.11,0.19-1.62,0.34c-1.03,0.32-1.93,0.8-2.72,1.32c-1.42,0.94-2.55,2.03-3.57,3.15	c0.01,0.02,0.03,0.03,0.04,0.05l0.22,0.28c0.51,0.67,1.62,2.21,2.61,3.87c1.23-1.2,2.83-2.65,3.49-3.07	c0.5-0.31,0.99-0.55,1.43-0.68c0.23-0.06,0.44-0.11,0.64-0.12c0.1-0.02,0.19-0.01,0.3-0.02l0.38,0.02c0.98,0.09,1.94,0.49,2.85,1.19	c1.81,1.44,3.24,3.89,4.17,6.48c0.95,2.6,1.49,5.44,1.52,8.18c0,1.31-0.17,2.57-0.57,3.61c-0.39,1.05-1.38,1.45-2.5,1.45	c-1.63,0-2.81-0.7-3.76-1.68c-1.04-1.09-2.02-2.31-2.96-3.61c-0.78-1.09-1.54-2.22-2.26-3.37c-1.27-2.06-2.97-4.67-4.15-6.85	L25,16.35c-0.31-0.39-0.61-0.78-0.94-1.17c-1.11-1.26-2.34-2.5-3.93-3.56c-0.79-0.52-1.69-1-2.72-1.32	c-0.51-0.15-1.05-0.28-1.62-0.34c-0.18-0.02-0.36-0.03-0.54-0.03c-0.11,0-0.21-0.01-0.31-0.01l-0.78,0.04	c-2.1,0.17-4.08,1.07-5.59,2.26c-1.52,1.2-2.7,2.64-3.63,4.13C4,17.85,3.28,19.41,2.7,21.01c-1.13,3.2-1.74,6.51-1.75,9.93	c0.01,1.78,0.24,3.63,0.96,5.47c0.7,1.8,2.02,3.71,4.12,4.77c1.03,0.53,2.2,0.81,3.32,0.81c1.23,0.03,2.4-0.32,3.33-0.77	c1.87-0.93,3.16-2.16,4.33-3.4c2.31-2.51,4.02-5.23,5.6-8c0.44-0.76,0.86-1.54,1.27-2.33c-0.21-0.41-0.42-0.84-0.64-1.29	c-0.62-1.03-1.39-2.25-1.95-3.1c-0.83,1.5-1.69,2.96-2.58,4.41c-1.59,2.52-3.3,4.97-5.21,6.98c-0.95,0.98-2,1.84-2.92,2.25	c-0.47,0.2-0.83,0.27-1.14,0.25c-0.43,0-0.79-0.1-1.13-0.28c-0.67-0.35-1.3-1.1-1.69-2.15c-0.4-1.04-0.57-2.3-0.57-3.61	c0.03-2.74,0.57-5.58,1.52-8.18c0.93-2.59,2.36-5.04,4.17-6.48c0.91-0.7,1.87-1.1,2.85-1.19l0.38-0.02c0.11,0.01,0.2,0,0.3,0.02	c0.2,0.01,0.41,0.06,0.64,0.12c0.26,0.08,0.54,0.19,0.83,0.34c0.2,0.1,0.4,0.21,0.6,0.34c1,0.64,1.99,1.58,2.92,2.62	c0.72,0.81,1.41,1.71,2.1,2.63L25,25.24c0.75,1.55,1.53,3.09,2.39,4.58c1.58,2.77,3.29,5.49,5.6,8c0.68,0.73,1.41,1.45,2.27,2.1	c0.61,0.48,1.28,0.91,2.06,1.3c0.93,0.45,2.1,0.8,3.33,0.77c1.12,0,2.29-0.28,3.32-0.81c2.1-1.06,3.42-2.97,4.12-4.77	c0.72-1.84,0.95-3.69,0.96-5.47C49.04,27.52,48.43,24.21,47.3,21.01z"></path>
-      </svg>
-    ), 
-    color: "bg-blue-600",
-  },
-  {
-    title: "Criativos - Google Ads",
-    description: "Performance dos criativos na plataforma Google Ads",
-    path: "/criativos-google-ads",
-    icon: (
-      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/>
-      </svg>
-    ),
-    color: "bg-green-600",
-  },
-  {
-    title: "Criativos - LinkedIn",
-    description: "Performance dos criativos na plataforma LinkedIn",
-    path: "/criativos-linkedin",
-    icon: (
-      <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" width="50" height="50" viewBox="0 0 50 50" fill="currentColor">
-          <path d="M41,4H9C6.24,4,4,6.24,4,9v32c0,2.76,2.24,5,5,5h32c2.76,0,5-2.24,5-5V9C46,6.24,43.76,4,41,4z M17,20v19h-6V20H17z M11,14.47c0-1.4,1.2-2.47,3-2.47s2.93,1.07,3,2.47c0,1.4-1.12,2.53-3,2.53C12.2,17,11,15.87,11,14.47z M39,39h-6c0,0,0-9.26,0-10 c0-2-1-4-3.5-4.04h-0.08C27,24.96,26,27.02,26,29c0,0.91,0,10,0,10h-6V20h6v2.56c0,0,1.93-2.56,5.81-2.56 c3.97,0,7.19,2.73,7.19,8.26V39z"></path>
-      </svg>
-    ),
-    color: "bg-blue-700",
-  },
-  {
-    title: "Criativos - Kwai",
-    description: "Performance dos criativos na plataforma Kwai",
-    path: "/criativos-kwai",
-    icon: (
-      <img
-        className="w-5 h-5"
-        src="https://www.svgrepo.com/show/517319/kwai.svg"
-        alt="Kwai"
-      />
-    ),
-    color: "bg-yellow-500",
-  },
-  {
-    title: "Veiculação Off-line",
-    description: "Análise de veiculação em mídias off-line",
-    path: "/veiculacao-offline",
-    icon: <Radio className="w-6 h-6" />,
-    color: "bg-slate-600",
-  },
-  {
-    title: "Glossário",
-    description: "Entenda os termos técnicos e métricas do dashboard",
-    path: "/glossario",
-    icon: <BookOpenText className="w-6 h-6" />,
-    color: "bg-purple-600",
-  },
-]
+import { useConsolidadoGeral, usePlanoMidia } from "../../services/consolidadoApi"
+import { useGA4ConsolidadoData } from "../../services/api"
+import Loading from "../../components/Loading/Loading"
+import axios from "axios"
 
 type MetricType = "impressions" | "clicks" | "videoViews" | "spent"
 
+interface PortaisData {
+  impressoes: number
+  cliques: number
+  visualizacoes: number
+}
+
 const Capa: React.FC = () => {
-  const { campaigns, last7Days, loading, error, data } = useConsolidadoGeral()
+  const { campaigns, last7Days, loading: consolidadoLoading, error: consolidadoError, data: consolidadoData } = useConsolidadoGeral()
+  const { data: planoData, loading: planoLoading, error: planoError } = usePlanoMidia()
+  const { data: ga4Data, loading: ga4Loading, error: ga4Error } = useGA4ConsolidadoData()
+
   const [selectedMetric, setSelectedMetric] = useState<MetricType>("impressions")
   const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null)
+  const [selectedAgencia, setSelectedAgencia] = useState<string | null>(null)
+  const [selectedMeio, setSelectedMeio] = useState<string | null>(null)
+  const [expandedMeio, setExpandedMeio] = useState<string | null>(null)
+  const [selectedVeiculo, setSelectedVeiculo] = useState<string>("")
+  const [portaisData, setPortaisData] = useState<PortaisData>({ impressoes: 0, cliques: 0, visualizacoes: 0 })
+  const [portaisLoading, setPortaisLoading] = useState(true)
+
+  // Buscar dados de Portais
+  useEffect(() => {
+    const fetchPortaisData = async () => {
+      try {
+        setPortaisLoading(true)
+        const response = await axios.get(
+          "https://nmbcoamazonia-api.vercel.app/google/sheets/1R1ehp35FAxdP1vhI1rT-mIYw3h9fuatHMiS__5V6Yok/data?range=AdServer"
+        )
+
+        if (response.data.success && response.data.data.values) {
+          const headers = response.data.data.values[0]
+          const rows = response.data.data.values.slice(1)
+
+          const validasCPMIndex = headers.indexOf("Válidas CPM")
+          const cliquesCPMIndex = headers.indexOf("Cliques CPM")
+          const viewsIndex = headers.indexOf("Views")
+          const cliquesCPVIndex = headers.indexOf("Cliques CPV")
+
+          const parseNumber = (value: string): number => {
+            if (!value || value === "0" || value === "") return 0
+            const cleaned = value.toString().replace(/\./g, "").replace(",", ".")
+            return parseFloat(cleaned) || 0
+          }
+
+          let impressoes = 0
+          let cliques = 0
+          let visualizacoes = 0
+
+          rows.forEach((row: any[]) => {
+            impressoes += parseNumber(row[validasCPMIndex] || "0")
+            cliques += parseNumber(row[cliquesCPMIndex] || "0") + parseNumber(row[cliquesCPVIndex] || "0")
+            visualizacoes += parseNumber(row[viewsIndex] || "0")
+          })
+
+          setPortaisData({ impressoes, cliques, visualizacoes })
+        }
+      } catch (error) {
+        console.error("Erro ao buscar dados de Portais:", error)
+      } finally {
+        setPortaisLoading(false)
+      }
+    }
+
+    fetchPortaisData()
+  }, [])
+
+  // Processar dados do Plano de Mídia
+  const planoMetrics = useMemo(() => {
+    if (!planoData?.success || !planoData?.data?.values || planoData.data.values.length < 2) {
+      return {
+        investimentoTotal: 0,
+        agencias: [],
+        campanhas: [],
+        meios: [],
+        entregaPrevista: 0,
+        veiculosPorMeio: new Map<string, Set<string>>(),
+        veiculosTotal: 0,
+      }
+    }
+
+    const headers = planoData.data.values[0]
+    const rows = planoData.data.values.slice(1)
+
+    const agenciaIndex = headers.indexOf("AGÊNCIA")
+    const campanhaIndex = headers.indexOf("CAMPANHA")
+    const meioIndex = headers.indexOf("MEIO")
+    const veiculoIndex = headers.indexOf("VEÍCULO")
+    const impressoesIndex = headers.indexOf("IMPRESSÕES / CLIQUES / DIÁRIAS")
+    const valorDesembolsoIndex = headers.indexOf("VALORDESEMBOLSO95%(banco)")
+
+    const parseBrazilianCurrency = (value: string): number => {
+      if (!value || value === "0" || value === "") return 0
+      const cleaned = value.toString().replace(/R\$\s?/g, '').replace(/\./g, '').replace(',', '.')
+      return parseFloat(cleaned) || 0
+    }
+
+    const parseBrazilianNumber = (value: string): number => {
+      if (!value || value === "0" || value === "") return 0
+      const cleaned = value.toString().replace(/\./g, '').replace(',', '.')
+      return parseFloat(cleaned) || 0
+    }
+
+    let investimentoTotal = 0
+    let entregaPrevista = 0
+    const agenciasMap = new Map<string, { nome: string; investimento: number; entrega: number; campanhas: Set<string> }>()
+    const campanhasMap = new Map<string, { nome: string; investimento: number; entrega: number; meios: Set<string>; veiculos: Set<string> }>()
+    const meiosMap = new Map<string, { nome: string; investimento: number; entrega: number; veiculos: Set<string> }>()
+    const veiculosPorMeio = new Map<string, Set<string>>()
+    const allVeiculos = new Set<string>()
+
+    rows.forEach((row) => {
+      const agencia = row[agenciaIndex]
+      const campanha = row[campanhaIndex]
+      const meio = row[meioIndex]
+      const veiculo = row[veiculoIndex]
+      const impressoes = parseBrazilianNumber(row[impressoesIndex] || "0")
+      const valorDesembolso = parseBrazilianCurrency(row[valorDesembolsoIndex] || "0")
+
+      // Aplicar filtros
+      if (selectedAgencia && agencia !== selectedAgencia) return
+      if (selectedMeio && meio !== selectedMeio) return
+      if (selectedVeiculo && veiculo !== selectedVeiculo) return
+
+      // Mapear veículos por meio (antes dos filtros para ter todos disponíveis)
+      if (meio && meio.trim() !== "" && veiculo && veiculo.trim() !== "") {
+        if (!veiculosPorMeio.has(meio)) {
+          veiculosPorMeio.set(meio, new Set<string>())
+        }
+        veiculosPorMeio.get(meio)!.add(veiculo)
+        allVeiculos.add(veiculo)
+      }
+
+      investimentoTotal += valorDesembolso
+      entregaPrevista += impressoes
+
+      // Agrupar agências
+      if (agencia && agencia.trim() !== "") {
+        if (!agenciasMap.has(agencia)) {
+          agenciasMap.set(agencia, { nome: agencia, investimento: 0, entrega: 0, campanhas: new Set<string>() })
+        }
+        const agenciaData = agenciasMap.get(agencia)!
+        agenciaData.investimento += valorDesembolso
+        agenciaData.entrega += impressoes
+        if (campanha && campanha.trim() !== "") {
+          agenciaData.campanhas.add(campanha)
+        }
+      }
+
+      // Agrupar campanhas
+      if (campanha && campanha.trim() !== "") {
+        if (!campanhasMap.has(campanha)) {
+          campanhasMap.set(campanha, { nome: campanha, investimento: 0, entrega: 0, meios: new Set<string>(), veiculos: new Set<string>() })
+        }
+        const campanhaData = campanhasMap.get(campanha)!
+        campanhaData.investimento += valorDesembolso
+        campanhaData.entrega += impressoes
+        if (meio && meio.trim() !== "") {
+          campanhaData.meios.add(meio)
+        }
+        if (veiculo && veiculo.trim() !== "") {
+          campanhaData.veiculos.add(veiculo)
+        }
+      }
+
+      // Agrupar meios
+      if (meio && meio.trim() !== "") {
+        if (!meiosMap.has(meio)) {
+          meiosMap.set(meio, { nome: meio, investimento: 0, entrega: 0, veiculos: new Set<string>() })
+        }
+        const meioData = meiosMap.get(meio)!
+        meioData.investimento += valorDesembolso
+        meioData.entrega += impressoes
+        if (veiculo && veiculo.trim() !== "") {
+          meioData.veiculos.add(veiculo)
+        }
+      }
+    })
+
+    return {
+      investimentoTotal,
+      agencias: Array.from(agenciasMap.values()).map(a => ({
+        nome: a.nome,
+        investimento: a.investimento,
+        entrega: a.entrega,
+        numCampanhas: a.campanhas.size
+      })).sort((a, b) => b.investimento - a.investimento),
+      campanhas: Array.from(campanhasMap.values()).map(c => ({
+        nome: c.nome,
+        investimento: c.investimento,
+        entrega: c.entrega,
+        numMeios: c.meios.size,
+        numVeiculos: c.veiculos.size
+      })).sort((a, b) => b.investimento - a.investimento),
+      meios: Array.from(meiosMap.values()).map(m => ({
+        nome: m.nome,
+        investimento: m.investimento,
+        entrega: m.entrega,
+        numVeiculos: m.veiculos.size
+      })).sort((a, b) => b.investimento - a.investimento),
+      entregaPrevista,
+      veiculosPorMeio,
+      veiculosTotal: allVeiculos.size,
+    }
+  }, [planoData, selectedAgencia, selectedMeio, selectedVeiculo])
+
+  // Obter veículos por meio para o accordion
+  const veiculosPorMeioList = useMemo(() => {
+    if (!planoData?.success || !planoData?.data?.values || planoData.data.values.length < 2) {
+      return new Map<string, Array<{ nome: string; investimento: number; entrega: number }>>()
+    }
+
+    const headers = planoData.data.values[0]
+    const rows = planoData.data.values.slice(1)
+
+    const meioIndex = headers.indexOf("MEIO")
+    const veiculoIndex = headers.indexOf("VEÍCULO")
+    const impressoesIndex = headers.indexOf("IMPRESSÕES / CLIQUES / DIÁRIAS")
+    const valorDesembolsoIndex = headers.indexOf("VALORDESEMBOLSO95%(banco)")
+
+    const parseBrazilianCurrency = (value: string): number => {
+      if (!value || value === "0" || value === "") return 0
+      const cleaned = value.toString().replace(/R\$\s?/g, '').replace(/\./g, '').replace(',', '.')
+      return parseFloat(cleaned) || 0
+    }
+
+    const parseBrazilianNumber = (value: string): number => {
+      if (!value || value === "0" || value === "") return 0
+      const cleaned = value.toString().replace(/\./g, '').replace(',', '.')
+      return parseFloat(cleaned) || 0
+    }
+
+    const veiculosMap = new Map<string, Map<string, { investimento: number; entrega: number }>>()
+
+    rows.forEach((row) => {
+      const meio = row[meioIndex]
+      const veiculo = row[veiculoIndex]
+      const impressoes = parseBrazilianNumber(row[impressoesIndex] || "0")
+      const valorDesembolso = parseBrazilianCurrency(row[valorDesembolsoIndex] || "0")
+
+      if (meio && meio.trim() !== "" && veiculo && veiculo.trim() !== "") {
+        if (!veiculosMap.has(meio)) {
+          veiculosMap.set(meio, new Map())
+        }
+        const meioVeiculos = veiculosMap.get(meio)!
+        if (!meioVeiculos.has(veiculo)) {
+          meioVeiculos.set(veiculo, { investimento: 0, entrega: 0 })
+        }
+        const veiculoData = meioVeiculos.get(veiculo)!
+        veiculoData.investimento += valorDesembolso
+        veiculoData.entrega += impressoes
+      }
+    })
+
+    const result = new Map<string, Array<{ nome: string; investimento: number; entrega: number }>>()
+    veiculosMap.forEach((veiculos, meio) => {
+      const veiculosArray = Array.from(veiculos.entries())
+        .map(([nome, data]) => ({ nome, ...data }))
+        .sort((a, b) => b.investimento - a.investimento)
+      result.set(meio, veiculosArray)
+    })
+
+    return result
+  }, [planoData])
+
+  // Processar resultados de Internet (Consolidado) + Portais
+  const internetResults = useMemo(() => {
+    if (!consolidadoData?.success || !consolidadoData?.data?.values || consolidadoData.data.values.length < 2) {
+      return {
+        impressoes: portaisData.impressoes,
+        cliques: portaisData.cliques,
+        visualizacoes: portaisData.visualizacoes,
+      }
+    }
+
+    const headers = consolidadoData.data.values[0]
+    const rows = consolidadoData.data.values.slice(1)
+
+    const impressionsIndex = headers.indexOf("Impressions")
+    const clicksIndex = headers.indexOf("Clicks")
+    const videoViewsIndex = headers.indexOf("Video views")
+
+    const parseBrazilianNumber = (value: string): number => {
+      if (!value || value === "0") return 0
+      return parseFloat(value.replace(/\./g, '').replace(',', '.'))
+    }
+
+    let impressoes = 0
+    let cliques = 0
+    let visualizacoes = 0
+
+    rows.forEach((row) => {
+      impressoes += parseBrazilianNumber(row[impressionsIndex] || "0")
+      cliques += parseBrazilianNumber(row[clicksIndex] || "0")
+      visualizacoes += parseBrazilianNumber(row[videoViewsIndex] || "0")
+    })
+
+    // Adicionar dados de Portais
+    return {
+      impressoes: impressoes + portaisData.impressoes,
+      cliques: cliques + portaisData.cliques,
+      visualizacoes: visualizacoes + portaisData.visualizacoes,
+    }
+  }, [consolidadoData, portaisData])
+
+  // Processar sessões totais de 2025 do GA4
+  const sessoes2025 = useMemo(() => {
+    if (!ga4Data?.data?.values || ga4Data.data.values.length < 2) {
+      return 0
+    }
+
+    const headers = ga4Data.data.values[0]
+    const rows = ga4Data.data.values.slice(1)
+
+    const dateIndex = headers.indexOf("Date")
+    const sessionsIndex = headers.indexOf("Sessions")
+
+    let totalSessions = 0
+
+    rows.forEach((row) => {
+      const dateStr = row[dateIndex]
+      if (dateStr && dateStr.includes("2025")) {
+        const sessions = parseInt(row[sessionsIndex]) || 0
+        totalSessions += sessions
+      }
+    })
+
+    return totalSessions
+  }, [ga4Data])
 
   // Filtrar dados dos últimos 7 dias por campanha selecionada
   const filteredLast7Days = useMemo(() => {
-    if (!selectedCampaign || !data?.success || !data?.data?.values) return last7Days
+    if (!selectedCampaign || !consolidadoData?.success || !consolidadoData?.data?.values) return last7Days
 
-    const headers = data.data.values[0]
-    const rows = data.data.values.slice(1)
+    const headers = consolidadoData.data.values[0]
+    const rows = consolidadoData.data.values.slice(1)
 
     const dateIndex = headers.indexOf("Date")
     const campaignIndex = headers.indexOf("Campanha")
     const spentIndex = headers.indexOf("Total spent")
     const impressionsIndex = headers.indexOf("Impressions")
     const clicksIndex = headers.indexOf("Clicks")
-    const videoViewsIndex = headers.indexOf("Video Views")
+    const videoViewsIndex = headers.indexOf("Video views")
 
-    // Parsear números brasileiros
     const parseBrazilianCurrency = (value: string): number => {
       if (!value || value === "0") return 0
       return parseFloat(value.replace(/R\$\s?/g, '').replace(/\./g, '').replace(',', '.'))
@@ -211,7 +413,7 @@ const Capa: React.FC = () => {
       const dateB = new Date(yearB, monthB - 1, dayB)
       return dateA.getTime() - dateB.getTime()
     })
-  }, [selectedCampaign, data, last7Days])
+  }, [selectedCampaign, consolidadoData, last7Days])
 
   // Preparar dados para o gráfico
   const chartData = useMemo(() => {
@@ -246,8 +448,13 @@ const Capa: React.FC = () => {
     setSelectedCampaign(selectedCampaign === campaignName ? null : campaignName)
   }
 
+  // Handler para clicar em uma agência
+  const handleAgenciaClick = (agenciaNome: string) => {
+    setSelectedAgencia(selectedAgencia === agenciaNome ? null : agenciaNome)
+  }
+
   // Formatar valor baseado na métrica
-  const formatMetricValue = (value: number, metric: MetricType): string => {
+  const formatMetricValue = (value: number, metric?: MetricType): string => {
     if (metric === "spent") {
       return new Intl.NumberFormat("pt-BR", {
         style: "currency",
@@ -257,107 +464,355 @@ const Capa: React.FC = () => {
     return new Intl.NumberFormat("pt-BR").format(Math.round(value))
   }
 
+  // Formatar número
+  const formatNumber = (value: number): string => {
+    if (value >= 1000000) {
+      return `${(value / 1000000).toFixed(1)}M`
+    }
+    if (value >= 1000) {
+      return `${(value / 1000).toFixed(1)}K`
+    }
+    return value.toLocaleString("pt-BR")
+  }
+
+  const loading = consolidadoLoading || planoLoading || ga4Loading || portaisLoading
+  const error = consolidadoError || planoError || ga4Error
+
+  if (loading) {
+    return <Loading message="Carregando dashboard executivo..." />
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-red-500">Erro ao carregar dados do dashboard</div>
+      </div>
+    )
+  }
+
   return (
-    <div className="h-full flex flex-col space-y-4 overflow-hidden">
-      {/* Hero Section com Imagem da Campanha */}
+    <div className="h-full flex flex-col space-y-4 overflow-auto">
+      {/* Hero Section */}
       <div className="relative overflow-hidden rounded-2xl shadow-2xl h-44">
         <div className="relative h-full bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600">
           <img
             src="/images/fundo_card.webp"
-            alt="Dashboard - Banco da Amazônia"
+            alt="Dashboard Executivo - Banco da Amazônia"
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-black/20"></div>
           <div className="absolute bottom-0 left-0 right-0 p-4">
             <div className="bg-white/95 backdrop-blur-sm rounded-xl p-4 shadow-lg max-w-2xl">
-              <h1 className="text-2xl font-bold text-gray-900 mb-1">Dashboard - Banco da Amazônia</h1>
-              <p className="text-base text-gray-700">Análise de performance • Múltiplas Campanhas</p>
+              <h1 className="text-2xl font-bold text-gray-900 mb-1">Dashboard Executivo - Banco da Amazônia</h1>
+              <p className="text-base text-gray-700">Visão consolidada de investimentos e resultados de mídia</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Cards de Informação */}
+      {/* Cards de Métricas Principais - Grid 4 colunas */}
+      <div className="grid grid-cols-4 gap-4">
+        {/* Investimento Total */}
+        <div className="card-overlay rounded-xl shadow-lg p-5">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-gray-600">Investimento Total</h3>
+            <DollarSign className="w-5 h-5 text-green-600" />
+          </div>
+          <p className="text-2xl font-bold text-gray-900">{formatMetricValue(planoMetrics.investimentoTotal, "spent")}</p>
+          <p className="text-xs text-gray-500 mt-1">Plano de Mídia 2025</p>
+          {(selectedAgencia || selectedMeio || selectedVeiculo) && (
+            <button
+              onClick={() => {
+                setSelectedAgencia(null)
+                setSelectedMeio(null)
+                setSelectedVeiculo("")
+              }}
+              className="text-xs text-blue-600 hover:text-blue-800 mt-2 underline"
+            >
+              Limpar filtros
+            </button>
+          )}
+        </div>
+
+        {/* Entrega Prevista */}
+        <div className="card-overlay rounded-xl shadow-lg p-5">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-gray-600">Entrega Prevista</h3>
+            <BarChart3 className="w-5 h-5 text-indigo-600" />
+          </div>
+          <p className="text-2xl font-bold text-indigo-600">{formatNumber(planoMetrics.entregaPrevista)}</p>
+          <p className="text-xs text-gray-500 mt-1">Impressões/Cliques/Diárias</p>
+        </div>
+
+        {/* Resultados (Internet + Portais + Sessões) - Ocupa 2 colunas */}
+        <div className="card-overlay rounded-xl shadow-lg p-5 col-span-2">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-gray-600">Resultados</h3>
+            <Target className="w-5 h-5 text-purple-600" />
+          </div>
+          <div className="grid grid-cols-4 gap-4">
+            {/* Coluna 1 - Impressões */}
+            <div className="space-y-1">
+              <div className="flex items-center space-x-1 mb-1">
+                <Eye className="w-3 h-3 text-cyan-600" />
+                <p className="text-xs text-gray-600">Impressões</p>
+              </div>
+              <p className="text-2xl font-bold text-cyan-600">{formatNumber(internetResults.impressoes)}</p>
+              <p className="text-xs text-gray-400 mt-1">Internet + Portais</p>
+            </div>
+
+            {/* Coluna 2 - Visualizações */}
+            <div className="space-y-1">
+              <div className="flex items-center space-x-1 mb-1">
+                <Video className="w-3 h-3 text-red-600" />
+                <p className="text-xs text-gray-600">Visualizações</p>
+              </div>
+              <p className="text-2xl font-bold text-red-600">{formatNumber(internetResults.visualizacoes)}</p>
+              <p className="text-xs text-gray-400 mt-1">Internet + Portais</p>
+            </div>
+
+            {/* Coluna 3 - Cliques */}
+            <div className="space-y-1">
+              <div className="flex items-center space-x-1 mb-1">
+                <MousePointerClick className="w-3 h-3 text-blue-600" />
+                <p className="text-xs text-gray-600">Cliques</p>
+              </div>
+              <p className="text-2xl font-bold text-blue-600">{formatNumber(internetResults.cliques)}</p>
+              <p className="text-xs text-gray-400 mt-1">Internet + Portais</p>
+            </div>
+
+            {/* Coluna 4 - Sessões */}
+            <div className="space-y-1">
+              <div className="flex items-center space-x-1 mb-1">
+                <Users className="w-3 h-3 text-green-600" />
+                <p className="text-xs text-gray-600">Sessões 2025</p>
+              </div>
+              <p className="text-2xl font-bold text-green-600">{formatNumber(sessoes2025)}</p>
+              <p className="text-xs text-gray-400 mt-1">Google Analytics 4</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Listas Interativas - Agências, Campanhas e Meios */}
+      <div className="grid grid-cols-3 gap-4">
+        {/* Agências */}
+        <div className="card-overlay rounded-xl shadow-lg p-5 h-80 flex flex-col">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-bold text-gray-900 flex items-center">
+              <Building2 className="w-4 h-4 mr-2 text-blue-600" />
+              Agências ({planoMetrics.agencias.length})
+            </h2>
+            {selectedAgencia && (
+              <button
+                onClick={() => setSelectedAgencia(null)}
+                className="text-xs text-blue-600 hover:text-blue-800 underline"
+              >
+                Limpar
+              </button>
+            )}
+          </div>
+          <div className="flex-1 overflow-y-auto space-y-2">
+            {planoMetrics.agencias.map((agencia, index) => (
+              <div
+                key={index}
+                onClick={() => handleAgenciaClick(agencia.nome)}
+                className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                  selectedAgencia === agencia.nome
+                    ? "bg-blue-50 border-2 border-blue-400 shadow-sm"
+                    : "hover:bg-gray-50 border-2 border-transparent bg-gray-50"
+                }`}
+              >
+                <p className="text-sm font-medium text-gray-900 truncate">{agencia.nome}</p>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-xs text-gray-600">{formatMetricValue(agencia.investimento, "spent")}</p>
+                  <p className="text-xs text-gray-500">{agencia.numCampanhas} {agencia.numCampanhas === 1 ? 'campanha' : 'campanhas'}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Campanhas do Plano */}
+        <div className="card-overlay rounded-xl shadow-lg p-5 h-80 flex flex-col">
+          <h2 className="text-base font-bold text-gray-900 mb-3 flex items-center">
+            <Megaphone className="w-4 h-4 mr-2 text-purple-600" />
+            Campanhas ({planoMetrics.campanhas.length})
+          </h2>
+          <div className="flex-1 overflow-y-auto space-y-2">
+            {planoMetrics.campanhas.map((campanha, index) => (
+              <div
+                key={index}
+                className="p-3 rounded-lg bg-gray-50"
+              >
+                <p className="text-sm font-medium text-gray-900 truncate">{campanha.nome}</p>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-xs text-gray-600">{formatMetricValue(campanha.investimento, "spent")}</p>
+                  <p className="text-xs text-gray-500">{campanha.numMeios} {campanha.numMeios === 1 ? 'meio' : 'meios'} • {campanha.numVeiculos} {campanha.numVeiculos === 1 ? 'veículo' : 'veículos'}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Meios com Accordion de Veículos */}
+        <div className="card-overlay rounded-xl shadow-lg p-5 h-80 flex flex-col">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-bold text-gray-900 flex items-center">
+              <Radio className="w-4 h-4 mr-2 text-orange-600" />
+              Meios ({planoMetrics.meios.length})
+            </h2>
+            {(selectedMeio || selectedVeiculo) && (
+              <button
+                onClick={() => {
+                  setSelectedMeio(null)
+                  setSelectedVeiculo("")
+                  setExpandedMeio(null)
+                }}
+                className="text-xs text-blue-600 hover:text-blue-800 underline"
+              >
+                Limpar
+              </button>
+            )}
+          </div>
+          <div className="flex-1 overflow-y-auto space-y-2">
+            {planoMetrics.meios.map((meio, index) => (
+              <div key={index}>
+                {/* Card do Meio */}
+                <div
+                  className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                    selectedMeio === meio.nome
+                      ? "bg-orange-50 border-2 border-orange-400 shadow-sm"
+                      : expandedMeio === meio.nome
+                      ? "bg-orange-50 border-2 border-orange-300"
+                      : "hover:bg-gray-50 border-2 border-transparent bg-gray-50"
+                  }`}
+                >
+                  <div
+                    onClick={() => {
+                      if (expandedMeio === meio.nome) {
+                        setExpandedMeio(null)
+                      } else {
+                        setExpandedMeio(meio.nome)
+                      }
+                    }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-gray-900 truncate">{meio.nome}</p>
+                      <svg
+                        className={`w-4 h-4 transition-transform ${expandedMeio === meio.nome ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <p className="text-xs text-gray-600">{formatMetricValue(meio.investimento, "spent")}</p>
+                      <p className="text-xs text-gray-500">{meio.numVeiculos} {meio.numVeiculos === 1 ? 'veículo' : 'veículos'}</p>
+                    </div>
+                    <div className="mt-1">
+                      <p className="text-xs text-gray-400">Entrega: {formatNumber(meio.entrega)}</p>
+                    </div>
+                  </div>
+
+                  {/* Lista de Veículos (Accordion) */}
+                  {expandedMeio === meio.nome && veiculosPorMeioList.get(meio.nome) && (
+                    <div className="mt-2 space-y-1 pl-2 border-l-2 border-orange-300">
+                      {veiculosPorMeioList.get(meio.nome)!.map((veiculo, vIdx) => (
+                        <div
+                          key={vIdx}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (selectedVeiculo === veiculo.nome) {
+                              setSelectedVeiculo("")
+                              setSelectedMeio(null)
+                            } else {
+                              setSelectedVeiculo(veiculo.nome)
+                              setSelectedMeio(meio.nome)
+                            }
+                          }}
+                          className={`p-2 rounded cursor-pointer transition-all duration-150 border-l-4 ${
+                            selectedVeiculo === veiculo.nome
+                              ? "bg-blue-100 border-blue-500 shadow-sm"
+                              : "bg-white hover:bg-gray-50 border-gray-300"
+                          }`}
+                        >
+                          <p className="text-xs font-medium text-gray-800 truncate">{veiculo.nome}</p>
+                          <div className="flex items-center justify-between mt-1">
+                            <p className="text-xs text-gray-500">{formatMetricValue(veiculo.investimento, "spent")}</p>
+                            <p className="text-xs text-gray-400">{formatNumber(veiculo.entrega)}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Análise dos Últimos 7 Dias */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Card de Campanhas */}
-        <div className="card-overlay rounded-xl shadow-lg p-5 max-h-80 flex flex-col">
+        {/* Card de Campanhas Ativas */}
+        <div className="card-overlay rounded-xl shadow-lg p-5 h-80 flex flex-col">
           <h2 className="text-base font-bold text-gray-900 mb-3 flex items-center">
             <BarChart3 className="w-4 h-4 mr-2 text-blue-600" />
-            Campanhas
+            Campanhas Ativas
           </h2>
 
-          {loading && (
+          {consolidadoLoading && (
             <div className="flex-1 flex items-center justify-center">
               <p className="text-sm text-gray-500">Carregando campanhas...</p>
             </div>
           )}
 
-          {error && (
+          {consolidadoError && (
             <div className="flex-1 flex items-center justify-center">
               <p className="text-sm text-red-500">Erro ao carregar campanhas</p>
             </div>
           )}
 
-          {!loading && !error && campaigns.length > 0 && (
-            <>
-              <div className="flex-1 overflow-y-auto space-y-2 mb-3">
-                {campaigns.map((campaign, index) => (
+          {!consolidadoLoading && !consolidadoError && campaigns.length > 0 && (
+            <div className="flex-1 overflow-y-auto space-y-2">
+              {campaigns.slice(0, 8).map((campaign, index) => (
+                <div
+                  key={index}
+                  onClick={() => handleCampaignClick(campaign.name)}
+                  className={`flex items-start space-x-2 py-2 px-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                    selectedCampaign === campaign.name
+                      ? "bg-blue-50 border-2 border-blue-400 shadow-sm"
+                      : "hover:bg-gray-50 border-2 border-transparent"
+                  }`}
+                >
                   <div
-                    key={index}
-                    onClick={() => handleCampaignClick(campaign.name)}
-                    className={`flex items-start space-x-2 py-2 px-3 rounded-lg cursor-pointer transition-all duration-200 ${
-                      selectedCampaign === campaign.name
-                        ? "bg-blue-50 border-2 border-blue-400 shadow-sm"
-                        : "hover:bg-gray-50 border-2 border-transparent"
+                    className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
+                      campaign.isActive ? "bg-green-500" : "bg-gray-400"
                     }`}
-                  >
-                    <CircleDot
-                      className={`w-3 h-3 mt-1 flex-shrink-0 ${
-                        campaign.isActive ? "text-green-500 fill-green-500" : "text-gray-400 fill-gray-400"
-                      }`}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{campaign.name}</p>
-                      <p className="text-xs text-gray-600">
-                        {formatMetricValue(campaign.totalSpent, "spent")} •{" "}
-                        {formatMetricValue(campaign.impressions, "impressions")} impressões
-                      </p>
-                    </div>
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{campaign.name}</p>
+                    <p className="text-xs text-gray-600">
+                      {formatMetricValue(campaign.totalSpent, "spent")} • {formatNumber(campaign.impressions)} impressões
+                    </p>
                   </div>
-                ))}
-              </div>
-
-              {/* Legenda */}
-              <div className="border-t pt-2 flex items-center justify-start space-x-4 text-xs text-gray-600">
-                <div className="flex items-center space-x-1">
-                  <CircleDot className="w-3 h-3 text-green-500 fill-green-500" />
-                  <span>Ativa (últimos 7 dias)</span>
                 </div>
-                <div className="flex items-center space-x-1">
-                  <CircleDot className="w-3 h-3 text-gray-400 fill-gray-400" />
-                  <span>Inativa</span>
-                </div>
-              </div>
-            </>
-          )}
-
-          {!loading && !error && campaigns.length === 0 && (
-            <div className="flex-1 flex items-center justify-center">
-              <p className="text-sm text-gray-500">Nenhuma campanha encontrada</p>
+              ))}
             </div>
           )}
         </div>
 
         {/* Gráfico de Métricas dos Últimos 7 Dias */}
-        <div className="card-overlay rounded-xl shadow-lg p-5 max-h-80 flex flex-col">
+        <div className="card-overlay rounded-xl shadow-lg p-5 h-80 flex flex-col">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center space-x-2">
               <TrendingUp className="w-5 h-5 text-green-600" />
               <h2 className="text-base font-bold text-gray-900">
                 Últimos 7 Dias
-                {selectedCampaign && (
-                  <span className="text-sm font-normal text-blue-600 ml-2">• {selectedCampaign}</span>
-                )}
+                {selectedCampaign && <span className="text-sm font-normal text-blue-600 ml-2">• {selectedCampaign}</span>}
               </h2>
             </div>
             <div className="relative">
@@ -379,29 +834,13 @@ const Capa: React.FC = () => {
             </div>
           </div>
 
-          {loading && (
-            <div className="flex-1 flex items-center justify-center">
-              <p className="text-sm text-gray-500">Carregando métricas...</p>
-            </div>
-          )}
-
-          {error && (
-            <div className="flex-1 flex items-center justify-center">
-              <p className="text-sm text-red-500">Erro ao carregar métricas</p>
-            </div>
-          )}
-
-          {!loading && !error && chartData.length > 0 && (
+          {!consolidadoLoading && !consolidadoError && chartData.length > 0 && (
             <>
-              {/* Valor Total */}
               <div className="mb-2">
                 <p className="text-xs text-gray-600">Total do Período</p>
-                <p className="text-lg font-bold text-green-600">
-                  {formatMetricValue(totalMetric, selectedMetric)}
-                </p>
+                <p className="text-lg font-bold text-green-600">{formatMetricValue(totalMetric, selectedMetric)}</p>
               </div>
 
-              {/* Gráfico */}
               <div className="flex-1 min-h-0">
                 <ResponsiveLine
                   data={chartData}
@@ -472,35 +911,6 @@ const Capa: React.FC = () => {
               </div>
             </>
           )}
-        </div>
-      </div>
-
-      {/* Menu de Navegação Minimalista */}
-      <div className="flex-1 min-h-0">
-        <div className="bg-gradient-to-r from-blue-600 to-green-700 rounded-lg px-4 py-2 mb-3 shadow-md">
-          <h2 className="text-base font-bold text-white">Navegação do Dashboard</h2>
-        </div>
-        <div className="grid grid-cols-4 gap-3 overflow-y-auto">
-          {navigationCards.map((card, index) => (
-            <Link
-              key={index}
-              to={card.path}
-              className="group card-overlay rounded-lg shadow-md p-3 hover:shadow-lg transition-all duration-300 h-fit"
-            >
-              <div className="flex flex-col items-center text-center space-y-2">
-                <div
-                  className={`${card.color} p-2 rounded-lg text-white group-hover:scale-110 transition-transform duration-300`}
-                >
-                  {card.icon}
-                </div>
-                <div>
-                  <h3 className="text-xs font-semibold text-gray-900 group-hover:text-blue-600 transition-colors duration-300 line-clamp-2">
-                    {card.title}
-                  </h3>
-                </div>
-              </div>
-            </Link>
-          ))}
         </div>
       </div>
     </div>

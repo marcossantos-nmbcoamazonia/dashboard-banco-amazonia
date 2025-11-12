@@ -450,3 +450,40 @@ export const useTikTokCreatives = () => {
 
   return { data, loading, error, refetch: loadData }
 }
+
+// Função para buscar dados do Plano de Mídia
+export const fetchPlanoMidia = async (): Promise<ConsolidadoData> => {
+  try {
+    const response = await consolidadoApi.get("/google/sheets/1R1ehp35FAxdP1vhI1rT-mIYw3h9fuatHMiS__5V6Yok/data?range=Plano")
+    return response.data
+  } catch (error) {
+    console.error("Erro ao buscar dados do Plano de Mídia:", error)
+    throw error
+  }
+}
+
+// Hook para dados do Plano de Mídia
+export const usePlanoMidia = () => {
+  const [data, setData] = useState<ConsolidadoData | null>(null)
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  const loadData = React.useCallback(async () => {
+    try {
+      setLoading(true)
+      const result = await fetchPlanoMidia()
+      setData(result)
+      setError(null)
+    } catch (err) {
+      setError(err as Error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  return { data, loading, error, refetch: loadData }
+}
