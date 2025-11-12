@@ -821,6 +821,66 @@ export const fetchGA4PagesData = async () => {
   }
 }
 
+// Função para buscar dados do GA4 Pages Estados (mapa filtrado por página)
+export const fetchGA4PagesEstadosData = async () => {
+  try {
+    const url = `${GA4_API_BASE}?range=GA4%20-%20Pages%20Estados`
+    console.log("GA4 Pages Estados URL:", url)
+    const response = await axios.get(url)
+    console.log("GA4 Pages Estados Response:", response.data)
+    console.log("GA4 Pages Estados Range retornado:", response.data?.data?.range)
+    return response.data
+  } catch (error) {
+    console.error("Erro ao buscar dados do GA4 Pages Estados:", error)
+    throw error
+  }
+}
+
+// Função para buscar dados do GA4 Pages Events (eventos filtrados por página)
+export const fetchGA4PagesEventsData = async () => {
+  try {
+    const url = `${GA4_API_BASE}?range=GA4%20-%20Pages%20Events`
+    console.log("GA4 Pages Events URL:", url)
+    const response = await axios.get(url)
+    console.log("GA4 Pages Events Response:", response.data)
+    console.log("GA4 Pages Events Range retornado:", response.data?.data?.range)
+    return response.data
+  } catch (error) {
+    console.error("Erro ao buscar dados do GA4 Pages Events:", error)
+    throw error
+  }
+}
+
+// Função para buscar dados do GA4 Pages Source (origem filtrada por página)
+export const fetchGA4PagesSourceData = async () => {
+  try {
+    const url = `${GA4_API_BASE}?range=GA4%20-%20Pages%20source`
+    console.log("GA4 Pages Source URL:", url)
+    const response = await axios.get(url)
+    console.log("GA4 Pages Source Response:", response.data)
+    console.log("GA4 Pages Source Range retornado:", response.data?.data?.range)
+    return response.data
+  } catch (error) {
+    console.error("Erro ao buscar dados do GA4 Pages Source:", error)
+    throw error
+  }
+}
+
+// Função para buscar dados do GA4 Pages Dispositivo (dispositivos filtrados por página)
+export const fetchGA4PagesDispositivoData = async () => {
+  try {
+    const url = `${GA4_API_BASE}?range=GA4%20-%20Pages%20dispositivo`
+    console.log("GA4 Pages Dispositivo URL:", url)
+    const response = await axios.get(url)
+    console.log("GA4 Pages Dispositivo Response:", response.data)
+    console.log("GA4 Pages Dispositivo Range retornado:", response.data?.data?.range)
+    return response.data
+  } catch (error) {
+    console.error("Erro ao buscar dados do GA4 Pages Dispositivo:", error)
+    throw error
+  }
+}
+
 // Tipos de dados para as novas APIs do GA4
 interface GA4Data {
   success: boolean
@@ -945,6 +1005,110 @@ export const useGA4PagesData = () => {
     try {
       setLoading(true)
       const result = await fetchGA4PagesData()
+      setData(result)
+      setError(null)
+    } catch (err) {
+      setError(err as Error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  return { data, loading, error, refetch: loadData }
+}
+
+// Hook para dados do GA4 Pages Estados (mapa filtrado por página)
+export const useGA4PagesEstadosData = () => {
+  const [data, setData] = useState<GA4Data | null>(null)
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  const loadData = React.useCallback(async () => {
+    try {
+      setLoading(true)
+      const result = await fetchGA4PagesEstadosData()
+      setData(result)
+      setError(null)
+    } catch (err) {
+      setError(err as Error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  return { data, loading, error, refetch: loadData }
+}
+
+// Hook para dados do GA4 Pages Events (eventos filtrados por página)
+export const useGA4PagesEventsData = () => {
+  const [data, setData] = useState<GA4Data | null>(null)
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  const loadData = React.useCallback(async () => {
+    try {
+      setLoading(true)
+      const result = await fetchGA4PagesEventsData()
+      setData(result)
+      setError(null)
+    } catch (err) {
+      setError(err as Error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  return { data, loading, error, refetch: loadData }
+}
+
+// Hook para dados do GA4 Pages Source (origem filtrada por página)
+export const useGA4PagesSourceData = () => {
+  const [data, setData] = useState<GA4Data | null>(null)
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  const loadData = React.useCallback(async () => {
+    try {
+      setLoading(true)
+      const result = await fetchGA4PagesSourceData()
+      setData(result)
+      setError(null)
+    } catch (err) {
+      setError(err as Error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  return { data, loading, error, refetch: loadData }
+}
+
+// Hook para dados do GA4 Pages Dispositivo (dispositivos filtrados por página)
+export const useGA4PagesDispositivoData = () => {
+  const [data, setData] = useState<GA4Data | null>(null)
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  const loadData = React.useCallback(async () => {
+    try {
+      setLoading(true)
+      const result = await fetchGA4PagesDispositivoData()
       setData(result)
       setError(null)
     } catch (err) {

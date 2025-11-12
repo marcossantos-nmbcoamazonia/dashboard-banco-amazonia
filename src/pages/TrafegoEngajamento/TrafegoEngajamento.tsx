@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useMemo, useEffect, useCallback } from "react"
-import { TrendingUp, Calendar, Users, Clock, BarChart3, Target, UserPlus } from "lucide-react"
+import { TrendingUp, Calendar, Users, Clock, BarChart3, Target, UserPlus, Filter } from "lucide-react"
 import Loading from "../../components/Loading/Loading"
 import {
   useGA4Data,
@@ -10,6 +10,10 @@ import {
   useGA4ConsolidadoData,
   useGA4EventData,
   useGA4PagesData,
+  useGA4PagesEstadosData,
+  useGA4PagesEventsData,
+  useGA4PagesSourceData,
+  useGA4PagesDispositivoData,
 } from "../../services/api"
 import BrazilMap from "../../components/BrazilMap/BrazilMap"
 
@@ -52,6 +56,15 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
   const { data: ga4ConsolidadoData, loading: consolidadoLoading, error: consolidadoError } = useGA4ConsolidadoData()
   const { data: ga4EventData, loading: eventLoading, error: eventError } = useGA4EventData()
   const { data: ga4PagesData, loading: pagesLoading, error: pagesError } = useGA4PagesData()
+
+  // Novos dados filtrados por página
+  const { data: ga4PagesEstadosData, loading: pagesEstadosLoading, error: pagesEstadosError } = useGA4PagesEstadosData()
+  const { data: ga4PagesEventsData, loading: pagesEventsLoading, error: pagesEventsError } = useGA4PagesEventsData()
+  const { data: ga4PagesSourceData } = useGA4PagesSourceData()
+  const { data: ga4PagesDispositivoData } = useGA4PagesDispositivoData()
+
+  // Estado para o filtro de página selecionada
+  const [selectedPageTitle, setSelectedPageTitle] = useState<string | null>(null)
 
   // Calcular a primeira data dos dados e a última data disponível como padrão
   const getDefaultDateRange = useMemo(() => {
@@ -119,9 +132,12 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
     return colors[medium] || "#9ca3af"
   }
 
-  // Processamento dos dados do GA4 (Source, Medium, Campaign)
+  // Processamento dos dados do GA4 (Source, Medium, Campaign) - alterna entre geral e filtrado
   const processedGA4Data = useMemo(() => {
-    if (!ga4Data?.data?.values || ga4Data.data.values.length <= 1) {
+    // Se uma página estiver selecionada, usar os dados filtrados
+    const sourceData = selectedPageTitle ? ga4PagesSourceData : ga4Data
+
+    if (!sourceData?.data?.values || sourceData.data.values.length <= 1) {
       return {
         totalSessions: 0,
         totalViews: 0,
@@ -130,14 +146,15 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
       }
     }
 
-    const headers = ga4Data.data.values[0]
-    const rows = ga4Data.data.values.slice(1)
+    const headers = sourceData.data.values[0]
+    const rows = sourceData.data.values.slice(1)
 
     const dateIndex = headers.indexOf("Date")
     const sessionsIndex = headers.indexOf("Sessions")
     const viewsIndex = headers.indexOf("Views")
     const mediumIndex = headers.indexOf("Session medium")
     const sourceIndex = headers.indexOf("Session source")
+    const pageTitleIndex = selectedPageTitle ? headers.indexOf("Page title") : -1
 
     let totalSessions = 0
     let totalViews = 0
@@ -148,10 +165,16 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
       const date = row[dateIndex] || ""
       if (!isDateInRange(date)) return
 
+      // Se página estiver selecionada, filtrar apenas os dados dessa página
+      if (selectedPageTitle && pageTitleIndex !== -1) {
+        const pageTitle = row[pageTitleIndex] || ""
+        if (pageTitle !== selectedPageTitle) return
+      }
+
       const sessions = Number.parseInt(row[sessionsIndex]) || 0
-      const views = Number.parseInt(row[viewsIndex]) || 0
-      const medium = row[mediumIndex] || "(not set)"
-      const source = row[sourceIndex] || "(not set)"
+      const views = viewsIndex !== -1 ? Number.parseInt(row[viewsIndex]) || 0 : 0
+      const medium = mediumIndex !== -1 ? row[mediumIndex] || "(not set)" : "(not set)"
+      const source = sourceIndex !== -1 ? row[sourceIndex] || "(not set)" : "(not set)"
 
       if (sessions > 0) {
         totalSessions += sessions
@@ -171,7 +194,7 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
       .sort((a, b) => b.sessions - a.sessions)
       .slice(0, 10)
 
-    const sourceData = Object.entries(sourceMap)
+    const sourceDataProcessed = Object.entries(sourceMap)
       .map(([source, sessions]) => ({
         source,
         sessions,
@@ -184,28 +207,38 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
       totalSessions,
       totalViews,
       mediumData,
-      sourceData,
+      sourceData: sourceDataProcessed,
     }
-  }, [ga4Data, isDateInRange])
+  }, [ga4Data, ga4PagesSourceData, isDateInRange, selectedPageTitle])
 
-  // Processamento dos dados de Estados (para o mapa)
+  // Processamento dos dados de Estados (para o mapa) - alterna entre geral e filtrado por página
   const processedEstadosData = useMemo(() => {
-    if (!ga4EstadosData?.data?.values || ga4EstadosData.data.values.length <= 1) {
+    // Se uma página estiver selecionada, usar os dados filtrados
+    const sourceData = selectedPageTitle ? ga4PagesEstadosData : ga4EstadosData
+
+    if (!sourceData?.data?.values || sourceData.data.values.length <= 1) {
       return {}
     }
 
-    const headers = ga4EstadosData.data.values[0]
-    const rows = ga4EstadosData.data.values.slice(1)
+    const headers = sourceData.data.values[0]
+    const rows = sourceData.data.values.slice(1)
 
     const dateIndex = headers.indexOf("Date")
     const regionIndex = headers.indexOf("Region")
     const sessionsIndex = headers.indexOf("Sessions")
+    const pageTitleIndex = selectedPageTitle ? headers.indexOf("Page title") : -1
 
     const regionMap: { [key: string]: number } = {}
 
     rows.forEach((row: any[]) => {
       const date = row[dateIndex] || ""
       if (!isDateInRange(date)) return
+
+      // Se página estiver selecionada, filtrar apenas os dados dessa página
+      if (selectedPageTitle && pageTitleIndex !== -1) {
+        const pageTitle = row[pageTitleIndex] || ""
+        if (pageTitle !== selectedPageTitle) return
+      }
 
       const region = row[regionIndex] || ""
       const sessions = Number.parseInt(row[sessionsIndex]) || 0
@@ -220,11 +253,16 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
 
     console.log("Region Data processado:", regionMap)
     return regionMap
-  }, [ga4EstadosData, isDateInRange])
+  }, [ga4EstadosData, ga4PagesEstadosData, isDateInRange, selectedPageTitle])
 
-  // Processamento dos dados Consolidados (dispositivos, novos usuários, etc.)
+  // Processamento dos dados Consolidados (dispositivos, novos usuários, etc.) - usa dados da página se filtrado
   const processedConsolidadoData = useMemo(() => {
-    if (!ga4ConsolidadoData?.data?.values || ga4ConsolidadoData.data.values.length <= 1) {
+    // Para dispositivos, usar API específica se página estiver selecionada
+    const deviceSourceData = selectedPageTitle ? ga4PagesDispositivoData : ga4ConsolidadoData
+    // Para outras métricas, usar ga4PagesData
+    const metricsSourceData = selectedPageTitle ? ga4PagesData : ga4ConsolidadoData
+
+    if (!deviceSourceData?.data?.values || deviceSourceData.data.values.length <= 1) {
       return {
         totalNewUsers: 0,
         avgDuration: "00:00:00",
@@ -233,43 +271,35 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
       }
     }
 
-    const headers = ga4ConsolidadoData.data.values[0]
-    const rows = ga4ConsolidadoData.data.values.slice(1)
+    // Processar dispositivos
+    const deviceHeaders = deviceSourceData.data.values[0]
+    const deviceRows = deviceSourceData.data.values.slice(1)
 
-    const dateIndex = headers.indexOf("Date")
-    const newUsersIndex = headers.indexOf("New users")
-    const avgDurationIndex = headers.indexOf("Average session duration")
-    const deviceIndex = headers.indexOf("Device category")
-    const engagedSessionsIndex = headers.indexOf("Engaged sessions")
+    const deviceDateIndex = deviceHeaders.indexOf("Date")
+    const deviceIndex = deviceHeaders.indexOf("Device category")
+    const deviceSessionsIndex = deviceHeaders.indexOf("Sessions")
+    const devicePageTitleIndex = selectedPageTitle ? deviceHeaders.indexOf("Page title") : -1
 
-    let totalNewUsers = 0
-    let totalDuration = 0
-    let validRows = 0
     let totalEngagedSessions = 0
     const deviceMap: { [key: string]: number } = {}
 
-    rows.forEach((row: any[]) => {
-      const date = row[dateIndex] || ""
+    deviceRows.forEach((row: any[]) => {
+      const date = row[deviceDateIndex] || ""
       if (!isDateInRange(date)) return
 
-      const newUsers = Number.parseInt(row[newUsersIndex]) || 0
-      const duration = Number.parseFloat(row[avgDurationIndex]) || 0
-      const device = row[deviceIndex] || "outros"
-      const engagedSessions = Number.parseInt(row[engagedSessionsIndex]) || 0
+      // Se página estiver selecionada, filtrar
+      if (selectedPageTitle && devicePageTitleIndex !== -1) {
+        const pageTitle = row[devicePageTitleIndex] || ""
+        if (pageTitle !== selectedPageTitle) return
+      }
 
-      totalNewUsers += newUsers
-      totalDuration += duration
-      totalEngagedSessions += engagedSessions
-      validRows++
+      const device = deviceIndex !== -1 ? row[deviceIndex] || "outros" : "outros"
+      const sessions = deviceSessionsIndex !== -1 ? Number.parseInt(row[deviceSessionsIndex]) || 0 : 0
 
-      deviceMap[device] = (deviceMap[device] || 0) + engagedSessions
+      totalEngagedSessions += sessions
+      const deviceKey = device || "outros"
+      deviceMap[deviceKey] = (deviceMap[deviceKey] || 0) + sessions
     })
-
-    const avgDurationSec = validRows > 0 ? totalDuration / validRows : 0
-    const hours = Math.floor(avgDurationSec / 3600)
-    const minutes = Math.floor((avgDurationSec % 3600) / 60)
-    const seconds = Math.floor(avgDurationSec % 60)
-    const avgDuration = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
 
     const deviceData = Object.entries(deviceMap)
       .map(([tipo, sessoes]) => ({
@@ -280,6 +310,45 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
       }))
       .sort((a, b) => b.sessoes - a.sessoes)
 
+    // Processar outras métricas (new users, duration)
+    let totalNewUsers = 0
+    let totalDuration = 0
+    let validRows = 0
+
+    if (metricsSourceData?.data?.values && metricsSourceData.data.values.length > 1) {
+      const metricsHeaders = metricsSourceData.data.values[0]
+      const metricsRows = metricsSourceData.data.values.slice(1)
+
+      const metricsDateIndex = metricsHeaders.indexOf("Date")
+      const newUsersIndex = metricsHeaders.indexOf("New users")
+      const avgDurationIndex = metricsHeaders.indexOf("Average session duration")
+      const metricsPageTitleIndex = selectedPageTitle ? metricsHeaders.indexOf("Page title") : -1
+
+      metricsRows.forEach((row: any[]) => {
+        const date = row[metricsDateIndex] || ""
+        if (!isDateInRange(date)) return
+
+        // Se página estiver selecionada, filtrar
+        if (selectedPageTitle && metricsPageTitleIndex !== -1) {
+          const pageTitle = row[metricsPageTitleIndex] || ""
+          if (pageTitle !== selectedPageTitle) return
+        }
+
+        const newUsers = newUsersIndex !== -1 ? Number.parseInt(row[newUsersIndex]) || 0 : 0
+        const duration = avgDurationIndex !== -1 ? Number.parseFloat(row[avgDurationIndex]) || 0 : 0
+
+        totalNewUsers += newUsers
+        totalDuration += duration
+        validRows++
+      })
+    }
+
+    const avgDurationSec = validRows > 0 ? totalDuration / validRows : 0
+    const hours = Math.floor(avgDurationSec / 3600)
+    const minutes = Math.floor((avgDurationSec % 3600) / 60)
+    const seconds = Math.floor(avgDurationSec % 60)
+    const avgDuration = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`
+
     console.log("✅ Consolidado processado:", { totalNewUsers, avgDuration, devices: deviceData.length })
 
     return {
@@ -288,24 +357,28 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
       deviceData,
       totalEngagedSessions,
     }
-  }, [ga4ConsolidadoData, isDateInRange])
+  }, [ga4ConsolidadoData, ga4PagesData, ga4PagesDispositivoData, isDateInRange, selectedPageTitle])
 
-  // Processamento dos dados de Eventos
+  // Processamento dos dados de Eventos - alterna entre geral e filtrado por página
   const processedEventData = useMemo(() => {
-    if (!ga4EventData?.data?.values || ga4EventData.data.values.length <= 1) {
+    // Se uma página estiver selecionada, usar os dados filtrados
+    const sourceData = selectedPageTitle ? ga4PagesEventsData : ga4EventData
+
+    if (!sourceData?.data?.values || sourceData.data.values.length <= 1) {
       return {
         totalConversions: 0,
         topEvents: [],
       }
     }
 
-    const headers = ga4EventData.data.values[0]
-    const rows = ga4EventData.data.values.slice(1)
+    const headers = sourceData.data.values[0]
+    const rows = sourceData.data.values.slice(1)
 
     const dateIndex = headers.indexOf("Date")
     const eventNameIndex = headers.indexOf("Event name")
     const eventCountIndex = headers.indexOf("Event count")
     const conversionsIndex = headers.indexOf("Conversions")
+    const pageTitleIndex = selectedPageTitle ? headers.indexOf("Page title") : -1
 
     let totalConversions = 0
     const eventMap: { [key: string]: number } = {}
@@ -314,9 +387,15 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
       const date = row[dateIndex] || ""
       if (!isDateInRange(date)) return
 
+      // Se página estiver selecionada, filtrar apenas os dados dessa página
+      if (selectedPageTitle && pageTitleIndex !== -1) {
+        const pageTitle = row[pageTitleIndex] || ""
+        if (pageTitle !== selectedPageTitle) return
+      }
+
       const eventName = row[eventNameIndex] || "(not set)"
       const eventCount = Number.parseInt(row[eventCountIndex]) || 0
-      const conversions = Number.parseInt(row[conversionsIndex]) || 0
+      const conversions = conversionsIndex !== -1 ? Number.parseInt(row[conversionsIndex]) || 0 : 0
 
       totalConversions += conversions
       eventMap[eventName] = (eventMap[eventName] || 0) + eventCount
@@ -337,7 +416,7 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
       totalConversions,
       topEvents,
     }
-  }, [ga4EventData, isDateInRange])
+  }, [ga4EventData, ga4PagesEventsData, isDateInRange, selectedPageTitle])
 
   // Processamento dos dados de Páginas
   const processedPagesData = useMemo(() => {
@@ -413,45 +492,68 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
       cor?: string
     }>
     showValues?: boolean
-  }> = ({ title, data, showValues = true }) => {
+    onItemClick?: (itemName: string) => void
+    clickable?: boolean
+    selectedItem?: string | null
+  }> = ({ title, data, showValues = true, onItemClick, clickable = false, selectedItem = null }) => {
     const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
 
     return (
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
         <div className="space-y-3">
-          {data.map((item, index) => (
-            <div key={index} className="space-y-1 relative">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-gray-700">
-                  {item.categoria || item.tipo || item.medium || item.source || item.evento || item.pagina}
-                </span>
-                {showValues && (
-                  <span className="text-sm text-gray-600">
-                    {formatNumber(item.sessions || item.sessoes || item.count || 0)} ({item.percentual.toFixed(1)}%)
-                  </span>
-                )}
-              </div>
+          {data.map((item, index) => {
+            const itemName = item.categoria || item.tipo || item.medium || item.source || item.evento || item.pagina || ""
+            const isSelected = selectedItem === itemName
+
+            return (
               <div
-                className="w-full bg-gray-200 rounded-full h-3 relative cursor-pointer"
-                onMouseEnter={() => setHoveredIndex(index)}
-                onMouseLeave={() => setHoveredIndex(null)}
+                key={index}
+                className={`space-y-1 relative p-2 rounded-lg transition-all duration-200 ${
+                  isSelected ? 'bg-blue-50 border-2 border-blue-400 shadow-md' : 'border-2 border-transparent'
+                }`}
               >
+                <div className="flex justify-between items-center">
+                  <span
+                    className={`text-sm font-medium ${
+                      isSelected
+                        ? 'text-blue-800 font-bold'
+                        : clickable
+                        ? 'text-blue-600 hover:text-blue-800 cursor-pointer hover:underline'
+                        : 'text-gray-700'
+                    } ${clickable ? 'cursor-pointer' : ''}`}
+                    onClick={() => clickable && onItemClick && onItemClick(itemName)}
+                  >
+                    {isSelected && '✓ '}{itemName}
+                  </span>
+                  {showValues && (
+                    <span className={`text-sm ${isSelected ? 'text-blue-900 font-semibold' : 'text-gray-600'}`}>
+                      {formatNumber(item.sessions || item.sessoes || item.count || 0)} ({item.percentual.toFixed(1)}%)
+                    </span>
+                  )}
+                </div>
                 <div
-                  className="h-3 rounded-full transition-all duration-500"
-                  style={{
-                    width: `${Math.min(item.percentual, 100)}%`,
-                    backgroundColor: item.cor || "#6b7280",
-                  }}
-                />
-                {hoveredIndex === index && (
-                  <div className="absolute top-full mt-2 left-0 z-10 bg-gray-900 text-white text-xs rounded px-2 py-1 shadow-lg">
-                    {item.categoria || item.tipo || item.medium || item.source || item.evento || item.pagina}: {formatNumber(item.sessions || item.sessoes || item.count || 0)}
-                  </div>
-                )}
+                  className="w-full bg-gray-200 rounded-full h-3 relative cursor-pointer"
+                  onMouseEnter={() => setHoveredIndex(index)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                >
+                  <div
+                    className="h-3 rounded-full transition-all duration-500"
+                    style={{
+                      width: `${Math.min(item.percentual, 100)}%`,
+                      backgroundColor: isSelected ? '#1d4ed8' : (item.cor || "#6b7280"),
+                      boxShadow: isSelected ? '0 0 10px rgba(29, 78, 216, 0.5)' : 'none',
+                    }}
+                  />
+                  {hoveredIndex === index && (
+                    <div className="absolute top-full mt-2 left-0 z-10 bg-gray-900 text-white text-xs rounded px-2 py-1 shadow-lg">
+                      {itemName}: {formatNumber(item.sessions || item.sessoes || item.count || 0)}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
     )
@@ -517,11 +619,22 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
     }
   }
 
-  if (ga4Loading || estadosLoading || consolidadoLoading || eventLoading || pagesLoading) {
+  // Handler para quando clicar em um título de página
+  const handlePageTitleClick = (pageTitle: string) => {
+    if (selectedPageTitle === pageTitle) {
+      // Se já estiver selecionado, desselecionar
+      setSelectedPageTitle(null)
+    } else {
+      // Selecionar a nova página
+      setSelectedPageTitle(pageTitle)
+    }
+  }
+
+  if (ga4Loading || estadosLoading || consolidadoLoading || eventLoading || pagesLoading || pagesEstadosLoading || pagesEventsLoading) {
     return <Loading message="Carregando dados de tráfego e engajamento..." />
   }
 
-  if (ga4Error || estadosError || consolidadoError || eventError || pagesError) {
+  if (ga4Error || estadosError || consolidadoError || eventError || pagesError || pagesEstadosError || pagesEventsError) {
     return (
       <div className="p-6 text-center">
         <div className="text-red-500 mb-2">Erro ao carregar dados</div>
@@ -531,6 +644,8 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
         {consolidadoError && <p className="text-xs text-red-400">{consolidadoError.message}</p>}
         {eventError && <p className="text-xs text-red-400">{eventError.message}</p>}
         {pagesError && <p className="text-xs text-red-400">{pagesError.message}</p>}
+        {pagesEstadosError && <p className="text-xs text-red-400">{pagesEstadosError.message}</p>}
+        {pagesEventsError && <p className="text-xs text-red-400">{pagesEventsError.message}</p>}
       </div>
     )
   }
@@ -538,14 +653,33 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
   return (
     <div className="space-y-6 h-full flex flex-col">
       {/* Título e Subtítulo */}
-      <div className="col-span-3 flex items-center space-x-3">
-        <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-blue-600 rounded-lg flex items-center justify-center">
-          <TrendingUp className="w-6 h-6 text-white" />
+      <div className="col-span-3 flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-blue-600 rounded-lg flex items-center justify-center">
+            <TrendingUp className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Tráfego e Engajamento</h1>
+            <p className="text-xs text-gray-600">Google Analytics 4 - Banco da Amazônia</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Tráfego e Engajamento</h1>
-          <p className="text-xs text-gray-600">Google Analytics 4 - Banco da Amazônia</p>
-        </div>
+
+        {/* Indicador de filtro ativo */}
+        {selectedPageTitle && (
+          <div className="flex items-center space-x-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
+            <Filter className="w-4 h-4 text-blue-600" />
+            <span className="text-sm font-medium text-blue-900">
+              Filtrado por: <span className="font-bold">{selectedPageTitle}</span>
+            </span>
+            <button
+              onClick={() => setSelectedPageTitle(null)}
+              className="ml-2 text-blue-600 hover:text-blue-800 font-bold text-lg"
+              title="Remover filtro"
+            >
+              ×
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Header Compacto com Filtro de Data e Cards de Métricas */}
@@ -664,7 +798,13 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
         </div>
 
         <div className="card-overlay rounded-lg shadow-lg p-6 col-span-full lg:col-span-1">
-          <HorizontalBarChart title="Páginas Mais Acessadas" data={processedPagesData.topPages} />
+          <HorizontalBarChart
+            title="Páginas Mais Acessadas (clique para filtrar)"
+            data={processedPagesData.topPages}
+            clickable={true}
+            onItemClick={handlePageTitleClick}
+            selectedItem={selectedPageTitle}
+          />
         </div>
       </div>
 
