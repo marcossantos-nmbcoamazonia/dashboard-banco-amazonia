@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useMemo, useEffect, useCallback } from "react"
+import { useState, useMemo, useEffect, useCallback, memo } from "react"
 import { TrendingUp, Calendar, Users, Clock, BarChart3, Target, UserPlus, Filter } from "lucide-react"
 import Loading from "../../components/Loading/Loading"
 import {
@@ -466,11 +466,12 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
     }
   }, [ga4EventData, ga4PagesEventsData, isDateInRange, selectedPageTitle])
 
-  // Processamento dos dados de Páginas
+  // Processamento dos dados de Páginas - não limita mais a quantidade quando há filtro de pesquisa
   const processedPagesData = useMemo(() => {
     if (!ga4PagesData?.data?.values || ga4PagesData.data.values.length <= 1) {
       return {
         topPages: [],
+        allPages: [],
       }
     }
 
@@ -497,7 +498,7 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
 
     const totalSessions = Object.values(pageMap).reduce((a, b) => a + b, 0)
 
-    const topPages = Object.entries(pageMap)
+    const allPages = Object.entries(pageMap)
       .map(([pagina, sessions]) => ({
         pagina,
         sessions,
@@ -505,10 +506,11 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
         percentual: totalSessions > 0 ? (sessions / totalSessions) * 100 : 0,
       }))
       .sort((a, b) => b.sessions - a.sessions)
-      .slice(0, 10)
 
+    // Retornar top 10 para visualização padrão e todas para pesquisa
     return {
-      topPages,
+      topPages: allPages.slice(0, 10),
+      allPages: allPages,
     }
   }, [ga4PagesData, isDateInRange])
 
@@ -522,6 +524,7 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
     }
     return value.toLocaleString("pt-BR")
   }
+
 
   // Componente de gráfico de barras horizontais com tooltip
   const HorizontalBarChart: React.FC<{
@@ -543,16 +546,109 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
     onItemClick?: (itemName: string) => void
     clickable?: boolean
     selectedItem?: string | null
-  }> = ({ title, data, showValues = true, onItemClick, clickable = false, selectedItem = null }) => {
+    showSearch?: boolean
+    enableScroll?: boolean
+    maxHeight?: string
+  }> = ({
+    title,
+    data,
+    showValues = true,
+    onItemClick,
+    clickable = false,
+    selectedItem = null,
+    showSearch = false,
+    enableScroll = false,
+    maxHeight = "400px"
+  }) => {
     const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+    const [localSearchInput, setLocalSearchInput] = useState<string>("")
+    const [localSearchFilter, setLocalSearchFilter] = useState<string>("")
+
+    // Filtrar dados com base na pesquisa
+    const filteredData = useMemo(() => {
+      if (localSearchFilter.trim() === "") return data
+
+      const lowerSearch = localSearchFilter.toLowerCase()
+      return data.filter(item => {
+        const itemName = item.categoria || item.tipo || item.medium || item.source || item.evento || item.pagina || ""
+        return itemName.toLowerCase().includes(lowerSearch)
+      })
+    }, [data, localSearchFilter])
+
+    const handleSearch = () => {
+      setLocalSearchFilter(localSearchInput)
+    }
+
+    const handleClear = () => {
+      setLocalSearchInput("")
+      setLocalSearchFilter("")
+    }
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+        handleSearch()
+      }
+    }
 
     return (
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-        <div className="space-y-3">
-          {data.map((item, index) => {
-            const itemName = item.categoria || item.tipo || item.medium || item.source || item.evento || item.pagina || ""
-            const isSelected = selectedItem === itemName
+
+        {/* Campo de pesquisa simples */}
+        {showSearch && (
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={localSearchInput}
+                onChange={(e) => setLocalSearchInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Pesquisar páginas..."
+                className="w-full px-3 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+              />
+              <svg
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+            </div>
+            <button
+              onClick={handleSearch}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+            >
+              Pesquisar
+            </button>
+            {localSearchInput && (
+              <button
+                onClick={handleClear}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
+              >
+                Limpar
+              </button>
+            )}
+          </div>
+        )}
+
+        <div
+          className={`space-y-3 ${enableScroll ? 'overflow-y-auto pr-2' : ''}`}
+          style={enableScroll ? { maxHeight } : {}}
+        >
+          {filteredData.length === 0 && localSearchFilter.trim() !== "" ? (
+            <div className="text-center py-4 text-gray-500 text-sm">
+              Nenhuma página encontrada para "{localSearchFilter}"
+            </div>
+          ) : (
+            filteredData.map((item, index) => {
+              const itemName = item.categoria || item.tipo || item.medium || item.source || item.evento || item.pagina || ""
+              const isSelected = selectedItem === itemName
 
             return (
               <div
@@ -601,7 +697,8 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
                 </div>
               </div>
             )
-          })}
+          })
+          )}
         </div>
       </div>
     )
@@ -668,15 +765,9 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
   }
 
   // Handler para quando clicar em um título de página
-  const handlePageTitleClick = (pageTitle: string) => {
-    if (selectedPageTitle === pageTitle) {
-      // Se já estiver selecionado, desselecionar
-      setSelectedPageTitle(null)
-    } else {
-      // Selecionar a nova página
-      setSelectedPageTitle(pageTitle)
-    }
-  }
+  const handlePageTitleClick = useCallback((pageTitle: string) => {
+    setSelectedPageTitle(prev => prev === pageTitle ? null : pageTitle)
+  }, [])
 
   if (ga4Loading || estadosLoading || consolidadoLoading || eventLoading || pagesLoading || pagesEstadosLoading || pagesEventsLoading) {
     return <Loading message="Carregando dados de tráfego e engajamento..." />
@@ -848,10 +939,13 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
         <div className="card-overlay rounded-lg shadow-lg p-6 col-span-full lg:col-span-1">
           <HorizontalBarChart
             title="Páginas Mais Acessadas (clique para filtrar)"
-            data={processedPagesData.topPages}
+            data={processedPagesData.allPages}
             clickable={true}
             onItemClick={handlePageTitleClick}
             selectedItem={selectedPageTitle}
+            showSearch={true}
+            enableScroll={true}
+            maxHeight="500px"
           />
         </div>
       </div>
