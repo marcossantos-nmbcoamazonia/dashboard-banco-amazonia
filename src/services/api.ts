@@ -47,7 +47,7 @@ export const fetchResumoData = async () => {
 // NOVA FUNÇÃO para buscar dados off-line
 export const fetchOfflineData = async () => {
   try {
-    const response = await axios.get("https://nmbcoamazonia-api.vercel.app/google/sheets/1R1ehp35FAxdP1vhI1rT-mIYw3h9fuatHMiS__5V6Yok/data?range=Offline")
+    const response = await axios.get("https://nmbcoamazonia-api.vercel.app/google/sheets/1R1ehp35FAxdP1vhI1rT-mIYw3h9fuatHMiS__5V6Yok/data?range=Plano")
     return response.data
   } catch (error) {
     console.error("Erro ao buscar dados off-line:", error)
