@@ -40,6 +40,7 @@ const Capa: React.FC = () => {
   const [selectedMeio, setSelectedMeio] = useState<string | null>(null)
   const [expandedMeio, setExpandedMeio] = useState<string | null>(null)
   const [selectedVeiculo, setSelectedVeiculo] = useState<string>("")
+  const [selectedAcao, setSelectedAcao] = useState<string | null>(null)
   const [portaisData, setPortaisData] = useState<PortaisData>({ impressoes: 0, cliques: 0, visualizacoes: 0 })
   const [portaisLoading, setPortaisLoading] = useState(true)
 
@@ -143,6 +144,7 @@ const Capa: React.FC = () => {
 
       // Aplicar filtros
       if (selectedAgencia && agencia !== selectedAgencia) return
+      if (selectedAcao && campanha !== selectedAcao) return
       if (selectedMeio && meio !== selectedMeio) return
       if (selectedVeiculo && veiculo !== selectedVeiculo) return
 
@@ -226,7 +228,7 @@ const Capa: React.FC = () => {
       veiculosPorMeio,
       veiculosTotal: allVeiculos.size,
     }
-  }, [planoData, selectedAgencia, selectedMeio, selectedVeiculo])
+  }, [planoData, selectedAgencia, selectedAcao, selectedMeio, selectedVeiculo])
 
   // Obter veículos por meio para o accordion
   const veiculosPorMeioList = useMemo(() => {
@@ -449,6 +451,18 @@ const Capa: React.FC = () => {
     setSelectedAgencia(selectedAgencia === agenciaNome ? null : agenciaNome)
   }
 
+  // Handler para clicar em uma ação
+  const handleAcaoClick = (acaoNome: string) => {
+    setSelectedAcao(selectedAcao === acaoNome ? null : acaoNome)
+  }
+
+  // Separar campanhas em Projetos e Ações
+  const { projetos, acoes } = useMemo(() => {
+    const projetos = planoMetrics.campanhas.filter(c => c.nome.toUpperCase().includes('PROJETO'))
+    const acoes = planoMetrics.campanhas.filter(c => !c.nome.toUpperCase().includes('PROJETO'))
+    return { projetos, acoes }
+  }, [planoMetrics.campanhas])
+
   // Formatar valor baseado na métrica
   const formatMetricValue = (value: number, metric?: MetricType): string => {
     if (metric === "spent") {
@@ -516,10 +530,11 @@ const Capa: React.FC = () => {
           </div>
           <p className="text-2xl font-bold text-gray-900">{formatMetricValue(planoMetrics.investimentoTotal, "spent")}</p>
           <p className="text-xs text-gray-500 mt-1">Plano de Mídia 2025</p>
-          {(selectedAgencia || selectedMeio || selectedVeiculo) && (
+          {(selectedAgencia || selectedAcao || selectedMeio || selectedVeiculo) && (
             <button
               onClick={() => {
                 setSelectedAgencia(null)
+                setSelectedAcao(null)
                 setSelectedMeio(null)
                 setSelectedVeiculo("")
               }}
@@ -629,25 +644,77 @@ const Capa: React.FC = () => {
           </div>
         </div>
 
-        {/* Campanhas do Plano */}
+        {/* Ações do Plano (Projetos e Ações) */}
         <div className="card-overlay rounded-xl shadow-lg p-5 h-80 flex flex-col">
-          <h2 className="text-base font-bold text-gray-900 mb-3 flex items-center">
-            <Megaphone className="w-4 h-4 mr-2 text-purple-600" />
-            Campanhas ({planoMetrics.campanhas.length})
-          </h2>
-          <div className="flex-1 overflow-y-auto space-y-2">
-            {planoMetrics.campanhas.map((campanha, index) => (
-              <div
-                key={index}
-                className="p-3 rounded-lg bg-gray-50"
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-bold text-gray-900 flex items-center">
+              <Megaphone className="w-4 h-4 mr-2 text-purple-600" />
+              Ações ({planoMetrics.campanhas.length})
+            </h2>
+            {selectedAcao && (
+              <button
+                onClick={() => setSelectedAcao(null)}
+                className="text-xs text-blue-600 hover:text-blue-800 underline"
               >
-                <p className="text-sm font-medium text-gray-900 truncate">{campanha.nome}</p>
-                <div className="flex items-center justify-between mt-1">
-                  <p className="text-xs text-gray-600">{formatMetricValue(campanha.investimento, "spent")}</p>
-                  <p className="text-xs text-gray-500">{campanha.numMeios} {campanha.numMeios === 1 ? 'meio' : 'meios'} • {campanha.numVeiculos} {campanha.numVeiculos === 1 ? 'veículo' : 'veículos'}</p>
+                Limpar
+              </button>
+            )}
+          </div>
+          <div className="flex-1 overflow-y-auto space-y-3">
+            {/* Ações */}
+            {acoes.length > 0 && (
+              <div>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2 px-1">Ações</h3>
+                <div className="space-y-2">
+                  {acoes.map((acao, index) => (
+                    <div
+                      key={index}
+                      onClick={() => handleAcaoClick(acao.nome)}
+                      className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                        selectedAcao === acao.nome
+                          ? "bg-purple-50 border-2 border-purple-400 shadow-sm"
+                          : "hover:bg-gray-50 border-2 border-transparent bg-gray-50"
+                      }`}
+                    >
+                      <p className="text-sm font-medium text-gray-900 truncate">{acao.nome}</p>
+                      <div className="flex items-center justify-between mt-1">
+                        <p className="text-xs text-gray-600">{formatMetricValue(acao.investimento, "spent")}</p>
+                        <p className="text-xs text-gray-500">{acao.numMeios} {acao.numMeios === 1 ? 'meio' : 'meios'} • {acao.numVeiculos} {acao.numVeiculos === 1 ? 'veículo' : 'veículos'}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
+            )}
+
+
+            {/* Projetos */}
+            {projetos.length > 0 && (
+              <div>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2 px-1">Projetos</h3>
+                <div className="space-y-2">
+                  {projetos.map((projeto, index) => (
+                    <div
+                      key={index}
+                      onClick={() => handleAcaoClick(projeto.nome)}
+                      className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                        selectedAcao === projeto.nome
+                          ? "bg-purple-50 border-2 border-purple-400 shadow-sm"
+                          : "hover:bg-gray-50 border-2 border-transparent bg-gray-50"
+                      }`}
+                    >
+                      <p className="text-sm font-medium text-gray-900 truncate">{projeto.nome}</p>
+                      <div className="flex items-center justify-between mt-1">
+                        <p className="text-xs text-gray-600">{formatMetricValue(projeto.investimento, "spent")}</p>
+                        <p className="text-xs text-gray-500">{projeto.numMeios} {projeto.numMeios === 1 ? 'meio' : 'meios'} • {projeto.numVeiculos} {projeto.numVeiculos === 1 ? 'veículo' : 'veículos'}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            
           </div>
         </div>
 

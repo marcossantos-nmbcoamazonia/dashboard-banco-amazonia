@@ -49,7 +49,7 @@ const API_TO_GEOJSON_STATE_NAMES: { [key: string]: string } = {
   "State of Sergipe": "Sergipe",
   "State of Tocantins": "Tocantins",
 }
-
+ 
 const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
   const { data: ga4Data, loading: ga4Loading, error: ga4Error } = useGA4Data()
   const { data: ga4EstadosData, loading: estadosLoading, error: estadosError } = useGA4EstadosData()
