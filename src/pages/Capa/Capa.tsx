@@ -90,6 +90,12 @@ const Capa: React.FC = () => {
     fetchPortaisData()
   }, [])
 
+  // Ajustes de valores para campanhas específicas
+  const campanhaAjustes: Record<string, number> = {
+    "CARTÃO VERDINHO": -491874.13,
+    "MAQUININHA": -1003827.66,
+  }
+
   // Processar dados do Plano de Mídia
   const planoMetrics = useMemo(() => {
     if (!planoData?.success || !planoData?.data?.values || planoData.data.values.length < 2) {
@@ -203,21 +209,48 @@ const Capa: React.FC = () => {
       }
     })
 
-    return {
-      investimentoTotal,
-      agencias: Array.from(agenciasMap.values()).map(a => ({
-        nome: a.nome,
-        investimento: a.investimento,
-        entrega: a.entrega,
-        numCampanhas: a.campanhas.size
-      })).sort((a, b) => b.investimento - a.investimento),
-      campanhas: Array.from(campanhasMap.values()).map(c => ({
+    // Aplicar ajustes nas campanhas e recalcular investimento total
+    let investimentoAjustado = investimentoTotal
+    const campanhasAjustadas = Array.from(campanhasMap.values()).map(c => {
+      const ajuste = campanhaAjustes[c.nome] || 0
+      const investimentoComAjuste = c.investimento + ajuste
+
+      // Adicionar o ajuste ao investimento total (já que é negativo, vai subtrair)
+      if (ajuste !== 0) {
+        investimentoAjustado += ajuste
+      }
+
+      return {
         nome: c.nome,
-        investimento: c.investimento,
+        investimento: investimentoComAjuste,
         entrega: c.entrega,
         numMeios: c.meios.size,
         numVeiculos: c.veiculos.size
-      })).sort((a, b) => b.investimento - a.investimento),
+      }
+    }).sort((a, b) => b.investimento - a.investimento)
+
+    // Aplicar ajustes nas agências (subtrair da Calix)
+    const totalAjustesCalix = Object.values(campanhaAjustes).reduce((sum, valor) => sum + valor, 0)
+    const agenciasAjustadas = Array.from(agenciasMap.values()).map(a => {
+      let investimentoAgencia = a.investimento
+
+      // Se for a agência Calix, aplicar os ajustes
+      if (a.nome.toUpperCase().includes('CALIX')) {
+        investimentoAgencia += totalAjustesCalix
+      }
+
+      return {
+        nome: a.nome,
+        investimento: investimentoAgencia,
+        entrega: a.entrega,
+        numCampanhas: a.campanhas.size
+      }
+    }).sort((a, b) => b.investimento - a.investimento)
+
+    return {
+      investimentoTotal: investimentoAjustado,
+      agencias: agenciasAjustadas,
+      campanhas: campanhasAjustadas,
       meios: Array.from(meiosMap.values()).map(m => ({
         nome: m.nome,
         investimento: m.investimento,
@@ -228,7 +261,7 @@ const Capa: React.FC = () => {
       veiculosPorMeio,
       veiculosTotal: allVeiculos.size,
     }
-  }, [planoData, selectedAgencia, selectedAcao, selectedMeio, selectedVeiculo])
+  }, [planoData, selectedAgencia, selectedAcao, selectedMeio, selectedVeiculo, campanhaAjustes])
 
   // Obter veículos por meio para o accordion
   const veiculosPorMeioList = useMemo(() => {
@@ -239,6 +272,8 @@ const Capa: React.FC = () => {
     const headers = planoData.data.values[0]
     const rows = planoData.data.values.slice(1)
 
+    const agenciaIndex = headers.indexOf("AGÊNCIA")
+    const campanhaIndex = headers.indexOf("CAMPANHA")
     const meioIndex = headers.indexOf("MEIO")
     const veiculoIndex = headers.indexOf("VEÍCULO")
     const impressoesIndex = headers.indexOf("IMPRESSÕES / CLIQUES / DIÁRIAS")
@@ -259,10 +294,17 @@ const Capa: React.FC = () => {
     const veiculosMap = new Map<string, Map<string, { investimento: number; entrega: number }>>()
 
     rows.forEach((row) => {
+      const agencia = row[agenciaIndex]
+      const campanha = row[campanhaIndex]
       const meio = row[meioIndex]
       const veiculo = row[veiculoIndex]
       const impressoes = parseBrazilianNumber(row[impressoesIndex] || "0")
       const valorDesembolso = parseBrazilianCurrency(row[valorDesembolsoIndex] || "0")
+
+      // Aplicar os mesmos filtros do planoMetrics
+      if (selectedAgencia && agencia !== selectedAgencia) return
+      if (selectedAcao && campanha !== selectedAcao) return
+      if (selectedVeiculo && veiculo !== selectedVeiculo) return
 
       if (meio && meio.trim() !== "" && veiculo && veiculo.trim() !== "") {
         if (!veiculosMap.has(meio)) {
@@ -287,7 +329,7 @@ const Capa: React.FC = () => {
     })
 
     return result
-  }, [planoData])
+  }, [planoData, selectedAgencia, selectedAcao, selectedVeiculo])
 
   // Processar resultados de Internet (Consolidado) + Portais
   const internetResults = useMemo(() => {
