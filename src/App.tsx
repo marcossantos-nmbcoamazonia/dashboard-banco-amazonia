@@ -9,6 +9,7 @@ import VisaoGeral from "./pages/VisaoGeral/VisaoGeral"
 import Alcance from "./pages/Alcance/Alcance"
 import Visualizacoes from "./pages/Visualizacoes/Visualizacoes"
 import TrafegoEngajamento from "./pages/TrafegoEngajamento/TrafegoEngajamento"
+import Producao from "./pages/Producao/Producao"
 import VeiculacaoOffline from "./pages/VeiculacaoOffline/VeiculacaoOffine"
 import CriativosTikTok from "./pages/CriativosTikTok/CriativosTikTok"
 import CriativosMetaAds from "./pages/CriativosMetaAds/CriativosMetaAds"
@@ -37,6 +38,7 @@ function App() {
             <Route path="/alcance" element={<Alcance />} />
             <Route path="/visualizacoes" element={<Visualizacoes />} />
             <Route path="/trafego-engajamento" element={<TrafegoEngajamento />} />
+            <Route path="/producao" element={<Producao />} />
             <Route path="/veiculacao-offline" element={<VeiculacaoOffline />} />
             <Route path="/criativos-meta-ads" element={<CriativosMetaAds />} />
             <Route path="/criativos-tiktok" element={<CriativosTikTok />} />

@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState } from "react"
 import { Link, useLocation } from "react-router-dom"
-import { Home, Clock, Eye, TrendingUp, BarChart3, Users, BookOpenText, Radio, Activity } from "lucide-react"
+import { Home, Clock, Eye, TrendingUp, BarChart3, Users, BookOpenText, Radio, Activity, Clapperboard } from "lucide-react"
 
 interface MenuItem {
   id: string
@@ -126,6 +126,12 @@ const menuItems: MenuItem[] = [
     label: "Portais",
     path: "/portais",
     icon: <Activity className="w-5 h-5" />,
+  },
+  {
+    id: "producao",
+    label: "Produção",
+    path: "/producao",
+    icon: <Clapperboard className="w-5 h-5" />,
   },
   {
     id: "veiculacao-offline",

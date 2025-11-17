@@ -55,6 +55,17 @@ export const fetchOfflineData = async () => {
   }
 }
 
+// NOVA FUNÇÃO para buscar dados de produção
+export const fetchProducaoData = async () => {
+  try {
+    const response = await axios.get("https://nmbcoamazonia-api.vercel.app/google/sheets/1R1ehp35FAxdP1vhI1rT-mIYw3h9fuatHMiS__5V6Yok/data?range=Producao")
+    return response.data
+  } catch (error) {
+    console.error("Erro ao buscar dados de produção:", error)
+    throw error
+  }
+}
+
 // NOVAS FUNÇÕES PARA OS CRIATIVOS
 // Função para buscar dados do Meta
 export const fetchCartaoMetaData = async () => {
@@ -210,6 +221,32 @@ export const useOfflineData = () => {
     try {
       setLoading(true)
       const result = await fetchOfflineData()
+      setData(result)
+      setError(null)
+    } catch (err) {
+      setError(err as Error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  return { data, loading, error, refetch: loadData }
+}
+
+// NOVO Hook personalizado para usar os dados de produção
+export const useProducaoData = () => {
+  const [data, setData] = React.useState<any>(null)
+  const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState<Error | null>(null)
+
+  const loadData = React.useCallback(async () => {
+    try {
+      setLoading(true)
+      const result = await fetchProducaoData()
       setData(result)
       setError(null)
     } catch (err) {
