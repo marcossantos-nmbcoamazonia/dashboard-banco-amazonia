@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState } from "react"
 import { Link, useLocation } from "react-router-dom"
-import { Home, Clock, Eye, TrendingUp, BarChart3, Users, BookOpenText, Radio, Activity, Clapperboard } from "lucide-react"
+import { Home, Clock, Eye, TrendingUp, BarChart3, Users, BookOpenText, Radio, Activity, Clapperboard, LineChart } from "lucide-react"
 
 interface MenuItem {
   id: string
@@ -18,6 +18,12 @@ const menuItems: MenuItem[] = [
     label: "Capa",
     path: "/capa",
     icon: <Home className="w-5 h-5" />,
+  },
+  {
+    id: "campanhas-ativas",
+    label: "Campanhas Ativas",
+    path: "/campanhas-ativas",
+    icon: <LineChart className="w-5 h-5" />,
   },
   {
     id: "linha-tempo",
@@ -49,7 +55,6 @@ const menuItems: MenuItem[] = [
     path: "/trafego-engajamento",
     icon: <TrendingUp className="w-5 h-5" />,
   },
-  
   {
     id: "criativos-meta-ads",
     label: "Criativos - Meta",

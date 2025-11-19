@@ -2,9 +2,7 @@
 
 import type React from "react"
 import { useState, useMemo, useEffect } from "react"
-import { ResponsiveLine } from "@nivo/line"
 import {
-  TrendingUp,
   DollarSign,
   Building2,
   Megaphone,
@@ -17,11 +15,9 @@ import {
   Target,
 } from "lucide-react"
 import { useConsolidadoGeral, usePlanoMidia } from "../../services/consolidadoApi"
-import { useGA4Data } from "../../services/api"
+import { useGA4Data, useProducaoData } from "../../services/api"
 import Loading from "../../components/Loading/Loading"
 import axios from "axios"
-
-type MetricType = "impressions" | "clicks" | "videoViews" | "spent"
 
 interface PortaisData {
   impressoes: number
@@ -29,19 +25,26 @@ interface PortaisData {
   visualizacoes: number
 }
 
+interface PortaisRawData {
+  campanha: string
+  impressoes: number
+  cliques: number
+  visualizacoes: number
+}
+
 const Capa: React.FC = () => {
-  const { campaigns, last7Days, loading: consolidadoLoading, error: consolidadoError, data: consolidadoData } = useConsolidadoGeral()
+  const { loading: consolidadoLoading, error: consolidadoError, data: consolidadoData } = useConsolidadoGeral()
   const { data: planoData, loading: planoLoading, error: planoError } = usePlanoMidia()
   const { data: ga4Data, loading: ga4Loading, error: ga4Error } = useGA4Data()
+  const { data: producaoData, loading: producaoLoading, error: producaoError } = useProducaoData()
 
-  const [selectedMetric, setSelectedMetric] = useState<MetricType>("impressions")
-  const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null)
   const [selectedAgencia, setSelectedAgencia] = useState<string | null>(null)
   const [selectedMeio, setSelectedMeio] = useState<string | null>(null)
   const [expandedMeio, setExpandedMeio] = useState<string | null>(null)
   const [selectedVeiculo, setSelectedVeiculo] = useState<string>("")
   const [selectedAcao, setSelectedAcao] = useState<string | null>(null)
   const [portaisData, setPortaisData] = useState<PortaisData>({ impressoes: 0, cliques: 0, visualizacoes: 0 })
+  const [portaisRawData, setPortaisRawData] = useState<PortaisRawData[]>([])
   const [portaisLoading, setPortaisLoading] = useState(true)
 
   // Buscar dados de Portais
@@ -57,10 +60,18 @@ const Capa: React.FC = () => {
           const headers = response.data.data.values[0]
           const rows = response.data.data.values.slice(1)
 
-          const validasCPMIndex = headers.indexOf("Válidas CPM")
-          const cliquesCPMIndex = headers.indexOf("Cliques CPM")
+          const campanhaIndex = headers.indexOf("Campanha")
+          const impressoesCPMIndex = headers.indexOf("Impressões")
+          const cliquesCPMIndex = headers.indexOf("Cliques")
           const viewsIndex = headers.indexOf("Views")
-          const cliquesCPVIndex = headers.indexOf("Cliques CPV")
+
+          // Encontrar índice do segundo "Cliques" (CPV)
+          let cliquesCPVIndex = -1
+          headers.forEach((header: string, index: number) => {
+            if (header === "Cliques" && index !== cliquesCPMIndex) {
+              cliquesCPVIndex = index
+            }
+          })
 
           const parseNumber = (value: string): number => {
             if (!value || value === "0" || value === "") return 0
@@ -71,14 +82,30 @@ const Capa: React.FC = () => {
           let impressoes = 0
           let cliques = 0
           let visualizacoes = 0
+          const rawDataArray: PortaisRawData[] = []
 
           rows.forEach((row: any[]) => {
-            impressoes += parseNumber(row[validasCPMIndex] || "0")
-            cliques += parseNumber(row[cliquesCPMIndex] || "0") + parseNumber(row[cliquesCPVIndex] || "0")
-            visualizacoes += parseNumber(row[viewsIndex] || "0")
+            const campanha = row[campanhaIndex] || ""
+            const rowImpressoes = parseNumber(row[impressoesCPMIndex] || "0")
+            const rowCliques = parseNumber(row[cliquesCPMIndex] || "0") + (cliquesCPVIndex >= 0 ? parseNumber(row[cliquesCPVIndex] || "0") : 0)
+            const rowVisualizacoes = parseNumber(row[viewsIndex] || "0")
+
+            impressoes += rowImpressoes
+            cliques += rowCliques
+            visualizacoes += rowVisualizacoes
+
+            if (campanha) {
+              rawDataArray.push({
+                campanha,
+                impressoes: rowImpressoes,
+                cliques: rowCliques,
+                visualizacoes: rowVisualizacoes
+              })
+            }
           })
 
           setPortaisData({ impressoes, cliques, visualizacoes })
+          setPortaisRawData(rawDataArray)
         }
       } catch (error) {
         console.error("Erro ao buscar dados de Portais:", error)
@@ -331,45 +358,118 @@ const Capa: React.FC = () => {
     return result
   }, [planoData, selectedAgencia, selectedAcao, selectedVeiculo])
 
-  // Processar resultados de Internet (Consolidado) + Portais
+  // Processar resultados de Internet (Consolidado) + Portais (com filtro de campanha)
   const internetResults = useMemo(() => {
-    if (!consolidadoData?.success || !consolidadoData?.data?.values || consolidadoData.data.values.length < 2) {
+    // Processar dados de Consolidado (Redes Sociais)
+    let impressoesConsolidado = 0
+    let cliquesConsolidado = 0
+    let visualizacoesConsolidado = 0
+
+    if (consolidadoData?.success && consolidadoData?.data?.values && consolidadoData.data.values.length >= 2) {
+      const headers = consolidadoData.data.values[0]
+      const rows = consolidadoData.data.values.slice(1)
+
+      const campanhaIndex = headers.indexOf("Campanha")
+      const impressionsIndex = headers.indexOf("Impressions")
+      const clicksIndex = headers.indexOf("Clicks")
+      const videoViewsIndex = headers.indexOf("Video views")
+
+      const parseBrazilianNumber = (value: string): number => {
+        if (!value || value === "0") return 0
+        return parseFloat(value.replace(/\./g, '').replace(',', '.'))
+      }
+
+      rows.forEach((row) => {
+        const campanha = row[campanhaIndex] || ""
+
+        // Se houver filtro de campanha selecionada, aplicar
+        if (selectedAcao && campanha !== selectedAcao) return
+
+        impressoesConsolidado += parseBrazilianNumber(row[impressionsIndex] || "0")
+        cliquesConsolidado += parseBrazilianNumber(row[clicksIndex] || "0")
+        visualizacoesConsolidado += parseBrazilianNumber(row[videoViewsIndex] || "0")
+      })
+    }
+
+    // Processar dados de Portais
+    let impressoesPortais = 0
+    let cliquesPortais = 0
+    let visualizacoesPortais = 0
+
+    if (selectedAcao) {
+      // Se houver filtro, buscar apenas dados da campanha selecionada
+      portaisRawData.forEach((item) => {
+        if (item.campanha === selectedAcao) {
+          impressoesPortais += item.impressoes
+          cliquesPortais += item.cliques
+          visualizacoesPortais += item.visualizacoes
+        }
+      })
+    } else {
+      // Sem filtro, usar totais
+      impressoesPortais = portaisData.impressoes
+      cliquesPortais = portaisData.cliques
+      visualizacoesPortais = portaisData.visualizacoes
+    }
+
+    // Retornar soma de Consolidado + Portais
+    return {
+      impressoes: impressoesConsolidado + impressoesPortais,
+      cliques: cliquesConsolidado + cliquesPortais,
+      visualizacoes: visualizacoesConsolidado + visualizacoesPortais,
+    }
+  }, [consolidadoData, portaisData, portaisRawData, selectedAcao])
+
+  // Processar dados de Produção (com filtro de campanha)
+  const producaoMetrics = useMemo(() => {
+    if (!producaoData?.data?.values || producaoData.data.values.length <= 1) {
       return {
-        impressoes: portaisData.impressoes,
-        cliques: portaisData.cliques,
-        visualizacoes: portaisData.visualizacoes,
+        valorTotal: 0,
+        totalAcoes: 0
       }
     }
 
-    const headers = consolidadoData.data.values[0]
-    const rows = consolidadoData.data.values.slice(1)
+    const headers = producaoData.data.values[0]
+    const rows = producaoData.data.values.slice(1)
 
-    const impressionsIndex = headers.indexOf("Impressions")
-    const clicksIndex = headers.indexOf("Clicks")
-    const videoViewsIndex = headers.indexOf("Video views")
+    const acaoIndex = headers.indexOf("AÇÃO")
+    const campanhaIndex = headers.indexOf("Campanha")
+    const valorIndex = headers.indexOf("VALOR")
 
-    const parseBrazilianNumber = (value: string): number => {
-      if (!value || value === "0") return 0
-      return parseFloat(value.replace(/\./g, '').replace(',', '.'))
+    const parseCurrency = (valor: string): number => {
+      if (!valor || valor === "-" || valor === "") return 0
+      const cleanValue = valor
+        .replace(/R\$\s?/g, "")
+        .replace(/\./g, "")
+        .replace(/,/g, ".")
+        .trim()
+      const parsed = parseFloat(cleanValue)
+      return isNaN(parsed) ? 0 : parsed
     }
 
-    let impressoes = 0
-    let cliques = 0
-    let visualizacoes = 0
+    let valorTotal = 0
+    let totalAcoes = 0
 
-    rows.forEach((row) => {
-      impressoes += parseBrazilianNumber(row[impressionsIndex] || "0")
-      cliques += parseBrazilianNumber(row[clicksIndex] || "0")
-      visualizacoes += parseBrazilianNumber(row[videoViewsIndex] || "0")
+    rows.forEach((row: string[]) => {
+      const acao = row[acaoIndex] || ""
+      const campanha = row[campanhaIndex] || ""
+      const valorStr = row[valorIndex] || "0"
+
+      if (!acao) return
+
+      // Se houver filtro de campanha, aplicar (usar coluna Campanha)
+      if (selectedAcao && campanha !== selectedAcao) return
+
+      const valorNum = parseCurrency(valorStr)
+      valorTotal += valorNum
+      totalAcoes++
     })
 
-    // Adicionar dados de Portais
     return {
-      impressoes: impressoes + portaisData.impressoes,
-      cliques: cliques + portaisData.cliques,
-      visualizacoes: visualizacoes + portaisData.visualizacoes,
+      valorTotal,
+      totalAcoes
     }
-  }, [consolidadoData, portaisData])
+  }, [producaoData, selectedAcao])
 
   // Processar sessões totais do GA4 (sem filtro de data)
   const sessoes2025 = useMemo(() => {
@@ -392,101 +492,6 @@ const Capa: React.FC = () => {
     return totalSessions
   }, [ga4Data])
 
-  // Filtrar dados dos últimos 7 dias por campanha selecionada
-  const filteredLast7Days = useMemo(() => {
-    if (!selectedCampaign || !consolidadoData?.success || !consolidadoData?.data?.values) return last7Days
-
-    const headers = consolidadoData.data.values[0]
-    const rows = consolidadoData.data.values.slice(1)
-
-    const dateIndex = headers.indexOf("Date")
-    const campaignIndex = headers.indexOf("Campanha")
-    const spentIndex = headers.indexOf("Total spent")
-    const impressionsIndex = headers.indexOf("Impressions")
-    const clicksIndex = headers.indexOf("Clicks")
-    const videoViewsIndex = headers.indexOf("Video views")
-
-    const parseBrazilianCurrency = (value: string): number => {
-      if (!value || value === "0") return 0
-      return parseFloat(value.replace(/R\$\s?/g, '').replace(/\./g, '').replace(',', '.'))
-    }
-    const parseBrazilianNumber = (value: string): number => {
-      if (!value || value === "0") return 0
-      return parseFloat(value.replace(/\./g, '').replace(',', '.'))
-    }
-
-    const yesterday = new Date()
-    yesterday.setDate(yesterday.getDate() - 1)
-    yesterday.setHours(0, 0, 0, 0)
-    const sevenDaysAgo = new Date(yesterday)
-    sevenDaysAgo.setDate(yesterday.getDate() - 6)
-    sevenDaysAgo.setHours(0, 0, 0, 0)
-
-    const metricsMap = new Map<string, { date: string; impressions: number; clicks: number; videoViews: number; spent: number }>()
-
-    rows.forEach((row) => {
-      const campaignName = row[campaignIndex]
-      const dateStr = row[dateIndex]
-
-      if (campaignName !== selectedCampaign || !dateStr) return
-
-      const [day, month, year] = dateStr.split("/")
-      const rowDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
-      rowDate.setHours(0, 0, 0, 0)
-
-      if (rowDate >= sevenDaysAgo && rowDate <= yesterday) {
-        if (!metricsMap.has(dateStr)) {
-          metricsMap.set(dateStr, { date: dateStr, impressions: 0, clicks: 0, videoViews: 0, spent: 0 })
-        }
-        const metrics = metricsMap.get(dateStr)!
-        metrics.impressions += parseBrazilianNumber(row[impressionsIndex] || "0")
-        metrics.clicks += parseBrazilianNumber(row[clicksIndex] || "0")
-        metrics.videoViews += parseBrazilianNumber(row[videoViewsIndex] || "0")
-        metrics.spent += parseBrazilianCurrency(row[spentIndex] || "0")
-      }
-    })
-
-    return Array.from(metricsMap.values()).sort((a, b) => {
-      const [dayA, monthA, yearA] = a.date.split("/").map(Number)
-      const [dayB, monthB, yearB] = b.date.split("/").map(Number)
-      const dateA = new Date(yearA, monthA - 1, dayA)
-      const dateB = new Date(yearB, monthB - 1, dayB)
-      return dateA.getTime() - dateB.getTime()
-    })
-  }, [selectedCampaign, consolidadoData, last7Days])
-
-  // Preparar dados para o gráfico
-  const chartData = useMemo(() => {
-    const dataToUse = filteredLast7Days
-    if (!dataToUse.length) return []
-
-    const metricLabels: Record<MetricType, string> = {
-      impressions: "Impressões",
-      clicks: "Cliques",
-      videoViews: "Visualizações",
-      spent: "Investimento",
-    }
-
-    return [
-      {
-        id: metricLabels[selectedMetric],
-        data: dataToUse.map((day) => ({
-          x: day.date,
-          y: day[selectedMetric],
-        })),
-      },
-    ]
-  }, [filteredLast7Days, selectedMetric])
-
-  // Calcular total da métrica selecionada
-  const totalMetric = useMemo(() => {
-    return filteredLast7Days.reduce((sum, day) => sum + day[selectedMetric], 0)
-  }, [filteredLast7Days, selectedMetric])
-
-  // Handler para clicar em uma campanha
-  const handleCampaignClick = (campaignName: string) => {
-    setSelectedCampaign(selectedCampaign === campaignName ? null : campaignName)
-  }
 
   // Handler para clicar em uma agência
   const handleAgenciaClick = (agenciaNome: string) => {
@@ -506,7 +511,7 @@ const Capa: React.FC = () => {
   }, [planoMetrics.campanhas])
 
   // Formatar valor baseado na métrica
-  const formatMetricValue = (value: number, metric?: MetricType): string => {
+  const formatMetricValue = (value: number, metric?: string): string => {
     if (metric === "spent") {
       return new Intl.NumberFormat("pt-BR", {
         style: "currency",
@@ -527,8 +532,8 @@ const Capa: React.FC = () => {
     return value.toLocaleString("pt-BR")
   }
 
-  const loading = consolidadoLoading || planoLoading || ga4Loading || portaisLoading
-  const error = consolidadoError || planoError || ga4Error
+  const loading = consolidadoLoading || planoLoading || ga4Loading || portaisLoading || producaoLoading
+  const error = consolidadoError || planoError || ga4Error || producaoError
 
   if (loading) {
     return <Loading message="Carregando dashboard executivo..." />
@@ -570,8 +575,30 @@ const Capa: React.FC = () => {
             <h3 className="text-sm font-medium text-gray-600">Investimento Total</h3>
             <DollarSign className="w-5 h-5 text-green-600" />
           </div>
-          <p className="text-2xl font-bold text-gray-900">{formatMetricValue(planoMetrics.investimentoTotal, "spent")}</p>
-          <p className="text-xs text-gray-500 mt-1">Plano de Mídia 2025</p>
+
+          {/* Investimento de Mídia */}
+          <div className="mb-2">
+            <p className="text-xs text-gray-500">Mídia</p>
+            <p className="text-lg font-bold text-gray-900">{formatMetricValue(planoMetrics.investimentoTotal, "spent")}</p>
+          </div>
+
+          {/* Investimento de Produção */}
+          <div className="border-t border-gray-200 pt-2 mb-2">
+            <p className="text-xs text-gray-500">Produção</p>
+            <p className="text-lg font-bold text-purple-700">{formatMetricValue(producaoMetrics.valorTotal, "spent")}</p>
+            {selectedAcao && producaoMetrics.totalAcoes > 0 && (
+              <p className="text-xs text-purple-600">{producaoMetrics.totalAcoes} {producaoMetrics.totalAcoes === 1 ? 'ação' : 'ações'}</p>
+            )}
+          </div>
+
+          {/* Total Geral */}
+          <div className="border-t border-gray-200 pt-2">
+            <p className="text-xs text-gray-500">Total Geral</p>
+            <p className="text-2xl font-bold text-green-600">
+              {formatMetricValue(planoMetrics.investimentoTotal + producaoMetrics.valorTotal, "spent")}
+            </p>
+          </div>
+
           {(selectedAgencia || selectedAcao || selectedMeio || selectedVeiculo) && (
             <button
               onClick={() => {
@@ -600,7 +627,14 @@ const Capa: React.FC = () => {
         {/* Resultados (Internet + Portais + Sessões) - Ocupa 2 colunas */}
         <div className="card-overlay rounded-xl shadow-lg p-5 col-span-2">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-gray-600">Resultados</h3>
+            <div className="flex items-center space-x-2">
+              <h3 className="text-sm font-medium text-gray-600">Resultados</h3>
+              {selectedAcao && (
+                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                  Filtrado: {selectedAcao}
+                </span>
+              )}
+            </div>
             <Target className="w-5 h-5 text-purple-600" />
           </div>
           <div className="grid grid-cols-4 gap-4">
@@ -641,7 +675,10 @@ const Capa: React.FC = () => {
                 <p className="text-xs text-gray-600">Sessões</p>
               </div>
               <p className="text-2xl font-bold text-green-600">{formatNumber(sessoes2025)}</p>
-              <p className="text-xs text-gray-400 mt-1">Google Analytics 4</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Google Analytics 4
+                {selectedAcao && " (sem filtro)"}
+              </p>
             </div>
           </div>
         </div>
@@ -860,164 +897,6 @@ const Capa: React.FC = () => {
         </div>
       </div>
 
-      {/* Análise dos Últimos 7 Dias */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Card de Campanhas Ativas */}
-        <div className="card-overlay rounded-xl shadow-lg p-5 h-80 flex flex-col">
-          <h2 className="text-base font-bold text-gray-900 mb-3 flex items-center">
-            <BarChart3 className="w-4 h-4 mr-2 text-blue-600" />
-            Campanhas Ativas
-          </h2>
-
-          {consolidadoLoading && (
-            <div className="flex-1 flex items-center justify-center">
-              <p className="text-sm text-gray-500">Carregando campanhas...</p>
-            </div>
-          )}
-
-          {consolidadoError && (
-            <div className="flex-1 flex items-center justify-center">
-              <p className="text-sm text-red-500">Erro ao carregar campanhas</p>
-            </div>
-          )}
-
-          {!consolidadoLoading && !consolidadoError && campaigns.length > 0 && (
-            <div className="flex-1 overflow-y-auto space-y-2">
-              {campaigns.slice(0, 8).map((campaign, index) => (
-                <div
-                  key={index}
-                  onClick={() => handleCampaignClick(campaign.name)}
-                  className={`flex items-start space-x-2 py-2 px-3 rounded-lg cursor-pointer transition-all duration-200 ${
-                    selectedCampaign === campaign.name
-                      ? "bg-blue-50 border-2 border-blue-400 shadow-sm"
-                      : "hover:bg-gray-50 border-2 border-transparent"
-                  }`}
-                >
-                  <div
-                    className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
-                      campaign.isActive ? "bg-green-500" : "bg-gray-400"
-                    }`}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{campaign.name}</p>
-                    <p className="text-xs text-gray-600">
-                      {formatMetricValue(campaign.totalSpent, "spent")} • {formatNumber(campaign.impressions)} impressões
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Gráfico de Métricas dos Últimos 7 Dias */}
-        <div className="card-overlay rounded-xl shadow-lg p-5 h-80 flex flex-col">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center space-x-2">
-              <TrendingUp className="w-5 h-5 text-green-600" />
-              <h2 className="text-base font-bold text-gray-900">
-                Últimos 7 Dias
-                {selectedCampaign && <span className="text-sm font-normal text-blue-600 ml-2">• {selectedCampaign}</span>}
-              </h2>
-            </div>
-            <div className="relative">
-              <select
-                value={selectedMetric}
-                onChange={(e) => setSelectedMetric(e.target.value as MetricType)}
-                className="appearance-none text-sm bg-white border-2 border-gray-200 rounded-xl pl-3 pr-8 py-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-300 transition-colors"
-              >
-                <option value="impressions">Impressões</option>
-                <option value="clicks">Cliques</option>
-                <option value="videoViews">Visualizações</option>
-                <option value="spent">Investimento</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-600">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          {!consolidadoLoading && !consolidadoError && chartData.length > 0 && (
-            <>
-              <div className="mb-2">
-                <p className="text-xs text-gray-600">Total do Período</p>
-                <p className="text-lg font-bold text-green-600">{formatMetricValue(totalMetric, selectedMetric)}</p>
-              </div>
-
-              <div className="flex-1 min-h-0">
-                <ResponsiveLine
-                  data={chartData}
-                  margin={{ top: 10, right: 10, bottom: 30, left: 60 }}
-                  xScale={{ type: "point" }}
-                  yScale={{ type: "linear", min: "auto", max: "auto" }}
-                  curve="monotoneX"
-                  axisTop={null}
-                  axisRight={null}
-                  axisBottom={{
-                    tickSize: 5,
-                    tickPadding: 5,
-                    tickRotation: -45,
-                    legendOffset: 36,
-                    legendPosition: "middle",
-                    format: (value) => {
-                      const [day, month] = value.split("/")
-                      return `${day}/${month}`
-                    },
-                  }}
-                  axisLeft={{
-                    tickSize: 5,
-                    tickPadding: 8,
-                    tickRotation: 0,
-                    legendOffset: -50,
-                    legendPosition: "middle",
-                    format: (value) => {
-                      if (selectedMetric === "spent") {
-                        return `R$${(value / 1000).toFixed(0)}k`
-                      }
-                      return value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value.toString()
-                    },
-                  }}
-                  colors={["#10b981"]}
-                  pointSize={6}
-                  pointColor={{ theme: "background" }}
-                  pointBorderWidth={2}
-                  pointBorderColor={{ from: "serieColor" }}
-                  pointLabelYOffset={-12}
-                  enableArea={true}
-                  areaOpacity={0.15}
-                  useMesh={true}
-                  enableGridX={false}
-                  theme={{
-                    text: {
-                      fontSize: 10,
-                      fill: "#6b7280",
-                    },
-                    axis: {
-                      ticks: {
-                        text: {
-                          fontSize: 10,
-                          fill: "#6b7280",
-                        },
-                      },
-                    },
-                  }}
-                  tooltip={({ point }) => (
-                    <div className="bg-white px-2 py-1 shadow-lg rounded border border-gray-200">
-                      <div className="text-xs">
-                        <strong>{point.data.xFormatted}</strong>
-                        <br />
-                        {formatMetricValue(point.data.y as number, selectedMetric)}
-                      </div>
-                    </div>
-                  )}
-                />
-              </div>
-            </>
-          )}
-        </div>
-      </div>
     </div>
   )
 }
