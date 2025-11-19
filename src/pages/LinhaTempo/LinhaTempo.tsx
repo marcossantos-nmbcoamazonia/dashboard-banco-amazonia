@@ -58,9 +58,11 @@ const LinhaTempo: React.FC = () => {
 
   // Cores para diferentes plataformas/veículos (memoizado)
   const platformColors = useMemo<Record<string, string>>(() => ({
-    TikTok: "#ff0050",
-    LinkedIn: "#0077b5",
+    TikTok: "#000000ff",
+    'LinkedIn Ads': "#0077b5",
     Meta: "#0668E1",
+    Instagram: "#bc06e1ff",
+    Facecbook: "#0668E1",
     Spotify: "#1DB954",
     Band: "#ffd700",
     "Brasil 247": "#ff4500",
@@ -69,6 +71,7 @@ const LinhaTempo: React.FC = () => {
     "Portal Forum": "#8b4513",
     YouTube: "#ff0000",
     Pinterest: "#bd081c",
+    Kwai: "#ff8000ff",
     Default: "#6366f1", // Cor padrão para veículos não mapeados
   }), [])
 
@@ -152,7 +155,7 @@ const LinhaTempo: React.FC = () => {
           const normalizedVeiculo = (() => {
             const lower = rawVeiculo.toLowerCase()
             if (lower === 'audience network' || lower === 'unknown' || lower === 'threads' || lower === 'messenger') {
-              return 'Meta'
+              return 'Facebook'
             }
             return rawVeiculo
           })()
@@ -335,7 +338,7 @@ const LinhaTempo: React.FC = () => {
   const vehicleEntries: VehicleEntry[] = useMemo(() => {
     const entries: Record<string, string> = {}
 
-    processedData.forEach((item) => {
+    filteredData.forEach((item) => {
       if (!entries[item.platform]) {
         entries[item.platform] = item.date
       } else if (new Date(item.date) < new Date(entries[item.platform])) {
@@ -350,7 +353,7 @@ const LinhaTempo: React.FC = () => {
         color: platformColors[platform] || platformColors.Default,
       }))
       .sort((a, b) => new Date(a.firstDate).getTime() - new Date(b.firstDate).getTime())
-  }, [processedData, platformColors])
+  }, [filteredData, platformColors])
 
   // Calcular estatísticas
   const totalInvestment = useMemo(() => {
@@ -629,6 +632,52 @@ const LinhaTempo: React.FC = () => {
                   legend: "Data",
                   legendOffset: 60,
                   legendPosition: "middle",
+                  tickValues: (() => {
+                    const dataPoints = chartData[0]?.data || []
+                    const totalDays = dataPoints.length
+                    if (totalDays <= 7) {
+                      // Poucos dias: mostrar todos
+                      return dataPoints.map((d) => d.x)
+                    } else if (totalDays <= 31) {
+                      // Até um mês: mostrar a cada 3 dias
+                      return dataPoints.filter((_, i) => i % 3 === 0).map((d) => d.x)
+                    } else if (totalDays <= 90) {
+                      // Até 3 meses: mostrar a cada 7 dias
+                      return dataPoints.filter((_, i) => i % 7 === 0).map((d) => d.x)
+                    } else {
+                      // Mais de 3 meses: mostrar a cada 15 dias
+                      return dataPoints.filter((_, i) => i % 15 === 0).map((d) => d.x)
+                    }
+                  })(),
+                  format: (value) => {
+                    const dataPoints = chartData[0]?.data || []
+                    const totalDays = dataPoints.length
+
+                    // Usar a mesma função createLocalDate para evitar problemas de timezone
+                    const dateStr = value as string
+                    const parts = dateStr.split('-')
+                    if (parts.length !== 3) return dateStr
+
+                    const [year, month, day] = parts
+                    const dayNum = String(Number.parseInt(day)).padStart(2, '0')
+                    const monthNum = String(Number.parseInt(month)).padStart(2, '0')
+
+                    if (totalDays <= 7) {
+                      // Poucos dias: mostrar dia/mês
+                      return `${dayNum}/${monthNum}`
+                    } else if (totalDays <= 31) {
+                      // Até um mês: mostrar dia/mês
+                      return `${dayNum}/${monthNum}`
+                    } else if (totalDays <= 90) {
+                      // Até 3 meses: mostrar dia/mês
+                      return `${dayNum}/${monthNum}`
+                    } else {
+                      // Mais de 3 meses: mostrar mês/ano
+                      const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
+                      const monthIndex = Number.parseInt(month) - 1
+                      return `${monthNames[monthIndex]}/${year}`
+                    }
+                  },
                 }}
                 axisLeft={{
                   tickSize: 5,
