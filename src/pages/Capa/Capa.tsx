@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { useState, useMemo, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 import {
   DollarSign,
   Building2,
@@ -33,6 +34,7 @@ interface PortaisRawData {
 }
 
 const Capa: React.FC = () => {
+  const navigate = useNavigate()
   const { loading: consolidadoLoading, error: consolidadoError, data: consolidadoData } = useConsolidadoGeral()
   const { data: planoData, loading: planoLoading, error: planoError } = usePlanoMidia()
   const { data: ga4Data, loading: ga4Loading, error: ga4Error } = useGA4Data()
@@ -583,12 +585,17 @@ const Capa: React.FC = () => {
           </div>
 
           {/* Investimento de Produção */}
-          <div className="border-t border-gray-200 pt-2 mb-2">
+          <div
+            className="border-t border-gray-200 pt-2 mb-2 cursor-pointer hover:bg-purple-50 p-2 -m-2 rounded transition-colors"
+            onClick={() => navigate('/producao')}
+            title="Clique para ver detalhes de produção"
+          >
             <p className="text-xs text-gray-500">Produção</p>
             <p className="text-lg font-bold text-purple-700">{formatMetricValue(producaoMetrics.valorTotal, "spent")}</p>
             {selectedAcao && producaoMetrics.totalAcoes > 0 && (
               <p className="text-xs text-purple-600">{producaoMetrics.totalAcoes} {producaoMetrics.totalAcoes === 1 ? 'ação' : 'ações'}</p>
             )}
+            <p className="text-xs text-purple-500 mt-1 underline">Ver detalhes →</p>
           </div>
 
           {/* Total Geral */}

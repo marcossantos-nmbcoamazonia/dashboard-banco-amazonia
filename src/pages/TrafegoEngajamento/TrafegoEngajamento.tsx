@@ -916,26 +916,6 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
 
       {/* Gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {/* Dispositivos */}
-        <div className="card-overlay rounded-lg shadow-lg p-6">
-          <HorizontalBarChart title="Dispositivos" data={processedConsolidadoData.deviceData} />
-        </div>
-
-        {/* Source */}
-        <div className="card-overlay rounded-lg shadow-lg p-6">
-          <HorizontalBarChart title="Origem do Tráfego (Source)" data={processedGA4Data.sourceData} />
-        </div>
-
-        {/* Mapa de Calor */}
-        <div className="card-overlay rounded-lg shadow-lg p-6">
-          <BrazilMap regionData={processedEstadosData} getIntensityColor={getIntensityColor} />
-        </div>
-
-        {/* Top Eventos e Páginas Mais Acessadas */}
-        <div className="card-overlay rounded-lg shadow-lg p-6 col-span-full lg:col-span-1">
-          <HorizontalBarChart title="Top 10 Eventos com Maior Interação" data={processedEventData.topEvents} />
-        </div>
-
         <div className="card-overlay rounded-lg shadow-lg p-6 col-span-full lg:col-span-1">
           <HorizontalBarChart
             title="Páginas Mais Acessadas (clique para filtrar)"
@@ -948,6 +928,33 @@ const TrafegoEngajamento: React.FC<TrafegoEngajamentoProps> = () => {
             maxHeight="500px"
           />
         </div>
+        
+        
+
+        {/* Source */}
+        <div className="card-overlay rounded-lg shadow-lg p-6">
+          <HorizontalBarChart title="Origem do Tráfego (Source)" data={processedGA4Data.sourceData} />
+        </div>
+        {/* Mapa de Calor */}
+        <div className="card-overlay rounded-lg shadow-lg p-6">
+          <BrazilMap regionData={processedEstadosData} getIntensityColor={getIntensityColor} />
+        </div>
+        
+
+        {/* Top Eventos e Páginas Mais Acessadas */}
+        <div className="card-overlay rounded-lg shadow-lg p-6 col-span-full lg:col-span-1">
+          <HorizontalBarChart title="Top 10 Eventos com Maior Interação" data={processedEventData.topEvents} />
+        </div>
+
+        
+        
+        {/* Dispositivos */}
+        <div className="card-overlay rounded-lg shadow-lg p-6">
+          <HorizontalBarChart title="Dispositivos" data={processedConsolidadoData.deviceData} />
+        </div>
+
+        
+
       </div>
 
       {/* Observações */}

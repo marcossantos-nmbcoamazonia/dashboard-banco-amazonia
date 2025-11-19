@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useMemo } from "react"
-import { ChevronDown, ChevronRight, FileText, Radio, TrendingUp } from "lucide-react"
+import { ChevronDown, ChevronUp, ChevronRight, FileText, Radio, TrendingUp, Megaphone, DollarSign } from "lucide-react"
 import { useOfflineData } from "../../services/api"
 import Loading from "../../components/Loading/Loading"
 
@@ -30,6 +30,20 @@ interface MeioData {
   totalInsercoes: number
   totalImpactos: number
   totalInvestimento: number
+}
+
+interface CampanhaData {
+  nome: string
+  meios: {
+    [meioNome: string]: {
+      insercoes: number
+      investimento: number
+      veiculos: Set<string>
+    }
+  }
+  totalInsercoes: number
+  totalInvestimento: number
+  totalVeiculos: number
 }
 
 // Função para converter string de número para número
@@ -101,6 +115,7 @@ const VeiculacaoOffline: React.FC = () => {
   const { data, loading, error } = useOfflineData()
   const [expandedMeios, setExpandedMeios] = useState<{ [key: string]: boolean }>({})
   const [expandedPracas, setExpandedPracas] = useState<{ [key: string]: boolean }>({})
+  const [expandedCampanha, setExpandedCampanha] = useState<string | null>(null)
 
   // Estados para filtros
   const [filtroCampanha, setFiltroCampanha] = useState<string>("")
@@ -114,6 +129,7 @@ const VeiculacaoOffline: React.FC = () => {
         meios: {},
         totais: { campanhas: 0, veiculos: 0, insercoes: 0, impactos: 0, investimento: 0 },
         campanhas: [],
+        campanhasData: [],
         agencias: [],
         pracas: [],
         pracasCategorized: {
@@ -266,6 +282,66 @@ const VeiculacaoOffline: React.FC = () => {
     pracasCategorized["Estados"].sort()
     pracasCategorized["Cidades"].sort()
 
+    // Processar dados por campanha
+    const campanhasMap = new Map<string, CampanhaData>()
+
+    rows.forEach((row: string[]) => {
+      const campanha = row[campanhaIndex] || ""
+      const meio = row[meioIndex] || ""
+      const veiculo = row[veiculoIndex] || ""
+      const impressoes = row[impressoesIndex] || "0"
+      const valorDesembolso = row[valorDesembolsoIndex] || "0"
+
+      if (!campanha || !meio || !veiculo) return
+      if (meio.toLowerCase() === "internet") return
+
+      // Aplicar filtros
+      if (filtroCampanha && campanha !== filtroCampanha) return
+      if (filtroAgencia && row[agenciaIndex] !== filtroAgencia) return
+      if (filtroPraca && row[pracaIndex] !== filtroPraca) return
+
+      const insercoesNum = parseNumero(impressoes)
+      const investimentoNum = parseCurrency(valorDesembolso)
+
+      if (!campanhasMap.has(campanha)) {
+        campanhasMap.set(campanha, {
+          nome: campanha,
+          meios: {},
+          totalInsercoes: 0,
+          totalInvestimento: 0,
+          totalVeiculos: 0
+        })
+      }
+
+      const campanhaData = campanhasMap.get(campanha)!
+
+      if (!campanhaData.meios[meio]) {
+        campanhaData.meios[meio] = {
+          insercoes: 0,
+          investimento: 0,
+          veiculos: new Set<string>()
+        }
+      }
+
+      campanhaData.meios[meio].insercoes += insercoesNum
+      campanhaData.meios[meio].investimento += investimentoNum
+      campanhaData.meios[meio].veiculos.add(veiculo)
+      campanhaData.totalInsercoes += insercoesNum
+      campanhaData.totalInvestimento += investimentoNum
+    })
+
+    // Calcular total de veículos únicos por campanha
+    campanhasMap.forEach((campanha) => {
+      const veiculosSet = new Set<string>()
+      Object.values(campanha.meios).forEach((meio) => {
+        meio.veiculos.forEach((v) => veiculosSet.add(v))
+      })
+      campanha.totalVeiculos = veiculosSet.size
+    })
+
+    // Converter para array e ordenar por investimento
+    const campanhasArray = Array.from(campanhasMap.values()).sort((a, b) => b.totalInvestimento - a.totalInvestimento)
+
     return {
       meios: meiosData,
       totais: {
@@ -276,6 +352,7 @@ const VeiculacaoOffline: React.FC = () => {
         investimento: totalInvestimento
       },
       campanhas: Array.from(campanhasSet).sort(),
+      campanhasData: campanhasArray,
       agencias: Array.from(agenciasSet).sort(),
       pracas: Array.from(pracasSet).sort(),
       pracasCategorized: pracasCategorized,
@@ -311,65 +388,58 @@ const VeiculacaoOffline: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 h-full flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-gradient-to-r from-gray-600 to-gray-800 rounded-lg flex items-center justify-center">
-            <Radio className="w-6 h-6 text-white" />
+    <div className="h-full flex flex-col space-y-4 overflow-auto">
+      {/* Header Minimalista com Filtros Integrados */}
+      <div className="card-overlay rounded-xl shadow-lg p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <Radio className="w-6 h-6 text-purple-600" />
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Veiculação Off-line</h1>
+              <p className="text-sm text-gray-600">Análise de inserções e impactos em mídias tradicionais</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 text-enhanced">Veiculação Off-line</h1>
-            <p className="text-gray-600">Análise de inserções e impactos em mídias tradicionais</p>
-          </div>
-        </div>
-        <div className="text-sm text-gray-600 bg-white/80 backdrop-blur-sm px-3 py-1 rounded-lg">
-          Última atualização: {new Date().toLocaleString("pt-BR")}
-        </div>
-      </div>
 
-      {/* Filtros */}
-      <div className="card-overlay rounded-lg shadow-lg p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Campanha</label>
+          {/* Filtros */}
+          <div className="flex items-center gap-3">
+            {/* Filtro Campanha */}
             <select
               value={filtroCampanha}
-              onChange={(e) => setFiltroCampanha(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              onChange={(e) => {
+                setFiltroCampanha(e.target.value)
+                setExpandedCampanha(e.target.value || null)
+              }}
+              className="text-sm bg-white border border-gray-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 cursor-pointer"
             >
-              <option value="">Todas</option>
+              <option value="">Campanha: Todas</option>
               {processedData.campanhas.map((campanha) => (
                 <option key={campanha} value={campanha}>
                   {campanha}
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Agência</label>
+
+            {/* Filtro Agência */}
             <select
               value={filtroAgencia}
               onChange={(e) => setFiltroAgencia(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="text-sm bg-white border border-gray-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 cursor-pointer"
             >
-              <option value="">Todas</option>
+              <option value="">Agência: Todas</option>
               {processedData.agencias.map((agencia) => (
                 <option key={agencia} value={agencia}>
                   {agencia}
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Praça</label>
+
+            {/* Filtro Praça */}
             <select
               value={filtroPraca}
               onChange={(e) => setFiltroPraca(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="text-sm bg-white border border-gray-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 cursor-pointer"
             >
-              <option value="">Todas</option>
-
+              <option value="">Praça: Todas</option>
               {processedData.pracasCategorized["Abrangência"].length > 0 && (
                 <optgroup label="Abrangência">
                   {processedData.pracasCategorized["Abrangência"].map((praca) => (
@@ -379,7 +449,6 @@ const VeiculacaoOffline: React.FC = () => {
                   ))}
                 </optgroup>
               )}
-
               {processedData.pracasCategorized["Regiões"].length > 0 && (
                 <optgroup label="Regiões">
                   {processedData.pracasCategorized["Regiões"].map((praca) => (
@@ -389,7 +458,6 @@ const VeiculacaoOffline: React.FC = () => {
                   ))}
                 </optgroup>
               )}
-
               {processedData.pracasCategorized["Estados"].length > 0 && (
                 <optgroup label="Estados">
                   {processedData.pracasCategorized["Estados"].map((praca) => (
@@ -399,7 +467,6 @@ const VeiculacaoOffline: React.FC = () => {
                   ))}
                 </optgroup>
               )}
-
               {processedData.pracasCategorized["Cidades"].length > 0 && (
                 <optgroup label="Cidades">
                   {processedData.pracasCategorized["Cidades"].map((praca) => (
@@ -412,158 +479,265 @@ const VeiculacaoOffline: React.FC = () => {
             </select>
           </div>
         </div>
-        {(filtroCampanha || filtroAgencia || filtroPraca) && (
-          <div className="mt-4 flex justify-end">
-            <button
-              onClick={limparFiltros}
-              className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
-            >
-              Limpar Filtros
-            </button>
-          </div>
-        )}
       </div>
 
-      {/* Métricas Gerais */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="card-overlay rounded-lg shadow-lg p-6 flex items-center space-x-4">
-          <div className="p-3 bg-purple-100 rounded-full">
-            <FileText className="w-6 h-6 text-purple-600" />
+      {/* Cards de Métricas Gerais */}
+      <div className="grid grid-cols-4 gap-3">
+        {/* Campanhas */}
+        <div className="card-overlay rounded-lg shadow p-4">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-xs font-medium text-gray-600">Campanhas</h3>
+            <FileText className="w-4 h-4 text-purple-600" />
           </div>
-          <div>
-            <div className="text-sm text-gray-600">Campanhas/Projetos</div>
-            <div className="text-2xl font-bold text-gray-900">{processedData.totais.campanhas}</div>
-          </div>
+          <p className="text-xl font-bold text-gray-900">{processedData.totais.campanhas}</p>
         </div>
-        <div className="card-overlay rounded-lg shadow-lg p-6 flex items-center space-x-4">
-          <div className="p-3 bg-orange-100 rounded-full">
-            <Radio className="w-6 h-6 text-orange-600" />
+
+        {/* Veículos */}
+        <div className="card-overlay rounded-lg shadow p-4">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-xs font-medium text-gray-600">Veículos</h3>
+            <Radio className="w-4 h-4 text-orange-600" />
           </div>
-          <div>
-            <div className="text-sm text-gray-600">Veículos</div>
-            <div className="text-2xl font-bold text-gray-900">{processedData.totais.veiculos}</div>
-          </div>
+          <p className="text-xl font-bold text-gray-900">{processedData.totais.veiculos}</p>
         </div>
-        <div className="card-overlay rounded-lg shadow-lg p-6 flex items-center space-x-4">
-          <div className="p-3 bg-green-100 rounded-full">
-            <TrendingUp className="w-6 h-6 text-green-600" />
+
+        {/* Investimento Total */}
+        <div className="card-overlay rounded-lg shadow p-4">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-xs font-medium text-gray-600">Investimento Total</h3>
+            <DollarSign className="w-4 h-4 text-green-600" />
           </div>
-          <div>
-            <div className="text-sm text-gray-600">Entrega</div>
-            <div className="text-2xl font-bold text-gray-900">{formatNumber(processedData.totais.insercoes)}</div>
-          </div>
+          <p className="text-lg font-bold text-gray-900">{formatCurrency(processedData.totais.investimento)}</p>
         </div>
-        <div className="card-overlay rounded-lg shadow-lg p-6 flex items-center space-x-4">
-          <div className="p-3 bg-blue-100 rounded-full">
-            <TrendingUp className="w-6 h-6 text-blue-600" />
+
+        {/* Entrega */}
+        <div className="card-overlay rounded-lg shadow p-4">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-xs font-medium text-gray-600">Entrega</h3>
+            <TrendingUp className="w-4 h-4 text-blue-600" />
           </div>
-          <div>
-            <div className="text-sm text-gray-600">Investimento Total</div>
-            <div className="text-2xl font-bold text-gray-900">{formatCurrency(processedData.totais.investimento)}</div>
-          </div>
+          <p className="text-xl font-bold text-gray-900">{formatNumber(processedData.totais.insercoes)}</p>
         </div>
       </div>
 
-      {/* Conteúdo Principal */}
-      <div className="flex-1 card-overlay rounded-lg shadow-lg p-6 overflow-auto">
-        <div className="space-y-4">
-          {Object.values(processedData.meios).map((meio) => (
-            <div key={meio.nome} className="border border-gray-200 rounded-lg overflow-hidden">
-              <div
-                className="flex items-center justify-between p-4 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
-                onClick={() => toggleMeio(meio.nome)}
+      {/* Grid: Campanhas (40%) + Meios (60%) */}
+      <div className="grid grid-cols-5 gap-4">
+        {/* Card de Campanhas com Accordion */}
+        <div className="card-overlay rounded-xl shadow-lg p-5 h-[600px] flex flex-col col-span-2">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-bold text-gray-900 flex items-center">
+              <Megaphone className="w-4 h-4 mr-2 text-purple-600" />
+              Campanhas ({processedData.campanhasData.length})
+            </h2>
+            {(filtroCampanha || filtroAgencia || filtroPraca) && (
+              <button
+                onClick={limparFiltros}
+                className="text-xs text-blue-600 hover:text-blue-800 underline"
               >
-                <div className="flex items-center space-x-3">
-                  {expandedMeios[meio.nome] ? (
-                    <ChevronDown className="w-5 h-5 text-gray-500" />
-                  ) : (
-                    <ChevronRight className="w-5 h-5 text-gray-500" />
-                  )}
-                  <h3 className="text-lg font-semibold text-gray-900">{meio.nome}</h3>
-                </div>
-                <div className="flex space-x-6 text-sm text-right">
-                  <div>
-                    <p className="text-gray-500">Entrega</p>
-                    <p className="font-semibold text-gray-800">{formatNumber(meio.totalInsercoes)}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">Investimento</p>
-                    <p className="font-semibold text-gray-800">{formatCurrency(meio.totalInvestimento)}</p>
-                  </div>
-                </div>
-              </div>
+                Limpar
+              </button>
+            )}
+          </div>
 
-              {expandedMeios[meio.nome] && (
-                <div className="p-4 space-y-3 bg-white">
-                  {Object.entries(meio.pracas).map(([pracaKey, praca]) => (
-                    <div key={pracaKey} className="border border-gray-100 rounded-md">
-                      <div
-                        className="flex items-center justify-between p-3 bg-gray-25 hover:bg-gray-50 transition-colors cursor-pointer"
-                        onClick={() => togglePraca(meio.nome, pracaKey)}
-                      >
-                        <div className="flex items-center space-x-3">
-                          {expandedPracas[`${meio.nome}-${pracaKey}`] ? (
-                            <ChevronDown className="w-4 h-4 text-gray-400" />
-                          ) : (
-                            <ChevronRight className="w-4 h-4 text-gray-400" />
-                          )}
-                          <h4 className="text-md font-medium text-gray-800">
-                            {praca.nome}
-                          </h4>
-                        </div>
-                        <div className="flex space-x-4 text-sm text-right">
-                          <div>
-                            <p className="text-gray-500">Entrega</p>
-                            <p className="font-medium text-gray-700">{formatNumber(praca.totalInsercoes)}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-500">Investimento</p>
-                            <p className="font-medium text-gray-700">{formatCurrency(praca.totalInvestimento)}</p>
-                          </div>
-                        </div>
+          <div className="flex-1 overflow-y-auto space-y-2">
+            {processedData.campanhasData.map((campanha, index) => (
+              <div key={index}>
+                {/* Card da Campanha */}
+                <div
+                  className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                    filtroCampanha === campanha.nome
+                      ? "bg-purple-50 border-2 border-purple-400 shadow-sm"
+                      : expandedCampanha === campanha.nome
+                      ? "bg-purple-50 border-2 border-purple-300"
+                      : "hover:bg-gray-50 border-2 border-transparent bg-gray-50"
+                  }`}
+                >
+                  <div
+                    onClick={() => {
+                      if (expandedCampanha === campanha.nome) {
+                        setExpandedCampanha(null)
+                        setFiltroCampanha("")
+                      } else {
+                        setExpandedCampanha(campanha.nome)
+                        setFiltroCampanha(campanha.nome)
+                      }
+                    }}
+                  >
+                    {/* Nome da Campanha com número de veículos */}
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{campanha.nome}</p>
+                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full flex-shrink-0">
+                          {campanha.totalVeiculos} {campanha.totalVeiculos === 1 ? 'veículo' : 'veículos'}
+                        </span>
                       </div>
-
-                      {expandedPracas[`${meio.nome}-${pracaKey}`] && (
-                        <div className="p-3">
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                              <thead>
-                                <tr className="border-b border-gray-200">
-                                  <th className="text-left py-2 px-3 font-semibold text-gray-600">Veículo</th>
-                                  <th className="text-left py-2 px-3 font-semibold text-gray-600">Campanha/Projeto</th>
-                                  <th className="text-left py-2 px-3 font-semibold text-gray-600">Tipo de Compra</th>
-                                  <th className="text-right py-2 px-3 font-semibold text-gray-600">Entrega</th>
-                                  <th className="text-right py-2 px-3 font-semibold text-gray-600">Investimento</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {Object.entries(praca.veiculos).map(([veiculoNome, veiculo]) => (
-                                  <tr
-                                    key={veiculoNome}
-                                    className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50"
-                                  >
-                                    <td className="py-2 px-3 text-gray-800">{veiculoNome}</td>
-                                    <td className="py-2 px-3 text-gray-600">{veiculo.campanha}</td>
-                                    <td className="py-2 px-3 text-gray-600">{veiculo.tipoCompra}</td>
-                                    <td className="py-2 px-3 text-right font-medium text-green-700">
-                                      {formatNumber(veiculo.insercoes)}
-                                    </td>
-                                    <td className="py-2 px-3 text-right font-medium text-blue-700">
-                                      {formatCurrency(veiculo.investimento)}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
+                      {expandedCampanha === campanha.nome ? (
+                        <ChevronUp className="w-4 h-4 text-gray-600 flex-shrink-0 ml-2" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-gray-600 flex-shrink-0 ml-2" />
                       )}
                     </div>
-                  ))}
+
+                    {/* Métricas em uma linha */}
+                    <div className="flex items-center text-[10px] text-gray-600 gap-2">
+                      <div className="flex items-center gap-1">
+                        <span className="text-gray-500">Investimento:</span>
+                        <span className="font-semibold text-green-600">{formatCurrency(campanha.totalInvestimento)}</span>
+                      </div>
+                      <div className="border-l border-gray-300 h-4"></div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-gray-500">Entrega:</span>
+                        <span className="font-semibold text-blue-600">{formatNumber(campanha.totalInsercoes)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Lista de Meios (Accordion) */}
+                  {expandedCampanha === campanha.nome && Object.keys(campanha.meios).length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-gray-200">
+                              <th className="text-left py-2 px-2 font-semibold text-gray-600">Meio</th>
+                              <th className="text-left py-2 px-2 font-semibold text-gray-600">Veículos</th>
+                              <th className="text-right py-2 px-2 font-semibold text-gray-600">Entrega</th>
+                              <th className="text-right py-2 px-2 font-semibold text-gray-600">Investimento</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {Object.entries(campanha.meios).map(([meioNome, meio]) => (
+                              <tr
+                                key={meioNome}
+                                className="border-b border-gray-100 last:border-b-0 hover:bg-purple-50"
+                              >
+                                <td className="py-2 px-2 text-gray-800 font-medium">{meioNome}</td>
+                                <td className="py-2 px-2 text-gray-600">{meio.veiculos.size}</td>
+                                <td className="py-2 px-2 text-right font-semibold text-blue-700">
+                                  {formatNumber(meio.insercoes)}
+                                </td>
+                                <td className="py-2 px-2 text-right font-semibold text-green-700">
+                                  {formatCurrency(meio.investimento)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          ))}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Card de Meios (60%) */}
+        <div className="card-overlay rounded-xl shadow-lg p-5 h-[600px] flex flex-col col-span-3">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-bold text-gray-900 flex items-center">
+              <Radio className="w-4 h-4 mr-2 text-purple-600" />
+              Meios de Comunicação
+            </h2>
+          </div>
+
+          <div className="flex-1 overflow-y-auto space-y-2">
+            {Object.values(processedData.meios).map((meio) => (
+              <div key={meio.nome} className="border-2 border-gray-200 rounded-lg overflow-hidden">
+                <div
+                  className="flex items-center justify-between p-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => toggleMeio(meio.nome)}
+                >
+                  <div className="flex items-center space-x-3">
+                    {expandedMeios[meio.nome] ? (
+                      <ChevronDown className="w-4 h-4 text-gray-500" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-gray-500" />
+                    )}
+                    <h3 className="text-sm font-semibold text-gray-900">{meio.nome}</h3>
+                  </div>
+                  <div className="flex space-x-4 text-xs text-right">
+                    <div>
+                      <p className="text-gray-500">Entrega</p>
+                      <p className="font-semibold text-gray-800">{formatNumber(meio.totalInsercoes)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Investimento</p>
+                      <p className="font-semibold text-gray-800">{formatCurrency(meio.totalInvestimento)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {expandedMeios[meio.nome] && (
+                  <div className="p-3 space-y-2 bg-white">
+                    {Object.entries(meio.pracas).map(([pracaKey, praca]) => (
+                      <div key={pracaKey} className="border border-gray-100 rounded-md">
+                        <div
+                          className="flex items-center justify-between p-2 bg-gray-25 hover:bg-gray-50 transition-colors cursor-pointer"
+                          onClick={() => togglePraca(meio.nome, pracaKey)}
+                        >
+                          <div className="flex items-center space-x-2">
+                            {expandedPracas[`${meio.nome}-${pracaKey}`] ? (
+                              <ChevronDown className="w-3 h-3 text-gray-400" />
+                            ) : (
+                              <ChevronRight className="w-3 h-3 text-gray-400" />
+                            )}
+                            <h4 className="text-xs font-medium text-gray-800">{praca.nome}</h4>
+                          </div>
+                          <div className="flex space-x-3 text-[10px] text-right">
+                            <div>
+                              <p className="text-gray-500">Entrega</p>
+                              <p className="font-medium text-gray-700">{formatNumber(praca.totalInsercoes)}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-500">Investimento</p>
+                              <p className="font-medium text-gray-700">{formatCurrency(praca.totalInvestimento)}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {expandedPracas[`${meio.nome}-${pracaKey}`] && (
+                          <div className="p-2">
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-[10px]">
+                                <thead>
+                                  <tr className="border-b border-gray-200">
+                                    <th className="text-left py-1 px-2 font-semibold text-gray-600">Veículo</th>
+                                    <th className="text-left py-1 px-2 font-semibold text-gray-600">Campanha</th>
+                                    <th className="text-left py-1 px-2 font-semibold text-gray-600">Tipo</th>
+                                    <th className="text-right py-1 px-2 font-semibold text-gray-600">Entrega</th>
+                                    <th className="text-right py-1 px-2 font-semibold text-gray-600">Investimento</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {Object.entries(praca.veiculos).map(([veiculoNome, veiculo]) => (
+                                    <tr
+                                      key={veiculoNome}
+                                      className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50"
+                                    >
+                                      <td className="py-1 px-2 text-gray-800 font-medium">{veiculoNome}</td>
+                                      <td className="py-1 px-2 text-gray-600">{veiculo.campanha}</td>
+                                      <td className="py-1 px-2 text-gray-600">{veiculo.tipoCompra}</td>
+                                      <td className="py-1 px-2 text-right font-semibold text-green-700">
+                                        {formatNumber(veiculo.insercoes)}
+                                      </td>
+                                      <td className="py-1 px-2 text-right font-semibold text-blue-700">
+                                        {formatCurrency(veiculo.investimento)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
