@@ -623,17 +623,39 @@ const Capa: React.FC = () => {
 
         {/* Entrega Prevista */}
         <div className="card-overlay rounded-xl shadow-lg p-5">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-medium text-gray-600">Entrega Prevista</h3>
             <BarChart3 className="w-5 h-5 text-indigo-600" />
           </div>
-          <p className="text-2xl font-bold text-indigo-600">{formatNumber(planoMetrics.entregaPrevista)}</p>
-          <p className="text-xs text-gray-500 mt-1">Impressões/Cliques/Diárias</p>
+
+          <div className="space-y-3">
+            {/* Valor Principal */}
+            <div>
+              <p className="text-2xl font-bold text-indigo-600">{formatNumber(planoMetrics.entregaPrevista)}</p>
+              <p className="text-xs text-gray-500 mt-1">Impressões/Cliques/Diárias</p>
+            </div>
+
+            {/* Detalhamento */}
+            <div className="border-t border-gray-200 pt-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-600">Veículos</p>
+                <p className="text-sm font-semibold text-gray-900">{planoMetrics.veiculosTotal}</p>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-600">Meios</p>
+                <p className="text-sm font-semibold text-gray-900">{planoMetrics.meios.length}</p>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-600">Agências</p>
+                <p className="text-sm font-semibold text-gray-900">{planoMetrics.agencias.length}</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Resultados (Internet + Portais + Sessões) - Ocupa 2 colunas */}
         <div className="card-overlay rounded-xl shadow-lg p-5 col-span-2">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-2">
               <h3 className="text-sm font-medium text-gray-600">Resultados</h3>
               {selectedAcao && (
@@ -646,43 +668,51 @@ const Capa: React.FC = () => {
           </div>
           <div className="grid grid-cols-4 gap-4">
             {/* Coluna 1 - Impressões */}
-            <div className="space-y-1">
-              <div className="flex items-center space-x-1 mb-1">
-                <Eye className="w-3 h-3 text-cyan-600" />
-                <p className="text-xs text-gray-600">Impressões</p>
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2 mb-2">
+                <div className="p-2 bg-cyan-50 rounded-lg">
+                  <Eye className="w-4 h-4 text-cyan-600" />
+                </div>
+                <p className="text-xs font-medium text-gray-700">Impressões</p>
               </div>
               <p className="text-2xl font-bold text-cyan-600">{formatNumber(internetResults.impressoes)}</p>
-              <p className="text-xs text-gray-400 mt-1">Internet + Portais</p>
+              <p className="text-xs text-gray-500 mt-1 leading-tight">Internet + Portais</p>
             </div>
 
             {/* Coluna 2 - Visualizações */}
-            <div className="space-y-1">
-              <div className="flex items-center space-x-1 mb-1">
-                <Video className="w-3 h-3 text-red-600" />
-                <p className="text-xs text-gray-600">Visualizações</p>
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2 mb-2">
+                <div className="p-2 bg-red-50 rounded-lg">
+                  <Video className="w-4 h-4 text-red-600" />
+                </div>
+                <p className="text-xs font-medium text-gray-700">Visualizações</p>
               </div>
               <p className="text-2xl font-bold text-red-600">{formatNumber(internetResults.visualizacoes)}</p>
-              <p className="text-xs text-gray-400 mt-1">Internet + Portais</p>
+              <p className="text-xs text-gray-500 mt-1 leading-tight">Internet + Portais</p>
             </div>
 
             {/* Coluna 3 - Cliques */}
-            <div className="space-y-1">
-              <div className="flex items-center space-x-1 mb-1">
-                <MousePointerClick className="w-3 h-3 text-blue-600" />
-                <p className="text-xs text-gray-600">Cliques</p>
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2 mb-2">
+                <div className="p-2 bg-blue-50 rounded-lg">
+                  <MousePointerClick className="w-4 h-4 text-blue-600" />
+                </div>
+                <p className="text-xs font-medium text-gray-700">Cliques</p>
               </div>
               <p className="text-2xl font-bold text-blue-600">{formatNumber(internetResults.cliques)}</p>
-              <p className="text-xs text-gray-400 mt-1">Internet + Portais</p>
+              <p className="text-xs text-gray-500 mt-1 leading-tight">Internet + Portais</p>
             </div>
 
             {/* Coluna 4 - Sessões */}
-            <div className="space-y-1">
-              <div className="flex items-center space-x-1 mb-1">
-                <Users className="w-3 h-3 text-green-600" />
-                <p className="text-xs text-gray-600">Sessões</p>
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2 mb-2">
+                <div className="p-2 bg-green-50 rounded-lg">
+                  <Users className="w-4 h-4 text-green-600" />
+                </div>
+                <p className="text-xs font-medium text-gray-700">Sessões</p>
               </div>
               <p className="text-2xl font-bold text-green-600">{formatNumber(sessoes2025)}</p>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-gray-500 mt-1 leading-tight">
                 Google Analytics 4
                 {selectedAcao && " (sem filtro)"}
               </p>
