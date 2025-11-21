@@ -45,6 +45,7 @@ const Capa: React.FC = () => {
   const [expandedMeio, setExpandedMeio] = useState<string | null>(null)
   const [selectedVeiculo, setSelectedVeiculo] = useState<string>("")
   const [selectedAcao, setSelectedAcao] = useState<string | null>(null)
+  const [selectedTipoVerba, setSelectedTipoVerba] = useState<string | null>(null)
   const [portaisData, setPortaisData] = useState<PortaisData>({ impressoes: 0, cliques: 0, visualizacoes: 0 })
   const [portaisRawData, setPortaisRawData] = useState<PortaisRawData[]>([])
   const [portaisLoading, setPortaisLoading] = useState(true)
@@ -136,6 +137,7 @@ const Capa: React.FC = () => {
         entregaPrevista: 0,
         veiculosPorMeio: new Map<string, Set<string>>(),
         veiculosTotal: 0,
+        tipoVerbaMetrics: { institucional: 0, mercadologica: 0 },
       }
     }
 
@@ -148,6 +150,7 @@ const Capa: React.FC = () => {
     const veiculoIndex = headers.indexOf("VEÍCULO")
     const impressoesIndex = headers.indexOf("IMPRESSÕES / CLIQUES / DIÁRIAS")
     const valorDesembolsoIndex = headers.indexOf("VALORDESEMBOLSO95%(banco)")
+    const tipoVerbaIndex = headers.indexOf("Tipo Verba")
 
     const parseBrazilianCurrency = (value: string): number => {
       if (!value || value === "0" || value === "") return 0
@@ -163,6 +166,8 @@ const Capa: React.FC = () => {
 
     let investimentoTotal = 0
     let entregaPrevista = 0
+    let institucionalTotal = 0
+    let mercadologicaTotal = 0
     const agenciasMap = new Map<string, { nome: string; investimento: number; entrega: number; campanhas: Set<string> }>()
     const campanhasMap = new Map<string, { nome: string; investimento: number; entrega: number; meios: Set<string>; veiculos: Set<string> }>()
     const meiosMap = new Map<string, { nome: string; investimento: number; entrega: number; veiculos: Set<string> }>()
@@ -176,12 +181,18 @@ const Capa: React.FC = () => {
       const veiculo = row[veiculoIndex]
       const impressoes = parseBrazilianNumber(row[impressoesIndex] || "0")
       const valorDesembolso = parseBrazilianCurrency(row[valorDesembolsoIndex] || "0")
+      const tipoVerba = row[tipoVerbaIndex] || ""
 
       // Aplicar filtros
       if (selectedAgencia && agencia !== selectedAgencia) return
       if (selectedAcao && campanha !== selectedAcao) return
       if (selectedMeio && meio !== selectedMeio) return
       if (selectedVeiculo && veiculo !== selectedVeiculo) return
+      if (selectedTipoVerba) {
+        const tipoVerbaLower = tipoVerba.toLowerCase()
+        if (selectedTipoVerba === "institucional" && !tipoVerbaLower.includes("institucional")) return
+        if (selectedTipoVerba === "mercadologica" && !(tipoVerbaLower.includes("mercadológica") || tipoVerbaLower.includes("mercadologica"))) return
+      }
 
       // Mapear veículos por meio (antes dos filtros para ter todos disponíveis)
       if (meio && meio.trim() !== "" && veiculo && veiculo.trim() !== "") {
@@ -194,6 +205,13 @@ const Capa: React.FC = () => {
 
       investimentoTotal += valorDesembolso
       entregaPrevista += impressoes
+
+      // Calcular totais por tipo de verba
+      if (tipoVerba.toLowerCase().includes("institucional")) {
+        institucionalTotal += valorDesembolso
+      } else if (tipoVerba.toLowerCase().includes("mercadológica") || tipoVerba.toLowerCase().includes("mercadologica")) {
+        mercadologicaTotal += valorDesembolso
+      }
 
       // Agrupar agências
       if (agencia && agencia.trim() !== "") {
@@ -289,8 +307,12 @@ const Capa: React.FC = () => {
       entregaPrevista,
       veiculosPorMeio,
       veiculosTotal: allVeiculos.size,
+      tipoVerbaMetrics: {
+        institucional: institucionalTotal,
+        mercadologica: mercadologicaTotal
+      },
     }
-  }, [planoData, selectedAgencia, selectedAcao, selectedMeio, selectedVeiculo, campanhaAjustes])
+  }, [planoData, selectedAgencia, selectedAcao, selectedMeio, selectedVeiculo, selectedTipoVerba, campanhaAjustes])
 
   // Obter veículos por meio para o accordion
   const veiculosPorMeioList = useMemo(() => {
@@ -422,7 +444,7 @@ const Capa: React.FC = () => {
     }
   }, [consolidadoData, portaisData, portaisRawData, selectedAcao])
 
-  // Processar dados de Produção (com filtro de campanha)
+  // Processar dados de Produção (com filtro de campanha e agência)
   const producaoMetrics = useMemo(() => {
     if (!producaoData?.data?.values || producaoData.data.values.length <= 1) {
       return {
@@ -436,6 +458,7 @@ const Capa: React.FC = () => {
 
     const acaoIndex = headers.indexOf("AÇÃO")
     const campanhaIndex = headers.indexOf("Campanha")
+    const agenciaIndex = headers.indexOf("AGÊNCIA")
     const valorIndex = headers.indexOf("VALOR")
 
     const parseCurrency = (valor: string): number => {
@@ -455,12 +478,16 @@ const Capa: React.FC = () => {
     rows.forEach((row: string[]) => {
       const acao = row[acaoIndex] || ""
       const campanha = row[campanhaIndex] || ""
+      const agencia = row[agenciaIndex] || ""
       const valorStr = row[valorIndex] || "0"
 
       if (!acao) return
 
       // Se houver filtro de campanha, aplicar (usar coluna Campanha)
       if (selectedAcao && campanha !== selectedAcao) return
+
+      // Se houver filtro de agência, aplicar
+      if (selectedAgencia && agencia !== selectedAgencia) return
 
       const valorNum = parseCurrency(valorStr)
       valorTotal += valorNum
@@ -471,7 +498,7 @@ const Capa: React.FC = () => {
       valorTotal,
       totalAcoes
     }
-  }, [producaoData, selectedAcao])
+  }, [producaoData, selectedAcao, selectedAgencia])
 
   // Processar sessões totais do GA4 (sem filtro de data)
   const sessoes2025 = useMemo(() => {
@@ -606,13 +633,14 @@ const Capa: React.FC = () => {
             </p>
           </div>
 
-          {(selectedAgencia || selectedAcao || selectedMeio || selectedVeiculo) && (
+          {(selectedAgencia || selectedAcao || selectedMeio || selectedVeiculo || selectedTipoVerba) && (
             <button
               onClick={() => {
                 setSelectedAgencia(null)
                 setSelectedAcao(null)
                 setSelectedMeio(null)
                 setSelectedVeiculo("")
+                setSelectedTipoVerba(null)
               }}
               className="text-xs text-blue-600 hover:text-blue-800 mt-2 underline"
             >
@@ -757,6 +785,55 @@ const Capa: React.FC = () => {
                 </div>
               </div>
             ))}
+
+            {/* Tipo de Verba */}
+            {(planoMetrics.tipoVerbaMetrics.institucional > 0 || planoMetrics.tipoVerbaMetrics.mercadologica > 0) && (
+              <div className="border-t-2 border-gray-300 pt-3 mt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-xs font-semibold text-gray-700 uppercase">Tipo de Verba</h3>
+                  {selectedTipoVerba && (
+                    <button
+                      onClick={() => setSelectedTipoVerba(null)}
+                      className="text-xs text-blue-600 hover:text-blue-800 underline"
+                    >
+                      Limpar
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  {planoMetrics.tipoVerbaMetrics.institucional > 0 && (
+                    <div
+                      onClick={() => setSelectedTipoVerba(selectedTipoVerba === "institucional" ? null : "institucional")}
+                      className={`p-2 rounded-lg cursor-pointer transition-all duration-200 ${
+                        selectedTipoVerba === "institucional"
+                          ? "bg-blue-100 border-2 border-blue-500 shadow-sm"
+                          : "bg-blue-50 hover:bg-blue-100 border-2 border-transparent"
+                      }`}
+                    >
+                      <p className="text-xs font-medium text-blue-900">Institucional</p>
+                      <p className="text-sm font-bold text-blue-700">
+                        {formatMetricValue(planoMetrics.tipoVerbaMetrics.institucional, "spent")}
+                      </p>
+                    </div>
+                  )}
+                  {planoMetrics.tipoVerbaMetrics.mercadologica > 0 && (
+                    <div
+                      onClick={() => setSelectedTipoVerba(selectedTipoVerba === "mercadologica" ? null : "mercadologica")}
+                      className={`p-2 rounded-lg cursor-pointer transition-all duration-200 ${
+                        selectedTipoVerba === "mercadologica"
+                          ? "bg-green-100 border-2 border-green-500 shadow-sm"
+                          : "bg-green-50 hover:bg-green-100 border-2 border-transparent"
+                      }`}
+                    >
+                      <p className="text-xs font-medium text-green-900">Mercadológica</p>
+                      <p className="text-sm font-bold text-green-700">
+                        {formatMetricValue(planoMetrics.tipoVerbaMetrics.mercadologica, "spent")}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
