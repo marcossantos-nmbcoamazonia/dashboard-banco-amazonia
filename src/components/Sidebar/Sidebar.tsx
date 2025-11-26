@@ -33,6 +33,12 @@ const menuStructure: MenuItemOrGroup[] = [
     icon: <Home className="w-5 h-5" />,
   },
   {
+    id: "midia",
+    label: "Mídia",
+    path: "/midia",
+    icon: <Radio className="w-5 h-5" />,
+  },
+  {
     id: "producao",
     label: "Produção",
     path: "/producao",

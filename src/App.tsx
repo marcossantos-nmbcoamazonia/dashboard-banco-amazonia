@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import Layout from "./components/Layout/Layout"
 import { DataProvider } from "./contexts/DataContext"
 import Capa from "./pages/Capa/Capa"
+import Midia from "./pages/Midia/Midia"
 // import EstrategiaDocumentacao from "./pages/EstrategiaDocumentacao/EstrategiaDocumentacao" // Removido conforme solicitação
 import LinhaTempo from "./pages/LinhaTempo/LinhaTempo"
 // import EstrategiaOnline from "./pages/EstrategiaOnline/EstrategiaOnline" // Removido conforme solicitação
@@ -31,6 +32,7 @@ function App() {
             {/* Redirecionar para Capa ao invés de Dashboard */}
             <Route path="/" element={<Navigate to="/capa" replace />} />
             <Route path="/capa" element={<Capa />} />
+            <Route path="/midia" element={<Midia />} />
             {/* <Route path="/estrategia-documentacao" element={<EstrategiaDocumentacao />} /> */}{" "}
             {/* Removido conforme solicitação */}
             <Route path="/linha-tempo" element={<LinhaTempo />} />
