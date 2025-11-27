@@ -8,7 +8,6 @@ import {
   Building2,
   PieChart,
 } from "lucide-react"
-import { ResponsiveBar } from "@nivo/bar"
 import { usePlanoMidia } from "../../services/consolidadoApi"
 import { useProducaoData } from "../../services/api"
 import Loading from "../../components/Loading/Loading"
@@ -32,6 +31,7 @@ const Capa: React.FC = () => {
   const { loading: producaoLoading, error: producaoError } = useProducaoData()
 
   const [selectedTipoVerba, setSelectedTipoVerba] = useState<string | null>(null)
+  const [selectedAgencia, setSelectedAgencia] = useState<string | null>(null)
 
   const [acoesMidiaData, setAcoesMidiaData] = useState<AcaoData[]>([])
   const [acoesProducaoData, setAcoesProducaoData] = useState<AcaoData[]>([])
@@ -241,11 +241,63 @@ const Capa: React.FC = () => {
     const LIMITE_INSTITUCIONAL = 20000000 // R$ 20M
     const LIMITE_MERCADOLOGICA = 30000000 // R$ 30M
 
-    // Processar Ações de Mídia (Aprovadas)
+    // Primeiro, calcular valores TOTAIS (sem filtro) para os saldos
+    let midiaInstitucionalTotal = 0
+    let midiaMercadologicaTotal = 0
+    let producaoInstitucionalTotal = 0
+    let producaoMercadologicaTotal = 0
+    let custosInstitucionalTotal = 0
+    let custosMercadologicaTotal = 0
+
+    // Calcular totais de mídia sem filtro
+    acoesMidiaData.forEach(item => {
+      const verbaLower = item.verba.toLowerCase()
+      const situacaoLower = item.situacao.toLowerCase()
+
+      if (situacaoLower.includes("aprovada") || situacaoLower.includes("aprovado")) {
+        if (verbaLower.includes("institucional")) {
+          midiaInstitucionalTotal += item.valor
+        } else if (verbaLower.includes("mercadológica") || verbaLower.includes("mercadologica")) {
+          midiaMercadologicaTotal += item.valor
+        }
+      }
+    })
+
+    // Calcular totais de produção sem filtro
+    acoesProducaoData.forEach(item => {
+      const verbaLower = item.verba.toLowerCase()
+
+      if (verbaLower.includes("institucional")) {
+        producaoInstitucionalTotal += item.valor
+      } else if (verbaLower.includes("mercadológica") || verbaLower.includes("mercadologica")) {
+        producaoMercadologicaTotal += item.valor
+      }
+    })
+
+    // Calcular totais de custos internos sem filtro
+    custosInternosData.forEach(item => {
+      const verbaLower = item.verba.toLowerCase()
+      if (verbaLower.includes("institucional")) {
+        custosInstitucionalTotal += item.valor
+      } else if (verbaLower.includes("mercadológica") || verbaLower.includes("mercadologica")) {
+        custosMercadologicaTotal += item.valor
+      }
+    })
+
+    // Calcular saldos baseados nos totais SEM filtro
+    const totalInstitucionalGeral = midiaInstitucionalTotal + producaoInstitucionalTotal + custosInstitucionalTotal
+    const totalMercadologicaGeral = midiaMercadologicaTotal + producaoMercadologicaTotal + custosMercadologicaTotal
+    const saldoInstitucional = LIMITE_INSTITUCIONAL - totalInstitucionalGeral
+    const saldoMercadologica = LIMITE_MERCADOLOGICA - totalMercadologicaGeral
+
+    // Agora calcular valores COM filtro de agência (para exibição)
     let midiaInstitucional = 0
     let midiaMercadologica = 0
 
     acoesMidiaData.forEach(item => {
+      // Aplicar filtro de agência se houver
+      if (selectedAgencia && item.agencia !== selectedAgencia) return
+
       const verbaLower = item.verba.toLowerCase()
       const situacaoLower = item.situacao.toLowerCase()
 
@@ -263,6 +315,9 @@ const Capa: React.FC = () => {
     let producaoMercadologica = 0
 
     acoesProducaoData.forEach(item => {
+      // Aplicar filtro de agência se houver
+      if (selectedAgencia && item.agencia !== selectedAgencia) return
+
       const verbaLower = item.verba.toLowerCase()
 
       if (verbaLower.includes("institucional")) {
@@ -277,6 +332,9 @@ const Capa: React.FC = () => {
     let custosMercadologica = 0
 
     custosInternosData.forEach(item => {
+      // Aplicar filtro de agência se houver
+      if (selectedAgencia && item.agencia !== selectedAgencia) return
+
       const verbaLower = item.verba.toLowerCase()
       if (verbaLower.includes("institucional")) {
         custosInstitucional += item.valor
@@ -285,7 +343,7 @@ const Capa: React.FC = () => {
       }
     })
 
-    // APROVADO = Mídia + Produção
+    // APROVADO = Mídia + Produção (com filtro)
     const aprovadoInstitucional = midiaInstitucional + producaoInstitucional
     const aprovadoMercadologica = midiaMercadologica + producaoMercadologica
 
@@ -293,17 +351,13 @@ const Capa: React.FC = () => {
     const secomInstitucional = 0
     const secomMercadologica = 0
 
-    // EM INCLUSÃO NA SECOM = Custos Internos
+    // EM INCLUSÃO NA SECOM = Custos Internos (com filtro)
     const emInclusaoInstitucional = custosInstitucional
     const emInclusaoMercadologica = custosMercadologica
 
-    // TOTAL = Aprovado + SECOM + Em Inclusão
+    // TOTAL = Aprovado + SECOM + Em Inclusão (com filtro)
     const totalInstitucional = aprovadoInstitucional + secomInstitucional + emInclusaoInstitucional
     const totalMercadologica = aprovadoMercadologica + secomMercadologica + emInclusaoMercadologica
-
-    // Saldo efetivo = Limite - Total
-    const saldoInstitucional = LIMITE_INSTITUCIONAL - totalInstitucional
-    const saldoMercadologica = LIMITE_MERCADOLOGICA - totalMercadologica
 
     return {
       midia: {
@@ -342,7 +396,7 @@ const Capa: React.FC = () => {
         total: saldoInstitucional + saldoMercadologica
       }
     }
-  }, [acoesMidiaData, acoesProducaoData, custosInternosData])
+  }, [acoesMidiaData, acoesProducaoData, custosInternosData, selectedAgencia])
 
   // Formatar valor baseado na métrica
   const formatMetricValue = (value: number, metric?: string): string => {
@@ -354,6 +408,56 @@ const Capa: React.FC = () => {
     }
     return new Intl.NumberFormat("pt-BR").format(Math.round(value))
   }
+
+  // Sistema de cores por agência
+  const getColorScheme = () => {
+    if (selectedAgencia === "Escala") {
+      return {
+        primary: "#4a9ece", // Azul médio (Escala) - mais escuro mas ainda vibrante
+        primaryDark: "#3b7fb8",
+        primaryLight: "#6bb5e0",
+        secondary: "#2d6fa3", // Complementar azul mais escuro
+        midia: "#5dade2",
+        producao: "#3a7bc8",
+        criacao: "#6bb5e0",
+        totalGeral: "#2d6fa3",
+        institutional: "#4a9ece",
+        mercadologico: "#3b7fb8",
+        barColor: "from-[#4a9ece] to-[#3b7fb8]"
+      }
+    } else if (selectedAgencia === "Cálix") {
+      return {
+        primary: "#800080", // Roxo (Cálix)
+        primaryDark: "#6a0080",
+        primaryLight: "#a347a3",
+        secondary: "#b366b3", // Complementar roxo mais claro
+        midia: "#9932cc",
+        producao: "#8b008b",
+        criacao: "#a347a3",
+        totalGeral: "#4b0082",
+        institutional: "#9932cc",
+        mercadologico: "#b366b3",
+        barColor: "from-[#800080] to-[#9932cc]"
+      }
+    } else {
+      // Cores sobrias quando nenhuma agência está selecionada
+      return {
+        primary: "#64748b", // Cinza azulado
+        primaryDark: "#475569",
+        primaryLight: "#94a3b8",
+        secondary: "#334155",
+        midia: "#3b82f6", // Azul sóbrio
+        producao: "#8b5cf6", // Roxo sóbrio
+        criacao: "#6b7280", // Cinza
+        totalGeral: "#059669", // Verde para destaque
+        institutional: "#3b82f6",
+        mercadologico: "#10b981",
+        barColor: "from-blue-500 to-blue-600"
+      }
+    }
+  }
+
+  const colors = getColorScheme()
 
   const loading = planoLoading || producaoLoading || acoesLoading
   const error = planoError || producaoError
@@ -402,36 +506,42 @@ const Capa: React.FC = () => {
           <div className="space-y-3">
             {/* Investimento de Mídia */}
             <div
-              className="cursor-pointer hover:bg-blue-50 p-2 -m-2 rounded transition-colors"
+              className="cursor-pointer hover:opacity-80 p-2 -m-2 rounded transition-colors"
               onClick={() => navigate('/midia')}
               title="Clique para ver detalhes de mídia"
             >
               <p className="text-xs text-gray-500">Mídia</p>
-              <p className="text-lg font-bold text-blue-700">{formatMetricValue(resumoInvestimento.midia.total, "spent")}</p>
-              <p className="text-xs text-blue-500 mt-1 underline">Ver detalhes →</p>
+              <p className="text-lg font-bold" style={{ color: colors.midia }}>
+                {formatMetricValue(resumoInvestimento.midia.total, "spent")}
+              </p>
+              <p className="text-xs mt-1 underline" style={{ color: colors.midia }}>Ver detalhes →</p>
             </div>
 
             {/* Investimento de Produção */}
             <div
-              className="cursor-pointer hover:bg-purple-50 p-2 -m-2 rounded transition-colors"
+              className="cursor-pointer hover:opacity-80 p-2 -m-2 rounded transition-colors"
               onClick={() => navigate('/producao')}
               title="Clique para ver detalhes de produção"
             >
               <p className="text-xs text-gray-500">Produção</p>
-              <p className="text-lg font-bold text-purple-700">{formatMetricValue(resumoInvestimento.producao.total, "spent")}</p>
-              <p className="text-xs text-purple-500 mt-1 underline">Ver detalhes →</p>
+              <p className="text-lg font-bold" style={{ color: colors.producao }}>
+                {formatMetricValue(resumoInvestimento.producao.total, "spent")}
+              </p>
+              <p className="text-xs mt-1 underline" style={{ color: colors.producao }}>Ver detalhes →</p>
             </div>
 
             {/* Investimento de Criação */}
             <div>
               <p className="text-xs text-gray-500">Criação</p>
-              <p className="text-lg font-bold text-gray-900">{formatMetricValue(resumoInvestimento.emInclusao.total, "spent")}</p>
+              <p className="text-lg font-bold" style={{ color: colors.criacao }}>
+                {formatMetricValue(resumoInvestimento.emInclusao.total, "spent")}
+              </p>
             </div>
 
             {/* Total Geral */}
             <div className="pt-3 border-t border-gray-200">
               <p className="text-xs text-gray-500">Total Geral</p>
-              <p className="text-xl font-bold text-green-600">
+              <p className="text-xl font-bold" style={{ color: colors.totalGeral }}>
                 {formatMetricValue(resumoInvestimento.totalGeral.total, "spent")}
               </p>
             </div>
@@ -445,37 +555,61 @@ const Capa: React.FC = () => {
               <Building2 className="w-5 h-5 mr-2 text-blue-600" />
               Agências
             </h3>
+            {selectedAgencia && (
+              <button
+                onClick={() => setSelectedAgencia(null)}
+                className="text-xs text-blue-600 hover:text-blue-800 underline"
+              >
+                Limpar filtro
+              </button>
+            )}
           </div>
 
           <div className="space-y-3">
             {agenciaMetrics.map((agencia, index) => {
-              const maxTotal = Math.max(...agenciaMetrics.map(a => a.total))
-              const percentage = (agencia.total / maxTotal) * 100
+              const totalGeral = agenciaMetrics.reduce((sum, a) => sum + a.total, 0)
+              const percentage = (agencia.total / totalGeral) * 100
+              const isSelected = selectedAgencia === agencia.nome
+
+              // Definir cores específicas para cada agência
+              const agenciaColor = agencia.nome === "Escala" ? "#4a9ece" :
+                                   agencia.nome === "Cálix" ? "#800080" : "#64748b"
+              const agenciaColorDark = agencia.nome === "Escala" ? "#3b7fb8" :
+                                       agencia.nome === "Cálix" ? "#6a0080" : "#475569"
 
               return (
-                <div key={index} className="space-y-1">
+                <div
+                  key={index}
+                  className={`space-y-1 cursor-pointer hover:opacity-90 p-2 -m-2 rounded transition-all ${
+                    isSelected ? 'ring-2' : ''
+                  }`}
+                  style={{
+                    backgroundColor: isSelected ? `${agenciaColor}15` : 'transparent',
+                    borderColor: isSelected ? agenciaColor : 'transparent'
+                  }}
+                  onClick={() => setSelectedAgencia(isSelected ? null : agencia.nome)}
+                  title={`Clique para ${isSelected ? 'remover' : 'aplicar'} filtro por ${agencia.nome}`}
+                >
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-semibold text-gray-900">{agencia.nome}</p>
-                    <p className="text-sm font-bold text-blue-700">{formatMetricValue(agencia.total, "spent")}</p>
+                    <p className="text-sm font-bold" style={{ color: agenciaColor }}>
+                      {formatMetricValue(agencia.total, "spent")}
+                    </p>
                   </div>
 
                   {/* Barra de Progresso Visual */}
                   <div className="relative h-8 bg-gray-100 rounded-lg overflow-hidden shadow-sm">
                     <div
-                      className="h-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-end pr-2 transition-all duration-500"
-                      style={{ width: `${percentage}%` }}
+                      className="h-full flex items-center justify-end pr-2 transition-all duration-500"
+                      style={{
+                        width: `${percentage}%`,
+                        background: `linear-gradient(to right, ${agenciaColor}, ${agenciaColorDark})`
+                      }}
                     >
                       <span className="text-xs font-semibold text-white">
-                        {percentage.toFixed(0)}%
+                        {percentage.toFixed(1)}%
                       </span>
                     </div>
-                  </div>
-
-                  {/* Detalhamento compacto */}
-                  <div className="flex items-center justify-between text-xs text-gray-500 px-1">
-                    <span>M: {formatMetricValue(agencia.midia, "spent")}</span>
-                    <span>P: {formatMetricValue(agencia.producao, "spent")}</span>
-                    <span>C: {formatMetricValue(agencia.custos, "spent")}</span>
                   </div>
                 </div>
               )
@@ -489,6 +623,17 @@ const Capa: React.FC = () => {
             <h3 className="text-base font-bold text-gray-900 flex items-center">
               <PieChart className="w-5 h-5 mr-2 text-purple-600" />
               Resumo de Investimento por Tipo de Verba
+              {selectedAgencia && (
+                <span
+                  className="ml-2 text-xs font-normal px-2 py-1 rounded"
+                  style={{
+                    color: colors.primary,
+                    backgroundColor: `${colors.primary}20`
+                  }}
+                >
+                  Filtrado: {selectedAgencia}
+                </span>
+              )}
             </h3>
             {selectedTipoVerba && (
               <button
@@ -506,12 +651,17 @@ const Capa: React.FC = () => {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-semibold text-gray-700">Mídia</span>
-                <span className="text-sm font-bold text-gray-900">{formatMetricValue(resumoInvestimento.midia.total, "spent")}</span>
+                <span className="text-sm font-bold" style={{ color: colors.midia }}>
+                  {formatMetricValue(resumoInvestimento.midia.total, "spent")}
+                </span>
               </div>
               <div className="relative h-12 bg-gray-100 rounded-lg overflow-hidden shadow-sm">
                 <div
-                  className="absolute left-0 top-0 h-full bg-gradient-to-r from-blue-400 to-blue-500 flex items-center justify-center text-white text-xs font-semibold transition-all duration-500"
-                  style={{ width: `${(resumoInvestimento.midia.institucional / resumoInvestimento.midia.total) * 100}%` }}
+                  className="absolute left-0 top-0 h-full flex items-center justify-center text-white text-xs font-semibold transition-all duration-500"
+                  style={{
+                    width: `${(resumoInvestimento.midia.institucional / resumoInvestimento.midia.total) * 100}%`,
+                    background: `linear-gradient(to right, ${colors.institutional}, ${colors.institutional}dd)`
+                  }}
                 >
                   {resumoInvestimento.midia.institucional > 0 && (
                     <span>
@@ -522,8 +672,11 @@ const Capa: React.FC = () => {
                   )}
                 </div>
                 <div
-                  className="absolute right-0 top-0 h-full bg-gradient-to-r from-green-400 to-green-500 flex items-center justify-center text-white text-xs font-semibold transition-all duration-500"
-                  style={{ width: `${(resumoInvestimento.midia.mercadologica / resumoInvestimento.midia.total) * 100}%` }}
+                  className="absolute right-0 top-0 h-full flex items-center justify-center text-white text-xs font-semibold transition-all duration-500"
+                  style={{
+                    width: `${(resumoInvestimento.midia.mercadologica / resumoInvestimento.midia.total) * 100}%`,
+                    background: `linear-gradient(to right, ${colors.mercadologico}, ${colors.mercadologico}dd)`
+                  }}
                 >
                   {resumoInvestimento.midia.mercadologica > 0 && (
                     <span>
@@ -540,12 +693,17 @@ const Capa: React.FC = () => {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-semibold text-gray-700">Produção</span>
-                <span className="text-sm font-bold text-gray-900">{formatMetricValue(resumoInvestimento.producao.total, "spent")}</span>
+                <span className="text-sm font-bold" style={{ color: colors.producao }}>
+                  {formatMetricValue(resumoInvestimento.producao.total, "spent")}
+                </span>
               </div>
               <div className="relative h-12 bg-gray-100 rounded-lg overflow-hidden shadow-sm">
                 <div
-                  className="absolute left-0 top-0 h-full bg-gradient-to-r from-blue-400 to-blue-500 flex items-center justify-center text-white text-xs font-semibold transition-all duration-500"
-                  style={{ width: `${(resumoInvestimento.producao.institucional / resumoInvestimento.producao.total) * 100}%` }}
+                  className="absolute left-0 top-0 h-full flex items-center justify-center text-white text-xs font-semibold transition-all duration-500"
+                  style={{
+                    width: `${(resumoInvestimento.producao.institucional / resumoInvestimento.producao.total) * 100}%`,
+                    background: `linear-gradient(to right, ${colors.institutional}, ${colors.institutional}dd)`
+                  }}
                 >
                   {resumoInvestimento.producao.institucional > 0 && (
                     <span>
@@ -556,8 +714,11 @@ const Capa: React.FC = () => {
                   )}
                 </div>
                 <div
-                  className="absolute right-0 top-0 h-full bg-gradient-to-r from-green-400 to-green-500 flex items-center justify-center text-white text-xs font-semibold transition-all duration-500"
-                  style={{ width: `${(resumoInvestimento.producao.mercadologica / resumoInvestimento.producao.total) * 100}%` }}
+                  className="absolute right-0 top-0 h-full flex items-center justify-center text-white text-xs font-semibold transition-all duration-500"
+                  style={{
+                    width: `${(resumoInvestimento.producao.mercadologica / resumoInvestimento.producao.total) * 100}%`,
+                    background: `linear-gradient(to right, ${colors.mercadologico}, ${colors.mercadologico}dd)`
+                  }}
                 >
                   {resumoInvestimento.producao.mercadologica > 0 && (
                     <span>
@@ -574,12 +735,17 @@ const Capa: React.FC = () => {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-semibold text-gray-700">Criação</span>
-                <span className="text-sm font-bold text-gray-900">{formatMetricValue(resumoInvestimento.emInclusao.total, "spent")}</span>
+                <span className="text-sm font-bold" style={{ color: colors.criacao }}>
+                  {formatMetricValue(resumoInvestimento.emInclusao.total, "spent")}
+                </span>
               </div>
               <div className="relative h-12 bg-gray-100 rounded-lg overflow-hidden shadow-sm">
                 <div
-                  className="absolute left-0 top-0 h-full bg-gradient-to-r from-blue-400 to-blue-500 flex items-center justify-center text-white text-xs font-semibold transition-all duration-500"
-                  style={{ width: `${(resumoInvestimento.emInclusao.institucional / resumoInvestimento.emInclusao.total) * 100}%` }}
+                  className="absolute left-0 top-0 h-full flex items-center justify-center text-white text-xs font-semibold transition-all duration-500"
+                  style={{
+                    width: `${(resumoInvestimento.emInclusao.institucional / resumoInvestimento.emInclusao.total) * 100}%`,
+                    background: `linear-gradient(to right, ${colors.institutional}, ${colors.institutional}dd)`
+                  }}
                 >
                   {resumoInvestimento.emInclusao.institucional > 0 && (
                     <span>
@@ -590,8 +756,11 @@ const Capa: React.FC = () => {
                   )}
                 </div>
                 <div
-                  className="absolute right-0 top-0 h-full bg-gradient-to-r from-green-400 to-green-500 flex items-center justify-center text-white text-xs font-semibold transition-all duration-500"
-                  style={{ width: `${(resumoInvestimento.emInclusao.mercadologica / resumoInvestimento.emInclusao.total) * 100}%` }}
+                  className="absolute right-0 top-0 h-full flex items-center justify-center text-white text-xs font-semibold transition-all duration-500"
+                  style={{
+                    width: `${(resumoInvestimento.emInclusao.mercadologica / resumoInvestimento.emInclusao.total) * 100}%`,
+                    background: `linear-gradient(to right, ${colors.mercadologico}, ${colors.mercadologico}dd)`
+                  }}
                 >
                   {resumoInvestimento.emInclusao.mercadologica > 0 && (
                     <span>
@@ -607,11 +776,17 @@ const Capa: React.FC = () => {
             {/* Legenda */}
             <div className="flex items-center justify-center gap-6 pt-3 border-t border-gray-200">
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-gradient-to-r from-blue-400 to-blue-500 rounded"></div>
+                <div
+                  className="w-4 h-4 rounded"
+                  style={{ background: `linear-gradient(to right, ${colors.institutional}, ${colors.institutional}dd)` }}
+                ></div>
                 <span className="text-sm text-gray-600">Institucional</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-gradient-to-r from-green-400 to-green-500 rounded"></div>
+                <div
+                  className="w-4 h-4 rounded"
+                  style={{ background: `linear-gradient(to right, ${colors.mercadologico}, ${colors.mercadologico}dd)` }}
+                ></div>
                 <span className="text-sm text-gray-600">Mercadológico</span>
               </div>
             </div>
@@ -621,18 +796,30 @@ const Capa: React.FC = () => {
           <div className="mt-4 grid grid-cols-3 gap-4 pt-4 border-t border-gray-200">
             <div className="text-center">
               <p className="text-xs text-gray-500 mb-1">Total Institucional</p>
-              <p className="text-lg font-bold text-blue-600">{formatMetricValue(resumoInvestimento.totalGeral.institucional, "spent")}</p>
-              <p className="text-xs text-gray-500 mt-1">Saldo: {formatMetricValue(resumoInvestimento.saldo.institucional, "spent")}</p>
+              <p className="text-lg font-bold" style={{ color: colors.institutional }}>
+                {formatMetricValue(resumoInvestimento.totalGeral.institucional, "spent")}
+              </p>
+              <p className="text-xs font-semibold mt-1" style={{ color: colors.primaryDark }}>
+                Saldo: {formatMetricValue(resumoInvestimento.saldo.institucional, "spent")}
+              </p>
             </div>
             <div className="text-center">
               <p className="text-xs text-gray-500 mb-1">Total Mercadológico</p>
-              <p className="text-lg font-bold text-green-600">{formatMetricValue(resumoInvestimento.totalGeral.mercadologica, "spent")}</p>
-              <p className="text-xs text-gray-500 mt-1">Saldo: {formatMetricValue(resumoInvestimento.saldo.mercadologica, "spent")}</p>
+              <p className="text-lg font-bold" style={{ color: colors.mercadologico }}>
+                {formatMetricValue(resumoInvestimento.totalGeral.mercadologica, "spent")}
+              </p>
+              <p className="text-xs font-semibold mt-1" style={{ color: colors.primaryDark }}>
+                Saldo: {formatMetricValue(resumoInvestimento.saldo.mercadologica, "spent")}
+              </p>
             </div>
             <div className="text-center">
               <p className="text-xs text-gray-500 mb-1">Total Geral</p>
-              <p className="text-xl font-bold text-red-600">{formatMetricValue(resumoInvestimento.totalGeral.total, "spent")}</p>
-              <p className="text-xs text-gray-500 mt-1">Saldo: {formatMetricValue(resumoInvestimento.saldo.total, "spent")}</p>
+              <p className="text-xl font-bold" style={{ color: colors.totalGeral }}>
+                {formatMetricValue(resumoInvestimento.totalGeral.total, "spent")}
+              </p>
+              <p className="text-xs font-semibold mt-1" style={{ color: colors.primary }}>
+                Saldo: {formatMetricValue(resumoInvestimento.saldo.total, "spent")}
+              </p>
             </div>
           </div>
         </div>
