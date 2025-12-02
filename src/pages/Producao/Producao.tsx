@@ -44,16 +44,6 @@ const formatCurrency = (value: number): string => {
   }).format(value)
 }
 
-// Função para formatar moeda abreviada
-const formatCurrencyAbbreviated = (value: number): string => {
-  if (value >= 1000000) {
-    return `R$ ${(value / 1000000).toFixed(1)}M`
-  } else if (value >= 1000) {
-    return `R$ ${(value / 1000).toFixed(1)}K`
-  }
-  return formatCurrency(value)
-}
-
 // Função para obter cor com base na situação
 const getSituacaoColor = (situacao: string): string => {
   const situacaoLower = situacao.toLowerCase()
@@ -80,7 +70,8 @@ const Producao: React.FC = () => {
         totais: { acoes: 0, valorTotal: 0 },
         agencias: [],
         verbas: [],
-        topAcoes: []
+        topAcoes: [],
+        agenciaStats: []
       }
     }
 
@@ -89,6 +80,7 @@ const Producao: React.FC = () => {
     const agenciasSet = new Set<string>()
     const verbasSet = new Set<string>()
     const acoesMap = new Map<string, number>()
+    const agenciaStatsMap = new Map<string, { totalAcoes: number; totalValor: number }>()
 
     let totalValor = 0
     let totalAcoes = 0
@@ -142,6 +134,14 @@ const Producao: React.FC = () => {
       const currentValue = acoesMap.get(acao) || 0
       acoesMap.set(acao, currentValue + valorNum)
 
+      // Rastrear estatísticas por agência
+      if (agencia) {
+        const agenciaStats = agenciaStatsMap.get(agencia) || { totalAcoes: 0, totalValor: 0 }
+        agenciaStats.totalAcoes++
+        agenciaStats.totalValor += valorNum
+        agenciaStatsMap.set(agencia, agenciaStats)
+      }
+
       const acaoData: AcaoData = {
         acao,
         situacao,
@@ -189,6 +189,15 @@ const Producao: React.FC = () => {
       .slice(0, 10)
       .map(([acao, valor]) => ({ acao, valor }))
 
+    // Converter estatísticas de agência para array e ordenar por valor total (decrescente)
+    const agenciaStats = Array.from(agenciaStatsMap.entries())
+      .map(([nome, stats]) => ({
+        nome,
+        totalAcoes: stats.totalAcoes,
+        totalValor: stats.totalValor
+      }))
+      .sort((a, b) => b.totalValor - a.totalValor)
+
     return {
       campanhas: campanhasArray,
       acoesSemCampanha,
@@ -198,7 +207,8 @@ const Producao: React.FC = () => {
       },
       agencias: Array.from(agenciasSet).sort(),
       verbas: Array.from(verbasSet).sort(),
-      topAcoes
+      topAcoes,
+      agenciaStats
     }
   }, [data, selectedVerba, selectedCampanha, selectedAgencia, pesquisa])
 
@@ -312,17 +322,69 @@ const Producao: React.FC = () => {
       {/* Cards de Métricas Gerais + Pesquisa */}
       <div className="grid grid-cols-4 gap-3">
 
-        {/* Total de Ações */}
-        <div className="card-overlay rounded-lg shadow p-4">
-          <div className="flex items-center justify-between mb-1">
-            <h3 className="text-xs font-medium text-gray-600">Total de Ações</h3>
-            <FileText className="w-4 h-4 text-purple-600" />
+        {/* Total de Ações por Agência - 25% */}
+        <div className="card-overlay rounded-lg shadow p-4 col-span-1 max-h-[200px] flex flex-col">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <h3 className="text-xs font-medium text-gray-600">Ações por Agência</h3>
+              <Megaphone className="w-4 h-4 text-purple-600" />
+            </div>
+            {selectedAgencia && (
+              <button
+                onClick={() => setSelectedAgencia(null)}
+                className="text-[10px] text-blue-600 hover:text-blue-800 underline"
+              >
+                Limpar
+              </button>
+            )}
           </div>
-          <p className="text-xl font-bold text-gray-900">{processedData.totais.acoes}</p>
+          <div className="flex-1 overflow-y-auto space-y-1">
+            {processedData.agenciaStats.map((agencia, index) => (
+              <div
+                key={agencia.nome}
+                onClick={() => {
+                  if (selectedAgencia === agencia.nome) {
+                    setSelectedAgencia(null)
+                  } else {
+                    setSelectedAgencia(agencia.nome)
+                  }
+                }}
+                className={`p-2 rounded-lg cursor-pointer transition-all duration-200 ${
+                  selectedAgencia === agencia.nome
+                    ? "bg-purple-100 border-2 border-purple-400 shadow-sm"
+                    : "hover:bg-gray-50 bg-gray-50 border-2 border-transparent"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0 flex-shrink">
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-600 font-semibold text-[9px] flex-shrink-0">
+                      {index + 1}
+                    </span>
+                    <span className="text-xs font-semibold text-gray-900 truncate">{agencia.nome}</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="text-center">
+                      <div className="text-xs font-bold text-purple-600">{agencia.totalAcoes}</div>
+                      <div className="text-[9px] text-gray-500">ações</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] font-bold text-green-600">{formatCurrency(agencia.totalValor)}</div>
+                      <div className="text-[9px] text-gray-500">investimento</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {processedData.agenciaStats.length === 0 && (
+              <div className="text-xs text-gray-500 text-center py-4">
+                Nenhuma agência encontrada
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Investimento Total */}
-        <div className="card-overlay rounded-lg shadow p-4">
+        {/* Investimento Total - 25% */}
+        <div className="card-overlay rounded-lg shadow p-4 col-span-1">
           <div className="flex items-center justify-between mb-1">
             <h3 className="text-xs font-medium text-gray-600">Investimento Total</h3>
             <DollarSign className="w-4 h-4 text-green-600" />
@@ -330,9 +392,10 @@ const Producao: React.FC = () => {
           <p className="text-lg font-bold text-gray-900">
             {formatCurrency(processedData.totais.valorTotal)}
           </p>
+          <p className="text-xs text-gray-500 mt-1">{processedData.totais.acoes} ações</p>
         </div>
-        
-        {/* Barra de Pesquisa */}
+
+        {/* Barra de Pesquisa - 50% */}
         <div className="card-overlay rounded-lg shadow p-4 col-span-2">
           <div className="flex items-center justify-between mb-1">
             <h3 className="text-xs font-medium text-gray-600">Pesquisar Ação ou SIREF</h3>
@@ -359,7 +422,7 @@ const Producao: React.FC = () => {
           </div>
         </div>
 
-        
+
       </div>
 
       {/* Grid: Campanhas + Top 10 */}
