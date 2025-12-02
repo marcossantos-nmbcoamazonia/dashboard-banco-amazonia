@@ -738,11 +738,19 @@ export const usePinterestImageData = () => {
 
   return { data, loading, error, refetch: loadData }
 }
+const Url_Benchmark = "https://nmbcoamazonia-api.vercel.app/google/sheets/1R1ehp35FAxdP1vhI1rT-mIYw3h9fuatHMiS__5V6Yok/data"
 
+export const apiBenchmark = axios.create({
+  baseURL: Url_Benchmark,
+  timeout: 10000,
+  headers: {
+    "Content-Type": "application/json",
+  },
+})
 // Função para buscar dados de benchmark
 export const fetchBenchmarkData = async () => {
   try {
-    const response = await api.get("/cartao/benchmark")
+    const response = await apiBenchmark.get("?range=Consolidado")
     return response.data
   } catch (error) {
     console.error("Erro ao buscar dados de benchmark:", error)

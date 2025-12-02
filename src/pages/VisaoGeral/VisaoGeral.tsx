@@ -96,9 +96,9 @@ const VisaoGeral: React.FC = () => {
 
   // Processar dados de benchmark
   useEffect(() => {
-    if (benchmarkApiData?.values) {
-      const headers = benchmarkApiData.values[0]
-      const rows = benchmarkApiData.values.slice(1)
+    if (benchmarkApiData?.data?.values) {
+      const headers = benchmarkApiData.data.values[0]
+      const rows = benchmarkApiData.data.values.slice(1)
 
       const parseNumber = (value: string) => {
         if (!value || value === "-" || value === "R$ -") return 0
@@ -111,16 +111,45 @@ const VisaoGeral: React.FC = () => {
       }
 
       const benchmarkRows: BenchmarkData[] = rows
-        .map((row: string[]) => ({
-          platform: row[headers.indexOf("VEÍCULO")] || "",
-          investment: parseNumber(row[headers.indexOf("NEGOCIADO TOTAL LÍQUIDO")]),
-          impressions: parseInteger(row[headers.indexOf("IMPRESSÕES REALIZADAS")]),
-          clicks: parseInteger(row[headers.indexOf("CLICKS")]),
-          engagements: parseInteger(row[headers.indexOf("ENGAJAMENTOS")]),
-          videoPlays: parseInteger(row[headers.indexOf("VIDEO PLAYS")]),
-          videoCompletions: parseInteger(row[headers.indexOf("VIDEO COMPLETIONS")]),
-        }))
+        .map((row: string[]) => {
+          const rawPlatform = row[headers.indexOf("Veículo")] || ""
+          // Normalizar nome da plataforma para corresponder aos nomes usados no dashboard
+          const normalizedPlatform = (() => {
+            const platform = rawPlatform.trim()
+            if (platform.includes("LinkedIn")) return "LinkedIn"
+            if (platform.includes("Meta") || platform.includes("Facebook") || platform.includes("Instagram")) return "Meta"
+            if (platform.includes("Google")) return "Google"
+            if (platform.includes("TikTok")) return "TikTok"
+            if (platform.includes("YouTube")) return "YouTube"
+            if (platform.includes("Kwai")) return "Kwai"
+            if (platform.includes("Globo")) return "Globo.com"
+            if (platform.includes("Serasa")) return "Serasa"
+            if (platform.includes("Folha")) return "Folha de SP"
+            if (platform.includes("Spotify")) return "Spotify"
+            if (platform.includes("Pinterest")) return "Pinterest"
+            return platform
+          })()
+
+          return {
+            platform: normalizedPlatform,
+            investment: parseNumber(row[headers.indexOf("Total spent")]),
+            impressions: parseInteger(row[headers.indexOf("Impressions")]),
+            clicks: parseInteger(row[headers.indexOf("Clicks")]),
+            engagements: parseInteger(row[headers.indexOf("Total engagements")]),
+            videoPlays: parseInteger(row[headers.indexOf("Video views")]),
+            videoCompletions: parseInteger(row[headers.indexOf("Video completions")]),
+          }
+        })
         .filter((item: BenchmarkData) => item.platform && item.investment > 0)
+
+      console.log("Benchmark rows processados:", benchmarkRows.length)
+      console.log("Plataformas encontradas:", Array.from(new Set(benchmarkRows.map(r => r.platform))))
+
+      // Log de amostra dos primeiros registros
+      if (benchmarkRows.length > 0) {
+        console.log("Amostra do primeiro registro:", benchmarkRows[0])
+        console.log("Amostra do segundo registro:", benchmarkRows[1])
+      }
 
       // Calcular métricas gerais
       const totalInvestment = benchmarkRows.reduce((sum, item) => sum + item.investment, 0)
@@ -129,6 +158,14 @@ const VisaoGeral: React.FC = () => {
       const totalVideoPlays = benchmarkRows.reduce((sum, item) => sum + item.videoPlays, 0)
       const totalVideoCompletions = benchmarkRows.reduce((sum, item) => sum + item.videoCompletions, 0)
 
+      console.log("Totais calculados:", {
+        totalInvestment,
+        totalImpressions,
+        totalClicks,
+        totalVideoPlays,
+        totalVideoCompletions
+      })
+
       const generalMetrics: BenchmarkMetrics = {
         cpm: totalImpressions > 0 ? totalInvestment / (totalImpressions / 1000) : 0,
         cpc: totalClicks > 0 ? totalInvestment / totalClicks : 0,
@@ -136,6 +173,8 @@ const VisaoGeral: React.FC = () => {
         ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
         vtr: totalVideoPlays > 0 ? (totalVideoCompletions / totalVideoPlays) * 100 : 0,
       }
+
+      console.log("Métricas gerais calculadas:", generalMetrics)
 
       // Calcular métricas por plataforma
       const platformMetrics: Record<string, BenchmarkMetrics> = {}
