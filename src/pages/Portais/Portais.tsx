@@ -6,40 +6,45 @@ import { ResponsiveLine } from "@nivo/line"
 import { Activity, Megaphone, ChevronDown, ChevronUp, BarChart3, TrendingUp, MousePointerClick, Eye, Video } from "lucide-react"
 import Loading from "../../components/Loading/Loading"
 
-interface AdServerData {
-  agencia: string
-  campanha: string
-  veiculo: string
-  data: string
-  idCanal: string
-  idPlacement: string
-  idCriativo: string
-  dimensao: string
-  linhaCriativa: string
-  tipoCompra: string
-  contratado_CPM: number
-  impressoes: number
-  bloqueadosCPM: number
-  validasCPM: number
-  viewablesCPM: number
-  cliquesCPM: number
-  vaIABCPM: number
-  contratado_CPV: number
-  views: number
-  bloqueadosCPV: number
-  validasCPV: number
-  usuariosUnicosCPV: number
-  viewablesCPV: number
-  play: number
-  progress25: number
-  progress50: number
-  progress75: number
-  progress100: number
-  cliquesCPV: number
-  vaIABCPV: number
+interface SheetInfo {
+  id: number
+  title: string
+  index: number
+  rowCount: number
+  columnCount: number
 }
 
-type TipoCompra = "CPM" | "CPV" | "Todos"
+interface AdServerData {
+  data: string
+  idCampanha: string
+  nomeCampanha: string
+  inicioCampanha: string
+  fimCampanha: string
+  nomeSite: string
+  website: string
+  descricaoCanal: string
+  qtdComprada: number
+  nomePlacement: string
+  plataforma: string
+  formatoCompra: string
+  status: string
+  urlDestino: string
+  impressoes: number
+  cliques: number
+  views: number
+  viewables: number
+  viewability: number
+  starts: number
+  quartil1: number
+  midpoint: number
+  quartil3: number
+  completes: number
+  skips: number
+  frequencia: number
+  ctr: number
+  vtr: number
+}
+
 type MetricType = "impressoes" | "cliques" | "views" | "ctr" | "vtr"
 
 const Portais: React.FC = () => {
@@ -48,66 +53,90 @@ const Portais: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
   const [selectedCampanha, setSelectedCampanha] = useState<string | null>(null)
   const [selectedVeiculo, setSelectedVeiculo] = useState<string | null>(null)
-  const [selectedTipoCompra, setSelectedTipoCompra] = useState<TipoCompra>("Todos")
   const [expandedCampanha, setExpandedCampanha] = useState<string | null>(null)
   const [selectedMetric, setSelectedMetric] = useState<MetricType>("impressoes")
+
+  const SPREADSHEET_ID = "1uhVbAMPeJR2A1SAG3M7lyYZmjjr2aBturQeEHY1NjD8"
+  const BASE_URL = "https://nmbcoamazonia-api.vercel.app/google/sheets"
 
   // Fetch data from API
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const response = await fetch(
-          "https://nmbcoamazonia-api.vercel.app/google/sheets/1R1ehp35FAxdP1vhI1rT-mIYw3h9fuatHMiS__5V6Yok/data?range=AdServer"
-        )
-        const result = await response.json()
 
-        if (result.success && result.data.values) {
-          const rows = result.data.values.slice(1)
+        // 1. Buscar lista de sheets (campanhas)
+        const infoResponse = await fetch(`${BASE_URL}/${SPREADSHEET_ID}/info`)
+        const infoResult = await infoResponse.json()
 
-          const processedData: AdServerData[] = rows.map((row: any[]) => {
-            const parseNumber = (value: string): number => {
-              if (!value || value === "0" || value === "") return 0
-              const cleaned = value.toString().replace(/\./g, "").replace(",", ".")
-              return parseFloat(cleaned) || 0
-            }
-
-            return {
-              agencia: row[0] || "",
-              campanha: row[1] || "",
-              veiculo: row[2] || "",
-              data: row[3] || "",
-              idCanal: row[4] || "",
-              idPlacement: row[5] || "",
-              idCriativo: row[6] || "",
-              dimensao: row[7] || "",
-              linhaCriativa: row[8] || "",
-              tipoCompra: row[9] || "",
-              contratado_CPM: parseNumber(row[10]),
-              impressoes: parseNumber(row[11]),
-              bloqueadosCPM: parseNumber(row[12]),
-              validasCPM: parseNumber(row[13]),
-              viewablesCPM: parseNumber(row[14]),
-              cliquesCPM: parseNumber(row[15]),
-              vaIABCPM: parseNumber(row[16]),
-              contratado_CPV: parseNumber(row[17]),
-              views: parseNumber(row[18]),
-              bloqueadosCPV: parseNumber(row[19]),
-              validasCPV: parseNumber(row[20]),
-              usuariosUnicosCPV: parseNumber(row[21]),
-              viewablesCPV: parseNumber(row[22]),
-              play: parseNumber(row[23]),
-              progress25: parseNumber(row[24]),
-              progress50: parseNumber(row[25]),
-              progress75: parseNumber(row[26]),
-              progress100: parseNumber(row[27]),
-              cliquesCPV: parseNumber(row[28]),
-              vaIABCPV: parseNumber(row[29]),
-            }
-          })
-
-          setData(processedData)
+        if (!infoResult.success || !infoResult.data.sheets) {
+          throw new Error("Erro ao carregar lista de campanhas")
         }
+
+        const availableSheets: SheetInfo[] = infoResult.data.sheets
+
+        // 2. Buscar dados de todas as sheets em paralelo
+        const dataPromises = availableSheets.map(async (sheet) => {
+          const response = await fetch(
+            `${BASE_URL}/${SPREADSHEET_ID}/data?range=${sheet.title}!A:AQ`
+          )
+          const result = await response.json()
+          return { sheetTitle: sheet.title, data: result }
+        })
+
+        const allSheetsData = await Promise.all(dataPromises)
+
+        // 3. Processar dados de todas as sheets
+        const parseNumber = (value: string): number => {
+          if (!value || value === "0" || value === "") return 0
+          const cleaned = value.toString().replace(/\./g, "").replace(",", ".")
+          return parseFloat(cleaned) || 0
+        }
+
+        const processedData: AdServerData[] = []
+
+        allSheetsData.forEach(({ data: result }) => {
+          if (result.success && result.data.values) {
+            const rows = result.data.values.slice(1) // Remove header
+
+            rows.forEach((row: any[]) => {
+              if (!row[0]) return // Pular linhas vazias
+
+              processedData.push({
+                data: row[0] || "",
+                idCampanha: row[1] || "",
+                nomeCampanha: row[2] || "",
+                inicioCampanha: row[3] || "",
+                fimCampanha: row[4] || "",
+                nomeSite: row[10] || "",
+                website: row[11] || "",
+                descricaoCanal: row[13] || "",
+                qtdComprada: parseNumber(row[14]), // Qtd Comprada (coluna O, índice 14)
+                nomePlacement: row[19] || "",
+                plataforma: row[20] || "",
+                formatoCompra: row[24] || "",
+                status: row[26] || "",
+                urlDestino: row[28] || "",
+                impressoes: parseNumber(row[29]),
+                cliques: parseNumber(row[30]),
+                views: parseNumber(row[31]),
+                viewables: parseNumber(row[32]),
+                viewability: parseNumber(row[33]),
+                starts: parseNumber(row[34]),
+                quartil1: parseNumber(row[35]),
+                midpoint: parseNumber(row[36]),
+                quartil3: parseNumber(row[37]),
+                completes: parseNumber(row[38]),
+                skips: parseNumber(row[39]),
+                frequencia: parseNumber(row[40]),
+                ctr: parseNumber(row[41]),
+                vtr: parseNumber(row[42]),
+              })
+            })
+          }
+        })
+
+        setData(processedData)
       } catch (err) {
         setError("Erro ao carregar dados do AdServer")
         console.error(err)
@@ -122,44 +151,34 @@ const Portais: React.FC = () => {
   // Filtrar dados por seleções
   const filteredData = useMemo(() => {
     return data.filter((item) => {
-      const campanhaMatch = !selectedCampanha || item.campanha === selectedCampanha
-      const veiculoMatch = !selectedVeiculo || item.veiculo === selectedVeiculo
-
-      let tipoCompraMatch = true
-      if (selectedTipoCompra === "CPM") {
-        tipoCompraMatch = item.contratado_CPM > 0 || item.impressoes > 0
-      } else if (selectedTipoCompra === "CPV") {
-        tipoCompraMatch = item.contratado_CPV > 0 || item.views > 0
-      }
-
-      return campanhaMatch && veiculoMatch && tipoCompraMatch
+      const campanhaMatch = !selectedCampanha || item.nomeCampanha === selectedCampanha
+      const veiculoMatch = !selectedVeiculo || item.nomeSite === selectedVeiculo
+      return campanhaMatch && veiculoMatch
     })
-  }, [data, selectedCampanha, selectedVeiculo, selectedTipoCompra])
+  }, [data, selectedCampanha, selectedVeiculo])
 
   // Processar campanhas com métricas
   const campanhasData = useMemo(() => {
     const campanhasMap = new Map<
       string,
       {
-        placementsCPM: Map<string, number>
-        placementsCPV: Map<string, number>
+        contratado: number
         entregue: number
         cliques: number
         impressoes: number
         views: number
-        progress100: number
+        completes: number
         viewabilityTotal: number
         viewabilityCount: number
         veiculos: Map<
           string,
           {
-            placementsCPM: Map<string, number>
-            placementsCPV: Map<string, number>
+            contratado: number
             entregue: number
             cliques: number
             impressoes: number
             views: number
-            progress100: number
+            completes: number
             viewabilityTotal: number
             viewabilityCount: number
           }
@@ -167,176 +186,159 @@ const Portais: React.FC = () => {
       }
     >()
 
+    // Para calcular contratado, precisamos agrupar por campanha/placement único
+    const contratadosPorCampanha = new Map<string, Map<string, number>>()
+    const contratadosPorVeiculo = new Map<string, Map<string, Map<string, number>>>()
+
     data.forEach((item) => {
-      if (!item.campanha) return
+      if (!item.nomeCampanha) return
 
-      // Aplicar filtro de tipo de compra
-      if (selectedTipoCompra === "CPM" && (item.contratado_CPM === 0 && item.impressoes === 0)) return
-      if (selectedTipoCompra === "CPV" && (item.contratado_CPV === 0 && item.views === 0)) return
+      // Rastrear contratados únicos por placement
+      if (!contratadosPorCampanha.has(item.nomeCampanha)) {
+        contratadosPorCampanha.set(item.nomeCampanha, new Map())
+      }
+      if (item.qtdComprada > 0 && item.nomePlacement) {
+        contratadosPorCampanha.get(item.nomeCampanha)!.set(item.nomePlacement, item.qtdComprada)
+      }
 
-      if (!campanhasMap.has(item.campanha)) {
-        campanhasMap.set(item.campanha, {
-          placementsCPM: new Map(),
-          placementsCPV: new Map(),
+      // Rastrear contratados por veículo
+      if (!contratadosPorVeiculo.has(item.nomeCampanha)) {
+        contratadosPorVeiculo.set(item.nomeCampanha, new Map())
+      }
+      if (!contratadosPorVeiculo.get(item.nomeCampanha)!.has(item.nomeSite)) {
+        contratadosPorVeiculo.get(item.nomeCampanha)!.set(item.nomeSite, new Map())
+      }
+      if (item.qtdComprada > 0 && item.nomePlacement) {
+        contratadosPorVeiculo.get(item.nomeCampanha)!.get(item.nomeSite)!.set(item.nomePlacement, item.qtdComprada)
+      }
+
+      if (!campanhasMap.has(item.nomeCampanha)) {
+        campanhasMap.set(item.nomeCampanha, {
+          contratado: 0,
           entregue: 0,
           cliques: 0,
           impressoes: 0,
           views: 0,
-          progress100: 0,
+          completes: 0,
           viewabilityTotal: 0,
           viewabilityCount: 0,
           veiculos: new Map(),
         })
       }
 
-      const campanhaData = campanhasMap.get(item.campanha)!
+      const campanhaData = campanhasMap.get(item.nomeCampanha)!
 
       // Processar métricas da campanha
-      if (selectedTipoCompra === "CPM" || selectedTipoCompra === "Todos") {
-        if (item.contratado_CPM > 0 && !campanhaData.placementsCPM.has(item.idPlacement)) {
-          campanhaData.placementsCPM.set(item.idPlacement, item.contratado_CPM)
-        }
-        campanhaData.impressoes += item.impressoes
-        campanhaData.entregue += item.impressoes
-        campanhaData.cliques += item.cliquesCPM
-        if (item.vaIABCPM > 0) {
-          campanhaData.viewabilityTotal += item.vaIABCPM
-          campanhaData.viewabilityCount++
-        }
-      }
+      campanhaData.impressoes += item.impressoes
+      campanhaData.views += item.views
+      campanhaData.entregue += item.impressoes + item.views
+      campanhaData.cliques += item.cliques
+      campanhaData.completes += item.completes
 
-      if (selectedTipoCompra === "CPV" || selectedTipoCompra === "Todos") {
-        if (item.contratado_CPV > 0 && !campanhaData.placementsCPV.has(item.idPlacement)) {
-          campanhaData.placementsCPV.set(item.idPlacement, item.contratado_CPV)
-        }
-        campanhaData.views += item.views
-        campanhaData.entregue += item.views
-        campanhaData.progress100 += item.progress100
-        campanhaData.cliques += item.cliquesCPV
-        if (item.vaIABCPV > 0) {
-          campanhaData.viewabilityTotal += item.vaIABCPV
-          campanhaData.viewabilityCount++
-        }
+      if (item.viewability > 0) {
+        campanhaData.viewabilityTotal += item.viewability
+        campanhaData.viewabilityCount++
       }
 
       // Processar veículos
-      if (!campanhaData.veiculos.has(item.veiculo)) {
-        campanhaData.veiculos.set(item.veiculo, {
-          placementsCPM: new Map(),
-          placementsCPV: new Map(),
+      if (!campanhaData.veiculos.has(item.nomeSite)) {
+        campanhaData.veiculos.set(item.nomeSite, {
+          contratado: 0,
           entregue: 0,
           cliques: 0,
           impressoes: 0,
           views: 0,
-          progress100: 0,
+          completes: 0,
           viewabilityTotal: 0,
           viewabilityCount: 0,
         })
       }
 
-      const veiculoData = campanhaData.veiculos.get(item.veiculo)!
+      const veiculoData = campanhaData.veiculos.get(item.nomeSite)!
+      veiculoData.impressoes += item.impressoes
+      veiculoData.views += item.views
+      veiculoData.entregue += item.impressoes + item.views
+      veiculoData.cliques += item.cliques
+      veiculoData.completes += item.completes
 
-      if (selectedTipoCompra === "CPM" || selectedTipoCompra === "Todos") {
-        if (item.contratado_CPM > 0 && !veiculoData.placementsCPM.has(item.idPlacement)) {
-          veiculoData.placementsCPM.set(item.idPlacement, item.contratado_CPM)
-        }
-        veiculoData.impressoes += item.impressoes
-        veiculoData.entregue += item.impressoes
-        veiculoData.cliques += item.cliquesCPM
-        if (item.vaIABCPM > 0) {
-          veiculoData.viewabilityTotal += item.vaIABCPM
-          veiculoData.viewabilityCount++
-        }
-      }
-
-      if (selectedTipoCompra === "CPV" || selectedTipoCompra === "Todos") {
-        if (item.contratado_CPV > 0 && !veiculoData.placementsCPV.has(item.idPlacement)) {
-          veiculoData.placementsCPV.set(item.idPlacement, item.contratado_CPV)
-        }
-        veiculoData.views += item.views
-        veiculoData.entregue += item.views
-        veiculoData.progress100 += item.progress100
-        veiculoData.cliques += item.cliquesCPV
-        if (item.vaIABCPV > 0) {
-          veiculoData.viewabilityTotal += item.vaIABCPV
-          veiculoData.viewabilityCount++
-        }
+      if (item.viewability > 0) {
+        veiculoData.viewabilityTotal += item.viewability
+        veiculoData.viewabilityCount++
       }
     })
 
     return Array.from(campanhasMap.entries())
-      .map(([nome, data]) => {
-        const contratado =
-          Array.from(data.placementsCPM.values()).reduce((sum, val) => sum + val, 0) +
-          Array.from(data.placementsCPV.values()).reduce((sum, val) => sum + val, 0)
+      .map(([nome, campanhaMetrics]) => {
+        // Calcular contratado total da campanha (soma dos placements únicos)
+        const contratado = contratadosPorCampanha.has(nome)
+          ? Array.from(contratadosPorCampanha.get(nome)!.values()).reduce((sum, val) => sum + val, 0)
+          : 0
 
-        const pacing = contratado > 0 ? Math.min((data.entregue / contratado) * 100, 100) : 0
-        const ctr = data.impressoes > 0 ? (data.cliques / data.impressoes) * 100 : 0
-        const vtr = data.views > 0 ? (data.progress100 / data.views) * 100 : 0
+        const pacing = contratado > 0 ? Math.min((campanhaMetrics.entregue / contratado) * 100, 100) : 0
+        const ctr = campanhaMetrics.impressoes > 0 ? (campanhaMetrics.cliques / campanhaMetrics.impressoes) * 100 : 0
+        const vtr = campanhaMetrics.views > 0 ? (campanhaMetrics.completes / campanhaMetrics.views) * 100 : 0
 
-        const veiculos = Array.from(data.veiculos.entries()).map(([nomeVeiculo, veiculoData]) => {
-          const contratadoVeiculo =
-            Array.from(veiculoData.placementsCPM.values()).reduce((sum, val) => sum + val, 0) +
-            Array.from(veiculoData.placementsCPV.values()).reduce((sum, val) => sum + val, 0)
+        const veiculos = Array.from(campanhaMetrics.veiculos.entries()).map(([nomeVeiculo, veiculoMetrics]) => {
+          // Calcular contratado do veículo
+          const contratadoVeiculo = contratadosPorVeiculo.has(nome) && contratadosPorVeiculo.get(nome)!.has(nomeVeiculo)
+            ? Array.from(contratadosPorVeiculo.get(nome)!.get(nomeVeiculo)!.values()).reduce((sum, val) => sum + val, 0)
+            : 0
 
-          const pacingVeiculo =
-            contratadoVeiculo > 0 ? Math.min((veiculoData.entregue / contratadoVeiculo) * 100, 100) : 0
-          const ctrVeiculo =
-            veiculoData.impressoes > 0 ? (veiculoData.cliques / veiculoData.impressoes) * 100 : 0
-          const vtrVeiculo = veiculoData.views > 0 ? (veiculoData.progress100 / veiculoData.views) * 100 : 0
+          const pacingVeiculo = contratadoVeiculo > 0 ? Math.min((veiculoMetrics.entregue / contratadoVeiculo) * 100, 100) : 0
+          const ctrVeiculo = veiculoMetrics.impressoes > 0 ? (veiculoMetrics.cliques / veiculoMetrics.impressoes) * 100 : 0
+          const vtrVeiculo = veiculoMetrics.views > 0 ? (veiculoMetrics.completes / veiculoMetrics.views) * 100 : 0
 
           return {
             nome: nomeVeiculo,
             contratado: contratadoVeiculo,
-            entregue: veiculoData.entregue,
+            entregue: veiculoMetrics.entregue,
             pacing: pacingVeiculo,
-            cliques: veiculoData.cliques,
+            cliques: veiculoMetrics.cliques,
             ctr: ctrVeiculo,
             vtr: vtrVeiculo,
-            impressoes: veiculoData.impressoes,
-            views: veiculoData.views,
+            impressoes: veiculoMetrics.impressoes,
+            views: veiculoMetrics.views,
           }
         })
 
         return {
           nome,
           contratado,
-          entregue: data.entregue,
+          entregue: campanhaMetrics.entregue,
           pacing,
-          cliques: data.cliques,
+          cliques: campanhaMetrics.cliques,
           ctr,
           vtr,
-          impressoes: data.impressoes,
-          views: data.views,
+          impressoes: campanhaMetrics.impressoes,
+          views: campanhaMetrics.views,
           veiculos,
         }
       })
       .sort((a, b) => b.entregue - a.entregue)
-  }, [data, selectedTipoCompra])
+  }, [data])
 
   // Dados do gráfico por data
   const chartData = useMemo(() => {
-    const dateMap = new Map<string, { impressoes: number; cliques: number; views: number; cliquesCPM: number; progress100: number }>()
+    const dateMap = new Map<string, { impressoes: number; cliques: number; views: number; completes: number }>()
 
     filteredData.forEach((item) => {
       if (!item.data) return
 
       if (!dateMap.has(item.data)) {
-        dateMap.set(item.data, { impressoes: 0, cliques: 0, views: 0, cliquesCPM: 0, progress100: 0 })
+        dateMap.set(item.data, { impressoes: 0, cliques: 0, views: 0, completes: 0 })
       }
 
       const dateData = dateMap.get(item.data)!
       dateData.impressoes += item.impressoes
-      dateData.cliques += item.cliquesCPM + item.cliquesCPV
+      dateData.cliques += item.cliques
       dateData.views += item.views
-      dateData.cliquesCPM += item.cliquesCPM
-      dateData.progress100 += item.progress100
+      dateData.completes += item.completes
     })
 
     const sortedDates = Array.from(dateMap.entries())
       .map(([date, metrics]) => {
-        const ctr = metrics.impressoes > 0 ? (metrics.cliquesCPM / metrics.impressoes) * 100 : 0
-        const vtr = metrics.views > 0 ? (metrics.progress100 / metrics.views) * 100 : 0
+        const ctr = metrics.impressoes > 0 ? (metrics.cliques / metrics.impressoes) * 100 : 0
+        const vtr = metrics.views > 0 ? (metrics.completes / metrics.views) * 100 : 0
         return {
           date,
           ...metrics,
@@ -373,41 +375,29 @@ const Portais: React.FC = () => {
 
   // Métricas gerais baseadas em filteredData
   const metricsGerais = useMemo(() => {
-    const placementMapCPM = new Map<string, number>()
-    const placementMapCPV = new Map<string, number>()
+    const placementMap = new Map<string, number>()
 
     let impressoes = 0
     let views = 0
     let cliques = 0
-    let progress100 = 0
+    let completes = 0
 
     filteredData.forEach((item) => {
-      if (selectedTipoCompra === "CPM" || selectedTipoCompra === "Todos") {
-        if (item.contratado_CPM > 0 && !placementMapCPM.has(item.idPlacement)) {
-          placementMapCPM.set(item.idPlacement, item.contratado_CPM)
-        }
-        impressoes += item.impressoes
-        cliques += item.cliquesCPM
+      // Rastrear contratados únicos por placement
+      if (item.qtdComprada > 0 && item.nomePlacement && !placementMap.has(item.nomePlacement)) {
+        placementMap.set(item.nomePlacement, item.qtdComprada)
       }
-
-      if (selectedTipoCompra === "CPV" || selectedTipoCompra === "Todos") {
-        if (item.contratado_CPV > 0 && !placementMapCPV.has(item.idPlacement)) {
-          placementMapCPV.set(item.idPlacement, item.contratado_CPV)
-        }
-        views += item.views
-        cliques += item.cliquesCPV
-        progress100 += item.progress100
-      }
+      impressoes += item.impressoes
+      views += item.views
+      cliques += item.cliques
+      completes += item.completes
     })
 
-    const contratado =
-      Array.from(placementMapCPM.values()).reduce((sum, val) => sum + val, 0) +
-      Array.from(placementMapCPV.values()).reduce((sum, val) => sum + val, 0)
-
+    const contratado = Array.from(placementMap.values()).reduce((sum, val) => sum + val, 0)
     const entregue = impressoes + views
     const pacing = contratado > 0 ? Math.min((entregue / contratado) * 100, 100) : 0
     const ctr = impressoes > 0 ? (cliques / impressoes) * 100 : 0
-    const vtr = views > 0 ? (progress100 / views) * 100 : 0
+    const vtr = views > 0 ? (completes / views) * 100 : 0
 
     return {
       contratado,
@@ -419,7 +409,7 @@ const Portais: React.FC = () => {
       ctr,
       vtr,
     }
-  }, [filteredData, selectedTipoCompra])
+  }, [filteredData])
 
   // Dados de formatos (quando um veículo é selecionado)
   const formatosData = useMemo(() => {
@@ -431,7 +421,7 @@ const Portais: React.FC = () => {
         impressoes: number
         views: number
         cliques: number
-        progress100: number
+        completes: number
         viewabilityTotal: number
         viewabilityCount: number
       }
@@ -441,53 +431,43 @@ const Portais: React.FC = () => {
     let totalViews = 0
 
     filteredData
-      .filter((item) => item.veiculo === selectedVeiculo)
+      .filter((item) => item.nomeSite === selectedVeiculo)
       .forEach((item) => {
-        if (!item.dimensao) return
+        if (!item.plataforma) return
 
-        if (!formatosMap.has(item.dimensao)) {
-          formatosMap.set(item.dimensao, {
+        if (!formatosMap.has(item.plataforma)) {
+          formatosMap.set(item.plataforma, {
             impressoes: 0,
             views: 0,
             cliques: 0,
-            progress100: 0,
+            completes: 0,
             viewabilityTotal: 0,
             viewabilityCount: 0,
           })
         }
 
-        const formatoData = formatosMap.get(item.dimensao)!
+        const formatoData = formatosMap.get(item.plataforma)!
+        formatoData.impressoes += item.impressoes
+        formatoData.views += item.views
+        formatoData.cliques += item.cliques
+        formatoData.completes += item.completes
+        totalImpressoes += item.impressoes
+        totalViews += item.views
 
-        if (selectedTipoCompra === "CPM" || selectedTipoCompra === "Todos") {
-          formatoData.impressoes += item.impressoes
-          formatoData.cliques += item.cliquesCPM
-          totalImpressoes += item.impressoes
-          if (item.vaIABCPM > 0) {
-            formatoData.viewabilityTotal += item.vaIABCPM
-            formatoData.viewabilityCount++
-          }
-        }
-
-        if (selectedTipoCompra === "CPV" || selectedTipoCompra === "Todos") {
-          formatoData.views += item.views
-          formatoData.progress100 += item.progress100
-          formatoData.cliques += item.cliquesCPV
-          totalViews += item.views
-          if (item.vaIABCPV > 0) {
-            formatoData.viewabilityTotal += item.vaIABCPV
-            formatoData.viewabilityCount++
-          }
+        if (item.viewability > 0) {
+          formatoData.viewabilityTotal += item.viewability
+          formatoData.viewabilityCount++
         }
       })
 
     return Array.from(formatosMap.entries())
-      .map(([formato, data]) => {
-        const total = data.impressoes + data.views
+      .map(([formato, formatoMetrics]) => {
+        const total = formatoMetrics.impressoes + formatoMetrics.views
         const totalGeral = totalImpressoes + totalViews
         const percentual = totalGeral > 0 ? (total / totalGeral) * 100 : 0
-        const ctr = data.impressoes > 0 ? (data.cliques / data.impressoes) * 100 : 0
-        const vtr = data.views > 0 ? (data.progress100 / data.views) * 100 : 0
-        const viewability = data.viewabilityCount > 0 ? data.viewabilityTotal / data.viewabilityCount : 0
+        const ctr = formatoMetrics.impressoes > 0 ? (formatoMetrics.cliques / formatoMetrics.impressoes) * 100 : 0
+        const vtr = formatoMetrics.views > 0 ? (formatoMetrics.completes / formatoMetrics.views) * 100 : 0
+        const viewability = formatoMetrics.viewabilityCount > 0 ? formatoMetrics.viewabilityTotal / formatoMetrics.viewabilityCount : 0
 
         return {
           formato,
@@ -499,7 +479,7 @@ const Portais: React.FC = () => {
         }
       })
       .sort((a, b) => b.total - a.total)
-  }, [filteredData, selectedVeiculo, selectedTipoCompra])
+  }, [filteredData, selectedVeiculo])
 
   const formatNumber = (value: number): string => {
     return new Intl.NumberFormat("pt-BR").format(Math.round(value))
@@ -546,21 +526,6 @@ const Portais: React.FC = () => {
 
           {/* Filtros */}
           <div className="flex items-center gap-3">
-            {/* Filtro Tipo de Compra */}
-            <select
-              value={selectedTipoCompra}
-              onChange={(e) => {
-                setSelectedTipoCompra(e.target.value as TipoCompra)
-                setSelectedCampanha(null)
-                setSelectedVeiculo(null)
-              }}
-              className="text-sm bg-white border border-gray-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 cursor-pointer"
-            >
-              <option value="Todos">Tipo de Compra: Todos</option>
-              <option value="CPM">CPM</option>
-              <option value="CPV">CPV</option>
-            </select>
-
             {/* Filtro Campanha */}
             <select
               value={selectedCampanha || ""}
