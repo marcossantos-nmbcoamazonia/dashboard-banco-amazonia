@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState } from "react"
 import { Link, useLocation } from "react-router-dom"
-import { Home, Clock, Eye, TrendingUp, BarChart3, Users, BookOpenText, Radio, Activity, Clapperboard, LineChart, ChevronDown, Share2, ImageIcon, CalendarDays } from "lucide-react"
+import { Home, Clock, Eye, TrendingUp, BarChart3, Users, BookOpenText, Radio, Activity, Clapperboard, LineChart, ChevronDown, Share2, ImageIcon, CalendarDays, Megaphone } from "lucide-react"
 
 interface MenuItem {
   id: string
@@ -183,6 +183,19 @@ const menuStructure: MenuItemOrGroup[] = [
     icon: <TrendingUp className="w-5 h-5" />,
   },
   {
+    id: "campanhas",
+    label: "Campanhas",
+    icon: <Megaphone className="w-5 h-5" />,
+    items: [
+      {
+        id: "capital-de-giro",
+        label: "Capital de Giro",
+        path: "/campanhas/capital-de-giro",
+        icon: <TrendingUp className="w-5 h-5" />,
+      },
+    ],
+  },
+  {
     id: "glossario",
     label: "Glossário",
     path: "/glossario",
@@ -195,6 +208,7 @@ const Sidebar: React.FC = () => {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     "redes-sociais": false,
     "criativos": false,
+    "campanhas": false,
   })
   const location = useLocation()
 

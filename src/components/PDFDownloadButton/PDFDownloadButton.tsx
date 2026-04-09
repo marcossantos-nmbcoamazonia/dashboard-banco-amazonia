@@ -23,11 +23,25 @@ const PDFDownloadButton: React.FC<PDFDownloadButtonProps> = ({ contentRef, fileN
 
       // Capturar o conteúdo da página
       const canvas = await html2canvas(contentRef.current, {
-        scale: 1.5, // Melhor qualidade
-        useCORS: true, // Permitir imagens de outros domínios
+        scale: 1.5,
+        useCORS: true,
         logging: false,
         allowTaint: true,
         backgroundColor: "#ffffff",
+        imageTimeout: 0,
+        onclone: (_clonedDoc, element) => {
+          // Remover background-image de todos os elementos — evita canvas 0x0
+          element.querySelectorAll("*").forEach((el) => {
+            const style = (el as HTMLElement).style
+            style.backgroundImage = "none"
+          })
+          // Remover <img> com dimensões 0
+          element.querySelectorAll("img").forEach((img) => {
+            if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+              img.remove()
+            }
+          })
+        },
       })
 
       // Criar PDF

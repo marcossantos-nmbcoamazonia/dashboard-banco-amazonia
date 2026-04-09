@@ -25,11 +25,25 @@ interface AcaoData {
   pis?: string
 }
 
+const APIS = {
+  2025: {
+    midia: "https://nmbcoamazonia-api.vercel.app/google/sheets/1jh9U8S9gCB4LQsZJ8-Do_e6Qn2YsAECm_dyhWuVEgOc/data?range=AÇÕES%20MÍDIA",
+    producao: "https://nmbcoamazonia-api.vercel.app/google/sheets/1jh9U8S9gCB4LQsZJ8-Do_e6Qn2YsAECm_dyhWuVEgOc/data?range=AÇÕES%20PRODUÇÃO",
+    custos: "https://nmbcoamazonia-api.vercel.app/google/sheets/1jh9U8S9gCB4LQsZJ8-Do_e6Qn2YsAECm_dyhWuVEgOc/data?range=CUSTOS%20INTERNOS",
+  },
+  2026: {
+    midia: "https://nmbcoamazonia-api.vercel.app/google/sheets/1-aLCEJBF9_nn8Xl_tq_dC6X6u1ZG__7eSkyUXGgfd2o/data?range=A%C3%87%C3%95ES%20M%C3%8DDIA",
+    producao: "https://nmbcoamazonia-api.vercel.app/google/sheets/1-aLCEJBF9_nn8Xl_tq_dC6X6u1ZG__7eSkyUXGgfd2o/data?range=A%C3%87%C3%95ES%20PRODU%C3%87%C3%83O",
+    custos: "https://nmbcoamazonia-api.vercel.app/google/sheets/1-aLCEJBF9_nn8Xl_tq_dC6X6u1ZG__7eSkyUXGgfd2o/data?range=A%C3%87%C3%95ES%20EM%20PLANEJAMENTO",
+  },
+} as const
+
 const Capa: React.FC = () => {
   const navigate = useNavigate()
   const { loading: planoLoading, error: planoError } = usePlanoMidia()
   const { loading: producaoLoading, error: producaoError } = useProducaoData()
 
+  const [selectedAno, setSelectedAno] = useState<2025 | 2026>(2025)
   const [selectedTipoVerba, setSelectedTipoVerba] = useState<string | null>(null)
   const [selectedAgencia, setSelectedAgencia] = useState<string | null>(null)
 
@@ -41,7 +55,7 @@ const Capa: React.FC = () => {
   // Buscar dados das 3 APIs
   useEffect(() => {
     const parseCurrency = (value: string): number => {
-      if (!value || value === "" || value === "-") return 0
+      if (!value || value === "" || value === "-" || value.includes("#REF")) return 0
       const cleaned = value
         .replace(/R\$/g, "")
         .replace(/\s/g, "")
@@ -51,57 +65,60 @@ const Capa: React.FC = () => {
       return parseFloat(cleaned) || 0
     }
 
+    // Normaliza "ESCALA" → "Escala", "CÁLIX" → "Cálix"
+    const normalizeAgencia = (value: string): string => {
+      const v = value.trim()
+      if (v.toUpperCase() === "ESCALA") return "Escala"
+      if (v.toUpperCase() === "CÁLIX" || v.toUpperCase() === "CALIX") return "Cálix"
+      return v
+    }
+
+    // Normaliza "MERCADOLÓGICA" → "Mercadológica", "INSTITUCIONAL" → "Institucional"
+    const normalizeVerba = (value: string): string => {
+      const v = value.trim().toLowerCase()
+      if (v.includes("mercadol")) return "Mercadológica"
+      if (v.includes("institucional")) return "Institucional"
+      return value.trim()
+    }
+
     const fetchAllData = async () => {
       try {
         setAcoesLoading(true)
 
-        // Buscar Ações de Mídia
-        const midiaResponse = await axios.get(
-          "https://nmbcoamazonia-api.vercel.app/google/sheets/1jh9U8S9gCB4LQsZJ8-Do_e6Qn2YsAECm_dyhWuVEgOc/data?range=AÇÕES%20MÍDIA"
-        )
-
-        // Buscar Ações de Produção
-        const producaoResponse = await axios.get(
-          "https://nmbcoamazonia-api.vercel.app/google/sheets/1jh9U8S9gCB4LQsZJ8-Do_e6Qn2YsAECm_dyhWuVEgOc/data?range=AÇÕES%20PRODUÇÃO"
-        )
-
-        // Buscar Custos Internos
-        const custosResponse = await axios.get(
-          "https://nmbcoamazonia-api.vercel.app/google/sheets/1jh9U8S9gCB4LQsZJ8-Do_e6Qn2YsAECm_dyhWuVEgOc/data?range=CUSTOS%20INTERNOS"
-        )
+        const urls = APIS[selectedAno]
+        const [midiaResponse, producaoResponse, custosResponse] = await Promise.all([
+          axios.get(urls.midia),
+          axios.get(urls.producao),
+          axios.get(urls.custos),
+        ])
 
         // Processar Ações de Mídia
         if (midiaResponse.data.success && midiaResponse.data.data.values) {
           const headers = midiaResponse.data.data.values[2]
           const rows = midiaResponse.data.data.values.slice(3)
-
           const acaoIndex = headers.indexOf("AÇÃO")
           const meiosIndex = headers.indexOf("MEIOS")
           const situacaoIndex = headers.indexOf("SITUAÇÃO")
-          const valorIndex = headers.indexOf("VALOR (96%)")
+          const valorIndex = headers.findIndex((h: string) => h.trim().startsWith("VALOR"))
           const midiawebIndex = headers.indexOf("MIDIAWEB")
           const agenciaIndex = headers.indexOf("AGÊNCIA")
           const verbaIndex = headers.indexOf("VERBA")
           const pisIndex = headers.indexOf("PIS")
-
           const midiaArray: AcaoData[] = []
-
           rows.forEach((row: any[]) => {
             const acao = row[acaoIndex] || ""
             if (!acao || acao.trim() === "") return
-
             midiaArray.push({
               acao,
               meios: row[meiosIndex] || "",
               situacao: row[situacaoIndex] || "",
               valor: parseCurrency(row[valorIndex] || "0"),
               midiaweb: row[midiawebIndex] || "",
-              agencia: row[agenciaIndex] || "",
-              verba: row[verbaIndex] || "",
+              agencia: normalizeAgencia(row[agenciaIndex] || ""),
+              verba: normalizeVerba(row[verbaIndex] || ""),
               pis: row[pisIndex] || ""
             })
           })
-
           setAcoesMidiaData(midiaArray)
         }
 
@@ -109,61 +126,52 @@ const Capa: React.FC = () => {
         if (producaoResponse.data.success && producaoResponse.data.data.values) {
           const headers = producaoResponse.data.data.values[2]
           const rows = producaoResponse.data.data.values.slice(3)
-
           const acaoIndex = headers.indexOf("AÇÃO")
           const situacaoIndex = headers.indexOf("SITUAÇÃO")
-          const valorIndex = headers.indexOf("VALOR ")
+          const valorIndex = headers.findIndex((h: string) => h.trim().startsWith("VALOR"))
           const sirefIndex = headers.indexOf("SIREF")
           const agenciaIndex = headers.indexOf("AGÊNCIA")
           const verbaIndex = headers.indexOf("VERBA")
-
           const producaoArray: AcaoData[] = []
-
           rows.forEach((row: any[]) => {
             const acao = row[acaoIndex] || ""
             if (!acao || acao.trim() === "") return
-
             producaoArray.push({
               acao,
               situacao: row[situacaoIndex] || "",
               valor: parseCurrency(row[valorIndex] || "0"),
               siref: row[sirefIndex] || "",
-              agencia: row[agenciaIndex] || "",
-              verba: row[verbaIndex] || ""
+              agencia: normalizeAgencia(row[agenciaIndex] || ""),
+              verba: normalizeVerba(row[verbaIndex] || "")
             })
           })
-
           setAcoesProducaoData(producaoArray)
         }
 
-        // Processar Custos Internos
+        // Processar Custos Internos / Ações em Planejamento
         if (custosResponse.data.success && custosResponse.data.data.values) {
           const headers = custosResponse.data.data.values[2]
           const rows = custosResponse.data.data.values.slice(3)
-
           const acaoIndex = headers.indexOf("AÇÃO")
           const situacaoIndex = headers.indexOf("SITUAÇÃO")
-          const valorIndex = headers.indexOf("VALOR")
+          const valorIndex = headers.findIndex((h: string) => h.trim().startsWith("VALOR"))
           const sirefIndex = headers.indexOf("SIREF")
+          const midiawebIndex = headers.indexOf("MIDIAWEB")
           const agenciaIndex = headers.indexOf("AGÊNCIA")
           const verbaIndex = headers.indexOf("VERBA")
-
           const custosArray: AcaoData[] = []
-
           rows.forEach((row: any[]) => {
             const acao = row[acaoIndex] || ""
             if (!acao || acao.trim() === "") return
-
             custosArray.push({
               acao,
               situacao: row[situacaoIndex] || "",
               valor: parseCurrency(row[valorIndex] || "0"),
-              siref: row[sirefIndex] || "",
-              agencia: row[agenciaIndex] || "",
-              verba: row[verbaIndex] || ""
+              siref: row[sirefIndex] || row[midiawebIndex] || "",
+              agencia: normalizeAgencia(row[agenciaIndex] || ""),
+              verba: normalizeVerba(row[verbaIndex] || "")
             })
           })
-
           setCustosInternosData(custosArray)
         }
       } catch (error) {
@@ -174,7 +182,8 @@ const Capa: React.FC = () => {
     }
 
     fetchAllData()
-  }, [])
+    setSelectedAgencia(null)
+  }, [selectedAno])
 
 
 
@@ -485,10 +494,25 @@ const Capa: React.FC = () => {
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-black/20"></div>
-          <div className="absolute bottom-0 left-0 right-0 p-4">
+          <div className="absolute bottom-0 left-0 right-0 p-4 flex items-end justify-between">
             <div className="bg-white/95 backdrop-blur-sm rounded-xl p-4 shadow-lg max-w-2xl">
               <h1 className="text-2xl font-bold text-gray-900 mb-1">Dashboard Executivo - Banco da Amazônia</h1>
               <p className="text-base text-gray-700">Visão consolidada de investimentos e resultados</p>
+            </div>
+            <div className="bg-black/40 backdrop-blur-sm rounded-lg p-0.5 flex gap-0.5">
+              {([2025, 2026] as const).map((ano) => (
+                <button
+                  key={ano}
+                  onClick={() => setSelectedAno(ano)}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+                    selectedAno === ano
+                      ? "bg-yellow-500 text-white"
+                      : "text-white/70 hover:text-white"
+                  }`}
+                >
+                  {ano}
+                </button>
+              ))}
             </div>
           </div>
         </div>
@@ -530,9 +554,9 @@ const Capa: React.FC = () => {
               <p className="text-xs mt-1 underline" style={{ color: colors.producao }}>Ver detalhes →</p>
             </div>
 
-            {/* Investimento de Criação */}
+            {/* Investimento de Criação / Ações em Planejamento */}
             <div>
-              <p className="text-xs text-gray-500">Criação</p>
+              <p className="text-xs text-gray-500">{selectedAno === 2026 ? "Ações em Planejamento" : "Criação"}</p>
               <p className="text-lg font-bold" style={{ color: colors.criacao }}>
                 {formatMetricValue(resumoInvestimento.emInclusao.total, "spent")}
               </p>
@@ -731,10 +755,10 @@ const Capa: React.FC = () => {
               </div>
             </div>
 
-            {/* Criação */}
+            {/* Criação / Ações em Planejamento */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-semibold text-gray-700">Criação</span>
+                <span className="text-sm font-semibold text-gray-700">{selectedAno === 2026 ? "Ações em Planejamento" : "Criação"}</span>
                 <span className="text-sm font-bold" style={{ color: colors.criacao }}>
                   {formatMetricValue(resumoInvestimento.emInclusao.total, "spent")}
                 </span>
