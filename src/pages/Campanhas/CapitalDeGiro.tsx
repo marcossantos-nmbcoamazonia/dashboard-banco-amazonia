@@ -367,7 +367,7 @@ const CapitalDeGiro: React.FC = () => {
                 </p>
               </div>
               <div>
-                <p className="text-purple-200 text-xs">Conversões LP</p>
+                <p className="text-purple-200 text-xs">Leads LP</p>
                 <p className="text-2xl font-bold text-white">
                   {lpSummary ? formatNum(lpSummary.conversion_count) : "—"}
                 </p>
@@ -583,7 +583,7 @@ const CapitalDeGiro: React.FC = () => {
                 </div>
                 <div className="bg-indigo-50 rounded-lg p-2 text-center">
                   <p className="text-lg font-bold text-indigo-700">{formatNum(lpSummary.conversion_count)}</p>
-                  <p className="text-[10px] text-gray-500">Conversões</p>
+                  <p className="text-[10px] text-gray-500">Leads</p>
                 </div>
                 <div className="bg-emerald-50 rounded-lg p-2 text-center">
                   <p className="text-lg font-bold text-emerald-700">{lpSummary.conversion_rate.toFixed(1)}%</p>
