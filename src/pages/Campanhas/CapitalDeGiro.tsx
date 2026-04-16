@@ -2,10 +2,12 @@
 
 import type React from "react"
 import { useRef, useState, useEffect, useMemo } from "react"
-import { DollarSign, Users, MousePointerClick, Eye, Play } from "lucide-react"
+import { DollarSign, Users, MousePointerClick, Eye, Play, HelpCircle, Sparkles, RefreshCw } from "lucide-react"
 import axios from "axios"
 import Loading from "../../components/Loading/Loading"
 import PDFDownloadButton from "../../components/PDFDownloadButton/PDFDownloadButton"
+import { analyzeCapitalDeGiro } from "../../services/gemini"
+import { getCachedAnalysis, setCachedAnalysis } from "../../services/analysisCache"
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -90,12 +92,24 @@ interface KpiCardProps {
   sub?: string
   icon: React.ReactNode
   color: string
+  tooltip?: string
 }
 
-const KpiCard: React.FC<KpiCardProps> = ({ label, value, sub, icon, color }) => (
+const KpiCard: React.FC<KpiCardProps> = ({ label, value, sub, icon, color, tooltip }) => (
   <div className="card-overlay rounded-xl shadow-lg p-4 flex flex-col gap-2">
     <div className="flex items-center justify-between">
-      <p className="text-xs text-gray-500 font-medium">{label}</p>
+      <div className="flex items-center gap-1">
+        <p className="text-xs text-gray-500 font-medium">{label}</p>
+        {tooltip && (
+          <div className="relative group">
+            <HelpCircle className="w-3 h-3 text-gray-400 cursor-help" />
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-gray-900 text-white text-[10px] rounded-lg px-2.5 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 leading-relaxed">
+              {tooltip}
+              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+            </div>
+          </div>
+        )}
+      </div>
       <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${color}`}>{icon}</div>
     </div>
     <p className="text-xl font-bold text-gray-900">{value}</p>
@@ -108,9 +122,13 @@ const KpiCard: React.FC<KpiCardProps> = ({ label, value, sub, icon, color }) => 
 const CapitalDeGiro: React.FC = () => {
   const contentRef = useRef<HTMLDivElement>(null)
   const [consolidado, setConsolidado] = useState<ConsolidadoRow[]>([])
+  const [aiAnalysis, setAiAnalysis] = useState<string>("")
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
   const [metaLeads, setMetaLeads] = useState<MetaLeadRow[]>([])
   const [lpSummary, setLpSummary] = useState<LpSummary | null>(null)
   const [adServer, setAdServer] = useState<AdServerRow[]>([])
+  const [adServer2, setAdServer2] = useState<AdServerRow[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedVeiculo, setSelectedVeiculo] = useState<string | null>(null)
 
@@ -118,7 +136,7 @@ const CapitalDeGiro: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const [consRes, metaLeadsRes, lpSummaryRes, adServerRes] = await Promise.all([
+        const [consRes, metaLeadsRes, lpSummaryRes, adServerRes, adServer2Res] = await Promise.all([
           axios.get(
             "https://nmbcoamazonia-api.vercel.app/google/sheets/1ZPKSZQTwylGl3MQHVA-Ee_htmjAPO0QEEYep1Rk_J1o/data?range=Consolidado"
           ),
@@ -127,6 +145,7 @@ const CapitalDeGiro: React.FC = () => {
           ),
           axios.get("https://nmbcoamazonia-api.vercel.app/rdstation/lp-summary").catch(() => ({ data: { success: false } })),
           axios.get("https://dashbrasiladserver.com.br/api/templates/274/bi?token=VxSzRmqc2M").catch(() => ({ data: [] })),
+          axios.get("https://dashbrasiladserver.com.br/api/templates/279/bi?token=QY9jKtmfzD").catch(() => ({ data: [] })),
         ])
 
         // Processar Consolidado
@@ -189,6 +208,9 @@ const CapitalDeGiro: React.FC = () => {
         // AdServer
         if (Array.isArray(adServerRes.data) && adServerRes.data.length > 0) {
           setAdServer(adServerRes.data)
+        }
+        if (Array.isArray(adServer2Res.data) && adServer2Res.data.length > 0) {
+          setAdServer2(adServer2Res.data)
         }
 
 
@@ -288,10 +310,13 @@ const CapitalDeGiro: React.FC = () => {
 
   const maxLeadsDay = useMemo(() => Math.max(...leadsByDay.map((d) => d[1]), 1), [leadsByDay])
 
+  // AdServer — combinar as duas fontes
+  const allAdServer = useMemo(() => [...adServer, ...adServer2], [adServer, adServer2])
+
   // AdServer — agregar por publisher
   const adServerByPublisher = useMemo(() => {
     const map = new Map<string, { impressions: number; clicks: number; vieweables: number }>()
-    adServer.forEach((r) => {
+    allAdServer.forEach((r) => {
       const key = r.publisher_name
       const cur = map.get(key) ?? { impressions: 0, clicks: 0, vieweables: 0 }
       map.set(key, {
@@ -308,10 +333,10 @@ const CapitalDeGiro: React.FC = () => {
         va: v.impressions > 0 ? (v.vieweables / v.impressions) * 100 : 0,
       }))
       .sort((a, b) => b.impressions - a.impressions)
-  }, [adServer])
+  }, [allAdServer])
 
   const adServerTotals = useMemo(() => {
-    const t = adServer.reduce(
+    const t = allAdServer.reduce(
       (acc, r) => ({
         impressions: acc.impressions + (parseInt(r.impressions) || 0),
         clicks: acc.clicks + (parseInt(r.clicks) || 0),
@@ -319,7 +344,7 @@ const CapitalDeGiro: React.FC = () => {
       }),
       { impressions: 0, clicks: 0, vieweables: 0 }
     )
-    const meta = adServer[0]
+    const meta = allAdServer[0]
     return {
       ...t,
       ctr: t.impressions > 0 ? (t.clicks / t.impressions) * 100 : 0,
@@ -328,9 +353,52 @@ const CapitalDeGiro: React.FC = () => {
       inicio_campanha: meta?.inicio_campanha ?? "",
       fim_campanha: meta?.fim_campanha ?? "",
     }
-  }, [adServer])
+  }, [allAdServer])
 
 
+
+  const DATA_KEY = "capital-de-giro"
+
+  const buildAnalysisPayload = () => {
+    const byVeiculoArr = veiculos.map((v) => {
+      const t = byVeiculo.get(v)!
+      return { name: v, impressions: t.impressions, clicks: t.clicks, leads: t.leads, cost: t.cost, ctr: t.ctr, cpl: t.cpl }
+    })
+    return { totals, adServerTotals, metaLeadsTotal: metaLeads.length, lpSummary, byVeiculo: byVeiculoArr, adServerByPublisher }
+  }
+
+  const runAiAnalysis = async (forceRefresh = false) => {
+    setAiLoading(true)
+    setAiError(null)
+    try {
+      // Tenta cache primeiro (exceto se for reanálise forçada)
+      if (!forceRefresh) {
+        const cached = await getCachedAnalysis(DATA_KEY)
+        if (cached) {
+          setAiAnalysis(cached.analysis)
+          setAiLoading(false)
+          return
+        }
+      }
+      // Gera nova análise
+      const result = await analyzeCapitalDeGiro(buildAnalysisPayload())
+      setAiAnalysis(result)
+      // Salva no cache
+      await setCachedAnalysis(DATA_KEY, result)
+    } catch {
+      setAiError("Não foi possível gerar a análise. Tente novamente.")
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  // Auto-análise: dispara quando os dados principais terminam de carregar
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!loading && consolidado.length > 0 && !aiAnalysis && !aiLoading) {
+      runAiAnalysis()
+    }
+  }, [loading]) // dispara uma vez quando loading muda para false
 
   if (loading) return <Loading message="Carregando dados da campanha..." />
 
@@ -424,6 +492,7 @@ const CapitalDeGiro: React.FC = () => {
               value={formatCurrency(totals.cost)}
               icon={<DollarSign className="w-4 h-4 text-white" />}
               color="bg-purple-500"
+              tooltip="Total investido em mídia paga nas redes sociais (Meta e LinkedIn) no período da campanha."
             />
             <KpiCard
               label="Leads"
@@ -431,6 +500,7 @@ const CapitalDeGiro: React.FC = () => {
               sub={`CPL: ${formatCurrency(totalCpl)}`}
               icon={<Users className="w-4 h-4 text-white" />}
               color="bg-indigo-500"
+              tooltip="Total de leads captados: soma dos leads dos anúncios (formulários Meta/LinkedIn) com os leads da Landing Page (RD Station). CPL = Custo por Lead."
             />
             <KpiCard
               label="Impressões"
@@ -438,6 +508,7 @@ const CapitalDeGiro: React.FC = () => {
               sub="Redes Sociais + Display"
               icon={<Eye className="w-4 h-4 text-white" />}
               color="bg-blue-500"
+              tooltip="Número total de vezes que os anúncios foram exibidos, somando redes sociais (Meta/LinkedIn) e display programático (AdServer)."
             />
             <KpiCard
               label="Cliques"
@@ -445,6 +516,7 @@ const CapitalDeGiro: React.FC = () => {
               sub={`CTR: ${formatPct(totalCtr)}`}
               icon={<MousePointerClick className="w-4 h-4 text-white" />}
               color="bg-cyan-500"
+              tooltip="Total de cliques nos anúncios. CTR (Click-Through Rate) = cliques ÷ impressões. Mede o engajamento com os criativos."
             />
             <KpiCard
               label="Visualizações"
@@ -452,6 +524,7 @@ const CapitalDeGiro: React.FC = () => {
               sub={`VTR: ${formatPct(totals.vtr)}`}
               icon={<Play className="w-4 h-4 text-white" />}
               color="bg-emerald-500"
+              tooltip="Quantidade de vezes que os vídeos foram iniciados nas redes sociais. VTR (View-Through Rate) = views completas ÷ total de views iniciadas."
             />
           </div>
         )
@@ -548,17 +621,22 @@ const CapitalDeGiro: React.FC = () => {
           {leadsByDay.length > 0 && (
             <>
               <p className="text-xs text-gray-500 font-medium mb-2">Leads por dia (últimos 14 dias)</p>
-              <div className="flex items-end gap-1 h-16">
+              {/* Container de barras com altura fixa */}
+              <div className="flex items-end gap-1" style={{ height: 64 }}>
                 {leadsByDay.map(([day, count]) => (
-                  <div key={day} className="flex-1 flex flex-col items-center gap-0.5">
-                    <div
-                      className="w-full rounded-sm bg-gradient-to-t from-indigo-600 to-purple-400 transition-all"
-                      style={{ height: `${(count / maxLeadsDay) * 100}%`, minHeight: 2 }}
-                      title={`${day}: ${count} leads`}
-                    />
-                    <span className="text-[8px] text-gray-400 rotate-45 origin-left hidden sm:block">
-                      {day.slice(5)}
-                    </span>
+                  <div
+                    key={day}
+                    className="flex-1 rounded-sm bg-gradient-to-t from-indigo-600 to-purple-400 transition-all cursor-default"
+                    style={{ height: `${(count / maxLeadsDay) * 100}%`, minHeight: 3 }}
+                    title={`${day}: ${count} leads`}
+                  />
+                ))}
+              </div>
+              {/* Labels de data separadas */}
+              <div className="flex gap-1 mt-1">
+                {leadsByDay.map(([day]) => (
+                  <div key={day} className="flex-1 text-center">
+                    <span className="text-[8px] text-gray-400">{day.slice(5)}</span>
                   </div>
                 ))}
               </div>
@@ -598,8 +676,59 @@ const CapitalDeGiro: React.FC = () => {
       </div>
 
 
+      {/* ── Análise IA ── */}
+      <div className="card-overlay rounded-xl shadow-lg p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center">
+              <Sparkles className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Análise de Performance</h3>
+              <p className="text-[10px] text-gray-400">Gerado por IA com base nos dados da campanha</p>
+            </div>
+          </div>
+          <button
+            onClick={() => runAiAnalysis(true)}
+            disabled={aiLoading}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white text-xs font-medium rounded-lg transition-all"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${aiLoading ? "animate-spin" : ""}`} />
+            {aiLoading ? "Analisando..." : aiAnalysis ? "Reanalisar" : "Analisar"}
+          </button>
+        </div>
+
+        {!aiAnalysis && !aiLoading && !aiError && (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <Sparkles className="w-8 h-8 text-purple-200 mb-2" />
+            <p className="text-sm text-gray-400">Clique em <strong>Analisar</strong> para gerar uma análise inteligente da campanha</p>
+          </div>
+        )}
+
+        {aiLoading && (
+          <div className="flex items-center justify-center py-8 gap-3">
+            <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+            <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+            <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+            <span className="text-sm text-gray-400 ml-1">Processando dados com IA...</span>
+          </div>
+        )}
+
+        {aiError && (
+          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+            {aiError}
+          </div>
+        )}
+
+        {aiAnalysis && !aiLoading && (
+          <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-100 rounded-lg p-4">
+            <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">{aiAnalysis}</p>
+          </div>
+        )}
+      </div>
+
       {/* ── AdServer ── */}
-      {adServer.length > 0 && (
+      {allAdServer.length > 0 && (
         <div className="card-overlay rounded-xl shadow-lg p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-bold text-gray-900">Display · AdServer</h3>
@@ -652,12 +781,13 @@ const CapitalDeGiro: React.FC = () => {
                   const pct = adServerTotals.impressions > 0
                     ? (p.impressions / adServerTotals.impressions) * 100
                     : 0
+                  const isPush = p.name.toUpperCase().includes("ZAP")
                   return (
                     <tr key={p.name} className="border-b border-gray-50 hover:bg-gray-50">
                       <td className="py-2 font-semibold text-gray-800">{p.name}</td>
                       <td className="py-2 text-right text-gray-700">{formatNum(p.impressions)}</td>
                       <td className="py-2 text-right text-gray-700">{formatNum(p.clicks)}</td>
-                      <td className="py-2 text-right text-purple-600 font-semibold">{p.ctr.toFixed(2)}%</td>
+                      <td className="py-2 text-right text-purple-600 font-semibold">{isPush ? "-" : `${p.ctr.toFixed(2)}%`}</td>
                       <td className="py-2 text-right text-blue-600">{p.va.toFixed(1)}%</td>
                       <td className="py-2 pl-3 w-32">
                         <div className="flex items-center gap-2">
