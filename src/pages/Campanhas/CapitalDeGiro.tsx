@@ -141,7 +141,7 @@ const CapitalDeGiro: React.FC = () => {
             "https://nmbcoamazonia-api.vercel.app/google/sheets/1ZPKSZQTwylGl3MQHVA-Ee_htmjAPO0QEEYep1Rk_J1o/data?range=Consolidado"
           ),
           axios.get(
-            "https://nmbcoamazonia-api.vercel.app/google/sheets/1ZPKSZQTwylGl3MQHVA-Ee_htmjAPO0QEEYep1Rk_J1o/data?range=FORMUL%C3%81RIO%20-%20CAPITAL%20DE%20GIRO-2"
+            "https://nmbcoamazonia-api.vercel.app/google/sheets/1ZPKSZQTwylGl3MQHVA-Ee_htmjAPO0QEEYep1Rk_J1o/data?range=Consolidade%20-%20Form"
           ),
           axios.get("https://nmbcoamazonia-api.vercel.app/rdstation/lp-summary").catch(() => ({ data: { success: false } })),
           axios.get("https://dashbrasiladserver.com.br/api/templates/274/bi?token=VxSzRmqc2M").catch(() => ({ data: [] })),
