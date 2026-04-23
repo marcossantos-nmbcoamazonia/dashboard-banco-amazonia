@@ -2,12 +2,13 @@
 
 import type React from "react"
 import { useRef, useState, useEffect, useMemo } from "react"
-import { DollarSign, Users, MousePointerClick, Eye, Play, HelpCircle, Sparkles, RefreshCw } from "lucide-react"
+import { DollarSign, Users, MousePointerClick, Eye, Play, HelpCircle, Sparkles, RefreshCw, ArrowUpDown } from "lucide-react"
 import axios from "axios"
 import Loading from "../../components/Loading/Loading"
 import PDFDownloadButton from "../../components/PDFDownloadButton/PDFDownloadButton"
 import { analyzeCapitalDeGiro } from "../../services/gemini"
 import { getCachedAnalysis, setCachedAnalysis } from "../../services/analysisCache"
+import { CONTRATOS_CAPITAL_DE_GIRO, DIARIA_MIN_IMPRESSOES, diasRestantesNoMes, type TipoCompra, type ContratoVeiculo } from "../../data/adserverContratos"
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -71,6 +72,15 @@ interface AdServerRow {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Interpola entre amarelo (0%) e roxo escuro (100%) → cor sólida por percentual
+const pacingColor = (pct: number): string => {
+  const t = Math.min(pct, 100) / 100
+  const r = Math.round(234 + (88  - 234) * t)  // 234→88
+  const g = Math.round(179 + (28  - 179) * t)  // 179→28
+  const b = Math.round(8   + (135 - 8  ) * t)  //   8→135
+  return `rgb(${r},${g},${b})`
+}
+
 const parseNum = (v: string): number => {
   if (!v || v === "-" || v === "") return 0
   return parseFloat(v.replace(/\./g, "").replace(",", ".")) || 0
@@ -131,6 +141,14 @@ const CapitalDeGiro: React.FC = () => {
   const [adServer2, setAdServer2] = useState<AdServerRow[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedVeiculo, setSelectedVeiculo] = useState<string | null>(null)
+  type SortCol = "publisher" | "contratado" | "impressions" | "pacingPct" | "clicks" | "ctr" | "va"
+  const [sortCol, setSortCol] = useState<SortCol>("impressions")
+  const [sortDir, setSortDir] = useState<"desc" | "asc">("desc")
+
+  const toggleSort = (col: SortCol) => {
+    if (sortCol === col) setSortDir((d) => (d === "desc" ? "asc" : "desc"))
+    else { setSortCol(col); setSortDir("desc") }
+  }
 
   useEffect(() => {
     const fetchData = async () => {
@@ -313,27 +331,137 @@ const CapitalDeGiro: React.FC = () => {
   // AdServer — combinar as duas fontes
   const allAdServer = useMemo(() => [...adServer, ...adServer2], [adServer, adServer2])
 
-  // AdServer — agregar por publisher
+  // AdServer — agregar por publisher e cruzar com contratos fixos
   const adServerByPublisher = useMemo(() => {
-    const map = new Map<string, { impressions: number; clicks: number; vieweables: number }>()
+    const normalize = (s: string) => s.toUpperCase().trim()
+
+    // agrupa contratos por publisher normalizado → pode haver CPM + DIARIA
+    const contratosPorPublisher = new Map<string, ContratoVeiculo[]>()
+    CONTRATOS_CAPITAL_DE_GIRO.forEach((c) => {
+      const key = normalize(c.publisher)
+      const arr = contratosPorPublisher.get(key) ?? []
+      arr.push(c)
+      contratosPorPublisher.set(key, arr)
+    })
+
+    // acumula métricas POR publisher E POR dia
+    type DayMap = Map<string, number>
+    const map = new Map<string, {
+      impressions: number
+      clicks: number
+      vieweables: number
+      byDay: DayMap
+      inicioPublisher: string
+    }>()
+
     allAdServer.forEach((r) => {
       const key = r.publisher_name
-      const cur = map.get(key) ?? { impressions: 0, clicks: 0, vieweables: 0 }
+      const imp = parseInt(r.impressions) || 0
+      const cur = map.get(key) ?? { impressions: 0, clicks: 0, vieweables: 0, byDay: new Map(), inicioPublisher: r.date }
+      const dayImp = (cur.byDay.get(r.date) ?? 0) + imp
+      cur.byDay.set(r.date, dayImp)
       map.set(key, {
-        impressions: cur.impressions + (parseInt(r.impressions) || 0),
+        impressions: cur.impressions + imp,
         clicks: cur.clicks + (parseInt(r.clicks) || 0),
         vieweables: cur.vieweables + (parseInt(r.vieweables) || 0),
+        byDay: cur.byDay,
+        inicioPublisher: r.date < cur.inicioPublisher ? r.date : cur.inicioPublisher,
       })
     })
-    return Array.from(map.entries())
-      .map(([name, v]) => ({
-        name,
-        ...v,
-        ctr: v.impressions > 0 ? (v.clicks / v.impressions) * 100 : 0,
-        va: v.impressions > 0 ? (v.vieweables / v.impressions) * 100 : 0,
-      }))
-      .sort((a, b) => b.impressions - a.impressions)
+
+    const rows: {
+      name: string
+      rowKey: string
+      impressions: number
+      clicks: number
+      vieweables: number
+      diasValidos: number
+      metaDias: number | null   // meta calculada para DIARIA (fixo ou dias do mês)
+      inicioPublisher: string
+      tipo: TipoCompra | null
+      contrato: ContratoVeiculo | null
+      pacingPct: number
+      ctr: number
+      va: number
+      isSubrow: boolean
+    }[] = []
+
+    Array.from(map.entries()).forEach(([name, v]) => {
+      const contratos = contratosPorPublisher.get(normalize(name)) ?? []
+
+      const diasValidos = Array.from(v.byDay.entries())
+        .filter(([date, imp]) => date >= v.inicioPublisher && imp > DIARIA_MIN_IMPRESSOES)
+        .length
+
+      const ctr = v.impressions > 0 ? (v.clicks / v.impressions) * 100 : 0
+      const va  = v.impressions > 0 ? (v.vieweables / v.impressions) * 100 : 0
+
+      if (contratos.length === 0) {
+        rows.push({ name, rowKey: name, impressions: v.impressions, clicks: v.clicks, vieweables: v.vieweables, diasValidos, metaDias: null, inicioPublisher: v.inicioPublisher, tipo: null, contrato: null, pacingPct: 0, ctr, va, isSubrow: false })
+        return
+      }
+
+      contratos.forEach((contrato, i) => {
+        const metaDias = contrato.tipo === "DIARIA"
+          ? (contrato.quantidade !== null ? contrato.quantidade : diasRestantesNoMes(v.inicioPublisher))
+          : null
+
+        const pacingPct = contrato.tipo === "CPM"
+          ? Math.min((v.impressions / (contrato.quantidade ?? 1)) * 100, 100)
+          : contrato.tipo === "CPC"
+          ? Math.min((v.clicks / (contrato.quantidade ?? 1)) * 100, 100)
+          : Math.min((diasValidos / (metaDias ?? 1)) * 100, 100)
+
+        rows.push({
+          name,
+          rowKey: `${name}__${contrato.tipo}__${i}`,   // índice garante rowKey único
+          impressions: i === 0 ? v.impressions : 0,
+          clicks:      i === 0 ? v.clicks      : 0,
+          vieweables:  i === 0 ? v.vieweables  : 0,
+          diasValidos,
+          metaDias,
+          inicioPublisher: v.inicioPublisher,
+          tipo: contrato.tipo,
+          contrato,
+          pacingPct,
+          ctr:  i === 0 ? ctr : 0,
+          va:   i === 0 ? va  : 0,
+          isSubrow: i > 0,
+        })
+      })
+    })
+
+    return rows
   }, [allAdServer])
+
+  const adServerSorted = useMemo(() => {
+    // pré-computa o valor de ordenação por publisher (baseado na linha principal, i=0)
+    const valMap = new Map<string, number | string>()
+    adServerByPublisher.forEach((r) => {
+      if (r.isSubrow) return
+      let v: number | string = 0
+      if (sortCol === "publisher")   v = r.name
+      else if (sortCol === "impressions") v = r.impressions
+      else if (sortCol === "clicks")      v = r.clicks
+      else if (sortCol === "ctr")         v = r.ctr
+      else if (sortCol === "va")          v = r.va
+      else if (sortCol === "pacingPct")   v = r.pacingPct
+      else if (sortCol === "contratado")  v = r.contrato?.quantidade ?? 0
+      valMap.set(r.name, v)
+    })
+
+    return [...adServerByPublisher].sort((a, b) => {
+      if (a.name === b.name) return a.isSubrow ? 1 : -1
+
+      const vA = valMap.get(a.name) ?? 0
+      const vB = valMap.get(b.name) ?? 0
+      const cmp = typeof vA === "string"
+        ? vA.localeCompare(vB as string)
+        : (vB as number) - (vA as number)
+
+      return sortDir === "asc" ? -cmp : cmp
+    })
+  }, [adServerByPublisher, sortCol, sortDir])
 
   const adServerTotals = useMemo(() => {
     const t = allAdServer.reduce(
@@ -734,12 +862,6 @@ const CapitalDeGiro: React.FC = () => {
             <h3 className="text-sm font-bold text-gray-900">Display · AdServer</h3>
             <div className="flex gap-3 text-xs text-gray-500">
               <span>{adServerTotals.inicio_campanha} → {adServerTotals.fim_campanha}</span>
-              <span className="font-semibold text-purple-700">
-                {formatNum(adServerTotals.impressions)} / {formatNum(adServerTotals.quantidade_contratada)} imp. contratadas
-              </span>
-              <span className="font-bold text-emerald-600">
-                {((adServerTotals.impressions / adServerTotals.quantidade_contratada) * 100).toFixed(1)}% entregue
-              </span>
             </div>
           </div>
 
@@ -768,37 +890,105 @@ const CapitalDeGiro: React.FC = () => {
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-gray-200">
-                  <th className="text-left py-2 text-gray-500 font-medium">Publisher</th>
-                  <th className="text-right py-2 text-gray-500 font-medium">Impressões</th>
-                  <th className="text-right py-2 text-gray-500 font-medium">Cliques</th>
-                  <th className="text-right py-2 text-gray-500 font-medium">CTR</th>
-                  <th className="text-right py-2 text-gray-500 font-medium">Viewability</th>
-                  <th className="py-2 pl-3 text-gray-500 font-medium">Entrega</th>
+                  {(["publisher", "contratado", "impressions", "pacingPct", "clicks", "ctr", "va"] as const).map((col) => {
+                    const isActive = sortCol === col
+                    const label: Record<string, string> = {
+                      publisher: "Publisher", impressions: "Entregue", pacingPct: "Pacing",
+                      contratado: "Contratado", clicks: "Cliques", ctr: "CTR", va: "Viewability",
+                    }
+                    const isLeft = col === "publisher"
+                    const isPacing = col === "pacingPct"
+                    return (
+                      <th
+                        key={col}
+                        onClick={() => toggleSort(col)}
+                        className={`py-2 font-medium cursor-pointer select-none ${isLeft ? "text-left" : isPacing ? "pl-3" : "text-right"} ${isActive ? "text-purple-700" : "text-gray-500"}`}
+                      >
+                        <div className={`flex items-center gap-1 ${isLeft ? "" : isPacing ? "" : "justify-end"}`}>
+                          {label[col]}
+                          <ArrowUpDown className={`w-3 h-3 shrink-0 ${isActive ? "text-purple-700" : "text-gray-300"}`} />
+                        </div>
+                      </th>
+                    )
+                  })}
+                  <th className="text-right py-2 text-gray-500 font-medium">Tipo</th>
                 </tr>
               </thead>
               <tbody>
-                {adServerByPublisher.map((p) => {
-                  const pct = adServerTotals.impressions > 0
-                    ? (p.impressions / adServerTotals.impressions) * 100
-                    : 0
+                {adServerSorted.map((p) => {
                   const isPush = p.name.toUpperCase().includes("ZAP")
                   return (
-                    <tr key={p.name} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="py-2 font-semibold text-gray-800">{p.name}</td>
-                      <td className="py-2 text-right text-gray-700">{formatNum(p.impressions)}</td>
-                      <td className="py-2 text-right text-gray-700">{formatNum(p.clicks)}</td>
-                      <td className="py-2 text-right text-purple-600 font-semibold">{isPush ? "-" : `${p.ctr.toFixed(2)}%`}</td>
-                      <td className="py-2 text-right text-blue-600">{p.va.toFixed(1)}%</td>
-                      <td className="py-2 pl-3 w-32">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <div
-                              className="h-full rounded-full bg-gradient-to-r from-purple-500 to-indigo-500"
-                              style={{ width: `${pct}%` }}
-                            />
+                    <tr
+                      key={p.rowKey}
+                      className={`border-b border-gray-50 hover:bg-gray-50 ${p.isSubrow ? "bg-gray-50/60" : ""}`}
+                    >
+                      {/* Publisher */}
+                      <td className="py-2 font-semibold text-gray-800">
+                        {p.isSubrow ? <span className="pl-4 text-gray-400 font-normal">↳</span> : p.name}
+                      </td>
+
+                      {/* Contratado */}
+                      <td className="py-2 text-right text-gray-500 whitespace-nowrap">
+                        {p.tipo === "CPM" && p.contrato ? (
+                          formatNum(p.contrato.quantidade ?? 0)
+                        ) : p.tipo === "CPC" && p.contrato ? (
+                          <span>{formatNum(p.contrato.quantidade ?? 0)} cliques</span>
+                        ) : p.tipo === "DIARIA" && p.contrato ? (
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span>{p.diasValidos} / {p.metaDias} dias</span>
+                            <span className="text-[10px] text-gray-400">desde {p.inicioPublisher}</span>
                           </div>
-                          <span className="text-[10px] text-gray-500 w-8 text-right">{pct.toFixed(0)}%</span>
-                        </div>
+                        ) : "—"}
+                      </td>
+
+                      {/* Entregue */}
+                      <td className="py-2 text-right text-purple-700 font-semibold">
+                        {!p.isSubrow ? formatNum(p.impressions) : ""}
+                      </td>
+
+                      {/* Pacing */}
+                      <td className="py-2 pl-3 w-36">
+                        {p.contrato ? (
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full"
+                                style={{ width: `${p.pacingPct}%`, backgroundColor: pacingColor(p.pacingPct) }}
+                              />
+                            </div>
+                            <span className="text-[10px] text-gray-500 w-8 text-right">{p.pacingPct.toFixed(0)}%</span>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-gray-400">s/ contrato</span>
+                        )}
+                      </td>
+
+                      {/* Cliques */}
+                      <td className="py-2 text-right text-gray-700">
+                        {!p.isSubrow ? formatNum(p.clicks) : ""}
+                      </td>
+
+                      {/* CTR */}
+                      <td className="py-2 text-right text-indigo-600 font-semibold">
+                        {!p.isSubrow ? (isPush ? "-" : `${p.ctr.toFixed(2)}%`) : ""}
+                      </td>
+
+                      {/* Viewability */}
+                      <td className="py-2 text-right text-blue-600">
+                        {!p.isSubrow ? `${p.va.toFixed(1)}%` : ""}
+                      </td>
+
+                      {/* Tipo */}
+                      <td className="py-2 text-right">
+                        {p.tipo ? (
+                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            p.tipo === "CPM"   ? "bg-indigo-100 text-indigo-700"
+                            : p.tipo === "CPC" ? "bg-rose-100 text-rose-700"
+                            : "bg-amber-100 text-amber-700"
+                          }`}>
+                            {p.tipo}
+                          </span>
+                        ) : <span className="text-gray-400">—</span>}
                       </td>
                     </tr>
                   )
