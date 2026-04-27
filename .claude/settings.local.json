@@ -35,7 +35,15 @@
       "Bash(python3 -c \" import json, sys, datetime d = json.load\\(sys.stdin\\) print\\(json.dumps\\(d, indent=2\\)\\) if 'expires_in_minutes' in d: print\\(f'Token expira em: {d[\\\\\"expires_in_minutes\\\\\"]} minutos'\\) \")",
       "Bash(curl -s \"https://dashbrasiladserver.com.br/api/templates/279/bi?token=QY9jKtmfzD\")",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f'Total registros: {len\\(d\\)}'\\); print\\('Primeiro registro:'\\); print\\(json.dumps\\(d[0], indent=2\\)\\)\")",
-      "Bash(curl -sk \"https://dashbrasiladserver.com.br/api/templates/279/bi?token=QY9jKtmfzD\")"
+      "Bash(curl -sk \"https://dashbrasiladserver.com.br/api/templates/279/bi?token=QY9jKtmfzD\")",
+      "Bash(npx react-scripts *)",
+      "Bash(git -C \"c:\\\\Users\\\\marco\\\\OneDrive\\\\Desktop\\\\GOON\\\\Núcleo de Mídia Banco da Amazônia\\\\dashboard\" log --oneline -5)",
+      "Bash(git -C \"c:\\\\Users\\\\marco\\\\OneDrive\\\\Desktop\\\\GOON\\\\Núcleo de Mídia Banco da Amazônia\\\\dashboard\" diff cd192ee -- src/pages/Campanhas/CapitalDeGiro.tsx)",
+      "Bash(git -C \"c:\\\\Users\\\\marco\\\\OneDrive\\\\Desktop\\\\GOON\\\\Núcleo de Mídia Banco da Amazônia\\\\dashboard\" show cd192ee:src/pages/Campanhas/CapitalDeGiro.tsx)",
+      "Bash(node -e \"const jsPDF = require\\('./node_modules/jspdf/dist/jspdf.node.js'\\); const pdf = new jsPDF.jsPDF\\(\\); console.log\\('addImage:', typeof pdf.addImage, 'addPage:', typeof pdf.addPage\\);\")",
+      "Bash(node -e ' *)",
+      "Bash(xargs grep *)",
+      "Bash(npx patch-package *)"
     ],
     "deny": [],
     "ask": []

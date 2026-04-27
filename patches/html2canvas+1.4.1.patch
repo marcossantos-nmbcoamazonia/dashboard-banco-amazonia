@@ -1,0 +1,52 @@
+diff --git a/node_modules/html2canvas/dist/html2canvas.esm.js b/node_modules/html2canvas/dist/html2canvas.esm.js
+index 268e9bc..8e43e0c 100644
+--- a/node_modules/html2canvas/dist/html2canvas.esm.js
++++ b/node_modules/html2canvas/dist/html2canvas.esm.js
+@@ -7175,8 +7175,10 @@ var CanvasRenderer = /** @class */ (function (_super) {
+                                                 image.height,
+                                                 image.width / image.height
+                                             ]), path = _c[0], x = _c[1], y = _c[2], width = _c[3], height = _c[4];
+-                                            pattern = this_1.ctx.createPattern(this_1.resizeImage(image, width, height), 'repeat');
+-                                            this_1.renderRepeat(path, pattern, x, y);
++                                            if (width > 0 && height > 0 && image.width > 0 && image.height > 0) {
++                                                pattern = this_1.ctx.createPattern(this_1.resizeImage(image, width, height), 'repeat');
++                                                this_1.renderRepeat(path, pattern, x, y);
++                                            }
+                                         }
+                                         return [3 /*break*/, 6];
+                                     case 5:
+diff --git a/node_modules/html2canvas/dist/html2canvas.js b/node_modules/html2canvas/dist/html2canvas.js
+index 3ec00e0..f8bde41 100644
+--- a/node_modules/html2canvas/dist/html2canvas.js
++++ b/node_modules/html2canvas/dist/html2canvas.js
+@@ -7181,8 +7181,10 @@
+                                                     image.height,
+                                                     image.width / image.height
+                                                 ]), path = _c[0], x = _c[1], y = _c[2], width = _c[3], height = _c[4];
+-                                                pattern = this_1.ctx.createPattern(this_1.resizeImage(image, width, height), 'repeat');
+-                                                this_1.renderRepeat(path, pattern, x, y);
++                                                if (width > 0 && height > 0 && image.width > 0 && image.height > 0) {
++                                                    pattern = this_1.ctx.createPattern(this_1.resizeImage(image, width, height), 'repeat');
++                                                    this_1.renderRepeat(path, pattern, x, y);
++                                                }
+                                             }
+                                             return [3 /*break*/, 6];
+                                         case 5:
+diff --git a/node_modules/html2canvas/dist/lib/render/canvas/canvas-renderer.js b/node_modules/html2canvas/dist/lib/render/canvas/canvas-renderer.js
+index 509f0a8..fc74fdc 100644
+--- a/node_modules/html2canvas/dist/lib/render/canvas/canvas-renderer.js
++++ b/node_modules/html2canvas/dist/lib/render/canvas/canvas-renderer.js
+@@ -647,9 +647,10 @@ var CanvasRenderer = /** @class */ (function (_super) {
+                                                 image.height,
+                                                 image.width / image.height
+                                             ]), path = _c[0], x = _c[1], y = _c[2], width = _c[3], height = _c[4];
+-                                            pattern = this_1.ctx.createPattern(this_1.resizeImage(image, width, height), 'repeat');
+-                                            this_1.renderRepeat(path, pattern, x, y);
+-                                        }
++                                            if (width > 0 && height > 0 && image.width > 0 && image.height > 0) {
++                                                pattern = this_1.ctx.createPattern(this_1.resizeImage(image, width, height), 'repeat');
++                                                this_1.renderRepeat(path, pattern, x, y);
++                                            }
+                                         return [3 /*break*/, 6];
+                                     case 5:
+                                         if (image_1.isLinearGradient(backgroundImage)) {

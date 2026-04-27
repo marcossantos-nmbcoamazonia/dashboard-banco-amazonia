@@ -628,7 +628,7 @@ const CapitalDeGiro: React.FC = () => {
               sub={`CPL: ${formatCurrency(totalCpl)}`}
               icon={<Users className="w-4 h-4 text-white" />}
               color="bg-indigo-500"
-              tooltip="Total de leads captados: soma dos leads dos anúncios (formulários Meta/LinkedIn) com os leads da Landing Page (RD Station). CPL = Custo por Lead."
+              tooltip="Total de leads captados: soma dos leads dos anúncios (formulários Meta/LinkedIn) com os leads da Landing Page (RD Station). CPL = Custo por Lead. Média de mercado: R$ 50 a R$ 420 — varia conforme canal, formulário, produto financeiro e nível de qualificação do lead."
             />
             <KpiCard
               label="Impressões"
@@ -644,7 +644,7 @@ const CapitalDeGiro: React.FC = () => {
               sub={`CTR: ${formatPct(totalCtr)}`}
               icon={<MousePointerClick className="w-4 h-4 text-white" />}
               color="bg-cyan-500"
-              tooltip="Total de cliques nos anúncios. CTR (Click-Through Rate) = cliques ÷ impressões. Mede o engajamento com os criativos."
+              tooltip="Total de cliques nos anúncios. CTR (Click-Through Rate) = cliques ÷ impressões. Mede o engajamento com os criativos. Média de mercado: Social/Display 0,6% a 1,5% (campanhas de tráfego, awareness ou consideração) · Search 1% a 8% (usuário em busca ativa)."
             />
             <KpiCard
               label="Visualizações"
@@ -652,7 +652,7 @@ const CapitalDeGiro: React.FC = () => {
               sub={`VTR: ${formatPct(totals.vtr)}`}
               icon={<Play className="w-4 h-4 text-white" />}
               color="bg-emerald-500"
-              tooltip="Quantidade de vezes que os vídeos foram iniciados nas redes sociais. VTR (View-Through Rate) = views completas ÷ total de views iniciadas."
+              tooltip="Quantidade de vezes que os vídeos foram iniciados nas redes sociais. VTR (View-Through Rate) = views completas ÷ total de views iniciadas. Referência: 0,89% a 15% (faixa saudável para vídeo em mídia digital ampla) · Acima de 15%: acima da média, comum em vídeos curtos, criativos objetivos ou segmentações mais qualificadas."
             />
           </div>
         )
