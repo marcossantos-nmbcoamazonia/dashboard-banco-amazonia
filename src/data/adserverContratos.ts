@@ -62,6 +62,7 @@ export const CONTRATOS_CAPITAL_DE_GIRO: ContratoVeiculo[] = [
   { publisher: "VEJA",               tipo: "CPM",    quantidade: 801_282    },
   { publisher: "ROMA NEWS",          tipo: "DIARIA", quantidade: 30         },
   { publisher: "GO ON",              tipo: "CPM",    quantidade: 10_000_000 },
+  { publisher: "GO ON",              tipo: "CPC",    quantidade: 1_225      },
   { publisher: "HANDS",              tipo: "CPC",    quantidade: 18_000     },
   { publisher: "ZAP MEDIA",         tipo: "CPC",    quantidade: 18_000     },
 ]

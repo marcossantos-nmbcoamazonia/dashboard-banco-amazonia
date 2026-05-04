@@ -33,19 +33,6 @@ interface ConsolidadoRow {
   campanha: string
 }
 
-// Leads de Meta (via Sheets - formulário em tempo real)
-interface MetaLeadRow {
-  id: string
-  createdTime: string
-  adName: string
-  adsetName: string
-  campaignName: string
-  platform: string
-  fullName: string
-  phone: string
-  email: string
-  leadStatus: string
-}
 
 
 interface LpSummary {
@@ -135,7 +122,7 @@ const CapitalDeGiro: React.FC = () => {
   const [aiAnalysis, setAiAnalysis] = useState<string>("")
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
-  const [metaLeads, setMetaLeads] = useState<MetaLeadRow[]>([])
+
   const [lpSummary, setLpSummary] = useState<LpSummary | null>(null)
   const [adServer, setAdServer] = useState<AdServerRow[]>([])
   const [adServer2, setAdServer2] = useState<AdServerRow[]>([])
@@ -154,12 +141,9 @@ const CapitalDeGiro: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const [consRes, metaLeadsRes, lpSummaryRes, adServerRes, adServer2Res] = await Promise.all([
+        const [consRes, lpSummaryRes, adServerRes, adServer2Res] = await Promise.all([
           axios.get(
             "https://nmbcoamazonia-api.vercel.app/google/sheets/1ZPKSZQTwylGl3MQHVA-Ee_htmjAPO0QEEYep1Rk_J1o/data?range=Consolidado"
-          ),
-          axios.get(
-            "https://nmbcoamazonia-api.vercel.app/google/sheets/1ZPKSZQTwylGl3MQHVA-Ee_htmjAPO0QEEYep1Rk_J1o/data?range=Consolidade%20-%20Form"
           ),
           axios.get("https://nmbcoamazonia-api.vercel.app/rdstation/lp-summary").catch(() => ({ data: { success: false } })),
           axios.get("https://dashbrasiladserver.com.br/api/templates/274/bi?token=VxSzRmqc2M").catch(() => ({ data: [] })),
@@ -195,27 +179,6 @@ const CapitalDeGiro: React.FC = () => {
               campanha: r[idx("Campanha")] || "",
             }))
           setConsolidado(parsed)
-        }
-
-        // Processar Leads de Meta (Formulário Sheets)
-        if (metaLeadsRes.data.success && metaLeadsRes.data.data.values) {
-          const rows: any[][] = metaLeadsRes.data.data.values
-          const header = rows[0]
-          const idx = (col: string) => header.indexOf(col)
-
-          const parsed: MetaLeadRow[] = rows.slice(1).map((r) => ({
-            id: r[idx("id")] || "",
-            createdTime: r[idx("created_time")] || "",
-            adName: r[idx("ad_name")] || "",
-            adsetName: r[idx("adset_name")] || "",
-            campaignName: r[idx("campaign_name")] || "",
-            platform: r[idx("platform")] || "",
-            fullName: r[idx("full_name")] || "",
-            phone: r[idx("phone_number")] || "",
-            email: r[idx("email")] || "",
-            leadStatus: r[idx("lead_status")] || "",
-          }))
-          setMetaLeads(parsed)
         }
 
         // LP Summary (visitantes + conversões RD Station)
@@ -271,15 +234,14 @@ const CapitalDeGiro: React.FC = () => {
     }
   }, [filtered])
 
-  // Totais de leads de Meta por plataforma
+  // Leads de Meta por plataforma (veículo) — derivado do consolidado
   const metaLeadsByPlatform = useMemo(() => {
     const map = new Map<string, number>()
-    metaLeads.forEach((l) => {
-      const p = l.platform || "Desconhecido"
-      map.set(p, (map.get(p) || 0) + 1)
+    consolidado.forEach((r) => {
+      if (r.leads > 0) map.set(r.veiculo || "Desconhecido", (map.get(r.veiculo || "Desconhecido") || 0) + r.leads)
     })
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1])
-  }, [metaLeads])
+  }, [consolidado])
 
   // Veículos únicos
   const veiculos = useMemo(
@@ -314,17 +276,23 @@ const CapitalDeGiro: React.FC = () => {
     return map
   }, [consolidado, veiculos])
 
-  // Leads por dia — Meta
+  // Leads por dia — derivado do consolidado
   const leadsByDay = useMemo(() => {
     const map = new Map<string, number>()
-    metaLeads.forEach((l) => {
-      const day = l.createdTime.slice(0, 10)
-      map.set(day, (map.get(day) || 0) + 1)
+    consolidado.forEach((r) => {
+      if (r.leads <= 0 || !r.date) return
+      // Normalizar para YYYY-MM-DD independente do formato da planilha (DD/MM/YYYY ou YYYY-MM-DD)
+      let key = r.date
+      if (r.date.includes("/")) {
+        const [d, m, y] = r.date.split("/")
+        key = `${y}-${m}-${d}`
+      }
+      map.set(key, (map.get(key) || 0) + r.leads)
     })
     return Array.from(map.entries())
       .sort((a, b) => a[0].localeCompare(b[0]))
       .slice(-14)
-  }, [metaLeads])
+  }, [consolidado])
 
   const maxLeadsDay = useMemo(() => Math.max(...leadsByDay.map((d) => d[1]), 1), [leadsByDay])
 
@@ -416,7 +384,7 @@ const CapitalDeGiro: React.FC = () => {
           name,
           rowKey: `${name}__${contrato.tipo}__${i}`,   // índice garante rowKey único
           impressions: i === 0 ? v.impressions : 0,
-          clicks:      i === 0 ? v.clicks      : 0,
+          clicks:      v.clicks,
           vieweables:  i === 0 ? v.vieweables  : 0,
           diasValidos,
           metaDias,
@@ -492,7 +460,7 @@ const CapitalDeGiro: React.FC = () => {
       const t = byVeiculo.get(v)!
       return { name: v, impressions: t.impressions, clicks: t.clicks, leads: t.leads, cost: t.cost, ctr: t.ctr, cpl: t.cpl }
     })
-    return { totals, adServerTotals, metaLeadsTotal: metaLeads.length, lpSummary, byVeiculo: byVeiculoArr, adServerByPublisher }
+    return { totals, adServerTotals, metaLeadsTotal: totals.leads, lpSummary, byVeiculo: byVeiculoArr, adServerByPublisher }
   }
 
   const runAiAnalysis = async (forceRefresh = false) => {
@@ -554,7 +522,7 @@ const CapitalDeGiro: React.FC = () => {
             <div className="text-right flex gap-4">
               <div>
                 <p className="text-purple-200 text-xs">Leads Meta</p>
-                <p className="text-2xl font-bold text-white">{formatNum(metaLeads.length)}</p>
+                <p className="text-2xl font-bold text-white">{formatNum(totals.leads)}</p>
               </div>
               <div>
                 <p className="text-purple-200 text-xs">Visitantes LP</p>
@@ -694,7 +662,17 @@ const CapitalDeGiro: React.FC = () => {
                       <td className="py-2 text-right text-gray-700">{formatNum(t.impressions)}</td>
                       <td className="py-2 text-right text-gray-700">{formatNum(t.clicks)}</td>
                       <td className="py-2 text-right text-purple-600 font-semibold">{formatPct(t.ctr)}</td>
-                      <td className="py-2 text-right text-indigo-600 font-bold">{formatNum(t.leads)}</td>
+                      <td className="py-2 text-right text-indigo-600 font-bold">
+                        {t.leads === 0 && t.cost > 0 ? (
+                          <div className="relative group inline-block cursor-help">
+                            <span className="text-gray-400 border-b border-dashed border-gray-400">-</span>
+                            <div className="absolute bottom-full right-0 mb-2 w-56 bg-gray-900 text-white text-[10px] rounded-lg px-2.5 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 leading-relaxed text-left">
+                              Os leads do LinkedIn foram contabilizados na Landing Page
+                              <div className="absolute top-full right-3 border-4 border-transparent border-t-gray-900" />
+                            </div>
+                          </div>
+                        ) : formatNum(t.leads)}
+                      </td>
                       <td className="py-2 text-right text-gray-700">{t.leads > 0 ? formatCurrency(t.cpl) : "-"}</td>
                     </tr>
                   )
@@ -717,16 +695,16 @@ const CapitalDeGiro: React.FC = () => {
         {/* Leads Meta (Formulário) */}
         <div className="card-overlay rounded-xl shadow-lg p-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-bold text-gray-900">Leads Meta · Formulário (Tempo Real)</h3>
+            <h3 className="text-sm font-bold text-gray-900">Leads Meta · Por Veículo</h3>
             <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded-full">
-              {formatNum(metaLeads.length)} leads
+              {formatNum(totals.leads)} leads
             </span>
           </div>
 
           {/* Por plataforma */}
           <div className="space-y-2 mb-4">
             {metaLeadsByPlatform.map(([platform, count]) => {
-              const pct = (count / metaLeads.length) * 100
+              const pct = (count / totals.leads) * 100
               const label = platform === "ig" ? "Instagram" : platform === "fb" ? "Facebook" : platform
               return (
                 <div key={platform}>
@@ -764,7 +742,9 @@ const CapitalDeGiro: React.FC = () => {
               <div className="flex gap-1 mt-1">
                 {leadsByDay.map(([day]) => (
                   <div key={day} className="flex-1 text-center">
-                    <span className="text-[8px] text-gray-400">{day.slice(5)}</span>
+                    <span className="text-[8px] text-gray-400">
+                      {(() => { const [y, m, d] = day.split("-"); return `${d}/${m}/${y.slice(2)}` })()}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -943,7 +923,11 @@ const CapitalDeGiro: React.FC = () => {
 
                       {/* Entregue */}
                       <td className="py-2 text-right text-purple-700 font-semibold">
-                        {!p.isSubrow ? formatNum(p.impressions) : ""}
+                        {!p.isSubrow
+                          ? formatNum(p.impressions)
+                          : p.contrato?.tipo === "CPC"
+                          ? formatNum(p.clicks)
+                          : ""}
                       </td>
 
                       {/* Pacing */}
