@@ -521,7 +521,7 @@ const CapitalDeGiro: React.FC = () => {
             </div>
             <div className="text-right flex gap-4">
               <div>
-                <p className="text-purple-200 text-xs">Leads Meta</p>
+                <p className="text-purple-200 text-xs">Leads de Veículos</p>
                 <p className="text-2xl font-bold text-white">{formatNum(totals.leads)}</p>
               </div>
               <div>
@@ -692,10 +692,10 @@ const CapitalDeGiro: React.FC = () => {
           </div>
         </div>
 
-        {/* Leads Meta (Formulário) */}
+        {/* Leads de Veículos (Formulário) */}
         <div className="card-overlay rounded-xl shadow-lg p-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-bold text-gray-900">Leads Meta · Por Veículo</h3>
+            <h3 className="text-sm font-bold text-gray-900">Leads de Veículos · Por Veículo</h3>
             <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded-full">
               {formatNum(totals.leads)} leads
             </span>
