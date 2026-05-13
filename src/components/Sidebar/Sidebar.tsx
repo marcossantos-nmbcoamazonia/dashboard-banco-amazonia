@@ -193,6 +193,12 @@ const menuStructure: MenuItemOrGroup[] = [
         path: "/campanhas/capital-de-giro",
         icon: <TrendingUp className="w-5 h-5" />,
       },
+      {
+        id: "custeio-agricola",
+        label: "Custeio Agrícola",
+        path: "/campanhas/custeio-agricola",
+        icon: <TrendingUp className="w-5 h-5" />,
+      },
     ],
   },
   {

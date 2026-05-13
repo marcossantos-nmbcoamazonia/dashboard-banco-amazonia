@@ -6,7 +6,7 @@
 //     do mês a partir do início do publisher até o último dia do mês.
 // Um mesmo publisher pode ter CPM + DIARIA → duas linhas na tabela.
 
-export type TipoCompra = "CPM" | "DIARIA" | "CPC"
+export type TipoCompra = "CPM" | "DIARIA" | "CPC" | "CPV"
 
 export interface ContratoVeiculo {
   publisher: string
@@ -14,7 +14,9 @@ export interface ContratoVeiculo {
   // CPM   → impressões contratadas
   // DIARIA → número de diárias contratadas; null = dias corridos do mês desde o início
   // CPC   → cliques contratados
+  // CPV   → visualizações contratadas (tratado como CPM para pacing)
   quantidade: number | null
+  formato?: string  // ex: "DISPLAY", "VIDEO", "AUDIO+DISPLAY" — informativo
 }
 
 // Mínimo de impressões num dia para contar como uma diária válida
@@ -26,6 +28,14 @@ export function diasRestantesNoMes(inicio: string): number {
   const ultimoDia = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
   return ultimoDia - d.getDate() + 1
 }
+
+export const CONTRATOS_CUSTEIO_AGRICOLA: ContratoVeiculo[] = [
+  { publisher: "ALRIGHT",   tipo: "CPM", quantidade: 5_076_414, formato: "DISPLAY"       },
+  { publisher: "ALRIGHT",   tipo: "CPV", quantidade: 700_000,   formato: "VIDEO"          },
+  { publisher: "ZAP MEDIA", tipo: "CPC", quantidade: 32_115,    formato: "DISPLAY"        },
+  { publisher: "SPOTIFY",   tipo: "CPM", quantidade: 2_500_000, formato: "AUDIO+DISPLAY"  },
+  { publisher: "DEEZER",    tipo: "CPM", quantidade: 700_000,   formato: "AUDIO+DISPLAY"  },
+]
 
 export const CONTRATOS_CAPITAL_DE_GIRO: ContratoVeiculo[] = [
   // ── Portais regionais ────────────────────────────────────────────────────────

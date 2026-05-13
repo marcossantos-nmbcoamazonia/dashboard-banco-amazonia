@@ -43,7 +43,13 @@
       "Bash(node -e \"const jsPDF = require\\('./node_modules/jspdf/dist/jspdf.node.js'\\); const pdf = new jsPDF.jsPDF\\(\\); console.log\\('addImage:', typeof pdf.addImage, 'addPage:', typeof pdf.addPage\\);\")",
       "Bash(node -e ' *)",
       "Bash(xargs grep *)",
-      "Bash(npx patch-package *)"
+      "Bash(npx patch-package *)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\marco\\\\OneDrive\\\\Desktop\\\\GOON\\\\Núcleo de Mídia Banco da Amazônia\\\\dashboard\\\\src\" -Recurse -Force)",
+      "Bash(Select-Object -Property FullName, PSIsContainer)",
+      "Bash(Sort-Object FullName)",
+      "Bash(curl -s \"https://dashbrasiladserver.com.br/api/templates/310/bi?token=NOP2VowjgW\")",
+      "Bash(python -c \"import sys,json; data=json.load\\(sys.stdin\\); publishers=set\\(r.get\\('publisher_name',''\\) for r in data\\); print\\('\\\\n'.join\\(sorted\\(publishers\\)\\)\\)\")",
+      "Bash(curl -s \"https://dashbrasiladserver.com.br/api/templates/315/bi?token=EJb3iiYWom\")"
     ],
     "deny": [],
     "ask": []
