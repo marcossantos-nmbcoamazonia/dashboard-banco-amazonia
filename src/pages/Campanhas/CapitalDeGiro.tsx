@@ -193,9 +193,6 @@ const CapitalDeGiro: React.FC = () => {
         if (Array.isArray(adServer2Res.data) && adServer2Res.data.length > 0) {
           setAdServer2(adServer2Res.data)
         }
-
-
-
       } catch (err) {
         console.error("Erro ao buscar dados Capital de Giro:", err)
       } finally {
@@ -296,6 +293,8 @@ const CapitalDeGiro: React.FC = () => {
 
   const maxLeadsDay = useMemo(() => Math.max(...leadsByDay.map((d) => d[1]), 1), [leadsByDay])
 
+  // AdServer — combinar as três fontes, deduplicando por publisher+date para evitar
+  // dupla contagem nos publishers que aparecem em mais de um template.
   // AdServer — combinar as duas fontes
   const allAdServer = useMemo(() => [...adServer, ...adServer2], [adServer, adServer2])
 

@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useRef, useState, useEffect, useMemo } from "react"
-import { DollarSign, Users, MousePointerClick, Eye, Play, HelpCircle, Sparkles, RefreshCw, ArrowUpDown } from "lucide-react"
+import { DollarSign, Users, MousePointerClick, Eye, Play, HelpCircle, Sparkles, RefreshCw, ArrowUpDown, Radio, ChevronRight, ChevronDown } from "lucide-react"
 import axios from "axios"
 import Loading from "../../components/Loading/Loading"
 import PDFDownloadButton from "../../components/PDFDownloadButton/PDFDownloadButton"
@@ -124,6 +124,10 @@ const CusteioAgricola: React.FC = () => {
   const [lpSummary, setLpSummary] = useState<LpSummary | null>(null)
   const [adServer, setAdServer] = useState<AdServerRow[]>([])
   const [adServer2, setAdServer2] = useState<AdServerRow[]>([])
+  const [adServer3, setAdServer3] = useState<AdServerRow[]>([])
+  const [offlineRaw, setOfflineRaw] = useState<string[][]>([])
+  const [expandedMeios, setExpandedMeios] = useState<Record<string, boolean>>({})
+  const [expandedPracas, setExpandedPracas] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
   const [selectedVeiculo, setSelectedVeiculo] = useState<string | null>(null)
   type SortCol = "publisher" | "contratado" | "impressions" | "pacingPct" | "clicks" | "ctr" | "va"
@@ -139,13 +143,15 @@ const CusteioAgricola: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const [consRes, lpSummaryRes, adServerRes, adServer2Res] = await Promise.all([
+        const [consRes, lpSummaryRes, adServerRes, adServer2Res, adServer3Res, offlineRes] = await Promise.all([
           axios.get(
             "https://nmbcoamazonia-api.vercel.app/google/sheets/1zxvpiES5XndqmRm36Ix2Nck1YR5WD6cJcttoimJzgas/data?range=consolidado"
           ),
           axios.get("https://nmbcoamazonia-api.vercel.app/rdstation/lp-summary?url=http://basablog.rds.land/custeio").catch(() => ({ data: { success: false } })),
           axios.get("https://dashbrasiladserver.com.br/api/templates/310/bi?token=NOP2VowjgW").catch(() => ({ data: [] })),
           axios.get("https://dashbrasiladserver.com.br/api/templates/315/bi?token=EJb3iiYWom").catch(() => ({ data: [] })),
+          axios.get("https://dashbrasiladserver.com.br/api/templates/343/bi?token=wBNTzINzMq").catch(() => ({ data: [] })),
+          axios.get("https://nmbcoamazonia-api.vercel.app/google/sheets/1gyIm-B64gY7nEuJ_VGchcEzAvINEHgFSmoAbL5RYMLo/data?range=Offline%20-%20Consolidado").catch(() => ({ data: { success: false } })),
         ])
 
         // Processar Consolidado — planilha dedicada, sem filtro por campanha
@@ -197,6 +203,12 @@ const CusteioAgricola: React.FC = () => {
         }
         if (Array.isArray(adServer2Res.data) && adServer2Res.data.length > 0) {
           setAdServer2(adServer2Res.data)
+        }
+        if (Array.isArray(adServer3Res.data) && adServer3Res.data.length > 0) {
+          setAdServer3(adServer3Res.data)
+        }
+        if (offlineRes.data?.success && offlineRes.data?.data?.values) {
+          setOfflineRaw(offlineRes.data.data.values)
         }
       } catch (err) {
         console.error("Erro ao buscar dados Custeio Agrícola:", err)
@@ -293,7 +305,7 @@ const CusteioAgricola: React.FC = () => {
 
   const maxLeadsDay = useMemo(() => Math.max(...leadsByDay.map((d) => d[1]), 1), [leadsByDay])
 
-  const allAdServer = useMemo(() => [...adServer, ...adServer2], [adServer, adServer2])
+  const allAdServer = useMemo(() => [...adServer, ...adServer2, ...adServer3], [adServer, adServer2, adServer3])
 
   const adServerByPublisher = useMemo(() => {
     const normalize = (s: string) => s.toUpperCase().trim()
@@ -461,6 +473,57 @@ const CusteioAgricola: React.FC = () => {
       fim_campanha: meta?.fim_campanha ?? "",
     }
   }, [allAdServer])
+
+  const offlineData = useMemo(() => {
+    if (offlineRaw.length < 2) return { meios: {}, totalInsercoes: 0, totalInvestimento: 0 }
+
+    const headers = offlineRaw[0]
+    const iMeio      = headers.indexOf("MEIO")
+    const iVeiculo   = headers.indexOf("VEÍCULO")
+    const iPraca     = headers.indexOf("PRAÇA")
+    const iInsercoes = headers.indexOf("Total Inserções")
+    const iInvest    = headers.indexOf("Investimento")
+
+    const parseCur = (v: string): number => {
+      if (!v || v === "-") return 0
+      return parseFloat(v.replace(/R\$\s?/g, "").replace(/\./g, "").replace(",", ".")) || 0
+    }
+
+    type PracaEntry   = { insercoes: number; investimento: number }
+    type VeiculoEntry = { pracas: Record<string, PracaEntry>; insercoes: number; investimento: number }
+    type MeioEntry    = { veiculos: Record<string, VeiculoEntry>; insercoes: number; investimento: number }
+
+    const meios: Record<string, MeioEntry> = {}
+    let totalInsercoes = 0
+    let totalInvestimento = 0
+
+    offlineRaw.slice(1).forEach((row) => {
+      const meio    = row[iMeio]    || ""
+      const veiculo = row[iVeiculo] || ""
+      const praca   = row[iPraca]   || ""
+      const ins     = parseInt((row[iInsercoes] || "0").replace(/\./g, "").replace(",", ".")) || 0
+      const inv     = parseCur(row[iInvest] || "0")
+
+      if (!meio || !veiculo) return
+
+      totalInsercoes    += ins
+      totalInvestimento += inv
+
+      if (!meios[meio]) meios[meio] = { veiculos: {}, insercoes: 0, investimento: 0 }
+      meios[meio].insercoes    += ins
+      meios[meio].investimento += inv
+
+      if (!meios[meio].veiculos[veiculo]) meios[meio].veiculos[veiculo] = { pracas: {}, insercoes: 0, investimento: 0 }
+      meios[meio].veiculos[veiculo].insercoes    += ins
+      meios[meio].veiculos[veiculo].investimento += inv
+
+      if (!meios[meio].veiculos[veiculo].pracas[praca]) meios[meio].veiculos[veiculo].pracas[praca] = { insercoes: 0, investimento: 0 }
+      meios[meio].veiculos[veiculo].pracas[praca].insercoes    += ins
+      meios[meio].veiculos[veiculo].pracas[praca].investimento += inv
+    })
+
+    return { meios, totalInsercoes, totalInvestimento }
+  }, [offlineRaw])
 
   const DATA_KEY = "custeio-agricola"
 
@@ -972,6 +1035,136 @@ const CusteioAgricola: React.FC = () => {
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Veiculação Off-line ── */}
+      {offlineRaw.length > 1 && (
+        <div className="card-overlay rounded-xl shadow-lg p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-purple-600">
+              <Radio className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Veiculação Off-line</h3>
+              <p className="text-[10px] text-gray-400">Inserções e investimento em mídias tradicionais</p>
+            </div>
+          </div>
+
+          {/* KPIs */}
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="bg-green-50 rounded-lg p-3 text-center">
+              <p className="text-xl font-bold text-green-700">
+                {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(offlineData.totalInvestimento)}
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5">Investimento</p>
+            </div>
+            <div className="bg-blue-50 rounded-lg p-3 text-center">
+              <p className="text-xl font-bold text-blue-700">
+                {new Intl.NumberFormat("pt-BR").format(offlineData.totalInsercoes)}
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5">Inserções</p>
+            </div>
+          </div>
+
+          {/* Accordion Meio → Praça → Veículo */}
+          <div className="space-y-2">
+            {Object.entries(offlineData.meios).map(([meioNome, meio]) => (
+              <div key={meioNome} className="border-2 border-gray-200 rounded-lg overflow-hidden">
+                <div
+                  className="flex items-center justify-between p-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => setExpandedMeios((prev) => ({ ...prev, [meioNome]: !prev[meioNome] }))}
+                >
+                  <div className="flex items-center gap-2">
+                    {expandedMeios[meioNome]
+                      ? <ChevronDown className="w-4 h-4 text-gray-500" />
+                      : <ChevronRight className="w-4 h-4 text-gray-500" />
+                    }
+                    <span className="text-sm font-semibold text-gray-900">{meioNome}</span>
+                    <span className="text-xs text-gray-400 bg-gray-200 px-2 py-0.5 rounded-full">
+                      {Object.keys(meio.veiculos).length} veículos
+                    </span>
+                  </div>
+                  <div className="flex gap-4 text-xs text-right">
+                    <div>
+                      <p className="text-gray-400">Inserções</p>
+                      <p className="font-semibold text-gray-700">{new Intl.NumberFormat("pt-BR").format(meio.insercoes)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">Investimento</p>
+                      <p className="font-semibold text-gray-700">
+                        {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(meio.investimento)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {expandedMeios[meioNome] && (
+                  <div className="p-3 space-y-1.5 bg-white">
+                    {Object.entries(meio.veiculos).map(([veiculoNome, veiculo]) => {
+                      const veiculoKey = `${meioNome}__${veiculoNome}`
+                      return (
+                        <div key={veiculoNome} className="border border-gray-100 rounded-md">
+                          <div
+                            className="flex items-center justify-between p-2 hover:bg-gray-50 cursor-pointer transition-colors"
+                            onClick={() => setExpandedPracas((prev) => ({ ...prev, [veiculoKey]: !prev[veiculoKey] }))}
+                          >
+                            <div className="flex items-center gap-1.5">
+                              {expandedPracas[veiculoKey]
+                                ? <ChevronDown className="w-3 h-3 text-gray-400" />
+                                : <ChevronRight className="w-3 h-3 text-gray-400" />
+                              }
+                              <span className="text-xs font-medium text-gray-800">{veiculoNome}</span>
+                              <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">
+                                {Object.keys(veiculo.pracas).length} praças
+                              </span>
+                            </div>
+                            <div className="flex gap-3 text-[10px] text-right">
+                              <div>
+                                <span className="text-gray-400">Inserções: </span>
+                                <span className="font-medium text-gray-700">{new Intl.NumberFormat("pt-BR").format(veiculo.insercoes)}</span>
+                              </div>
+                              <div>
+                                <span className="text-gray-400">Invest.: </span>
+                                <span className="font-medium text-gray-700">
+                                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(veiculo.investimento)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {expandedPracas[veiculoKey] && (
+                            <div className="px-3 pb-2">
+                              <table className="w-full text-[10px]">
+                                <thead>
+                                  <tr className="border-b border-gray-100">
+                                    <th className="text-left py-1 text-gray-500 font-medium">Praça</th>
+                                    <th className="text-right py-1 text-gray-500 font-medium">Inserções</th>
+                                    <th className="text-right py-1 text-gray-500 font-medium">Investimento</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {Object.entries(veiculo.pracas).map(([pracaNome, p]) => (
+                                    <tr key={pracaNome} className="border-b border-gray-50 last:border-0 hover:bg-gray-50">
+                                      <td className="py-1 text-gray-700">{pracaNome}</td>
+                                      <td className="py-1 text-right text-blue-600 font-semibold">{new Intl.NumberFormat("pt-BR").format(p.insercoes)}</td>
+                                      <td className="py-1 text-right text-green-700 font-semibold">
+                                        {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(p.investimento)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}

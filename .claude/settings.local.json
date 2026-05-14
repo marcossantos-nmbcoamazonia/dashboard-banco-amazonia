@@ -49,7 +49,14 @@
       "Bash(Sort-Object FullName)",
       "Bash(curl -s \"https://dashbrasiladserver.com.br/api/templates/310/bi?token=NOP2VowjgW\")",
       "Bash(python -c \"import sys,json; data=json.load\\(sys.stdin\\); publishers=set\\(r.get\\('publisher_name',''\\) for r in data\\); print\\('\\\\n'.join\\(sorted\\(publishers\\)\\)\\)\")",
-      "Bash(curl -s \"https://dashbrasiladserver.com.br/api/templates/315/bi?token=EJb3iiYWom\")"
+      "Bash(curl -s \"https://dashbrasiladserver.com.br/api/templates/315/bi?token=EJb3iiYWom\")",
+      "Bash(curl -s \"https://dashbrasiladserver.com.br/api/templates/343/bi?token=wBNTzINzMq\")",
+      "Bash(python -c \"import sys,json; data=json.load\\(sys.stdin\\); publishers=set\\(r.get\\('publisher_name',''\\) for r in data\\); print\\('Publishers:', sorted\\(publishers\\)\\); print\\('Total rows:', len\\(data\\)\\)\")",
+      "Bash(curl -s \"https://dashbrasiladserver.com.br/api/templates/274/bi?token=VxSzRmqc2M\")",
+      "Bash(python -c \"import sys,json; data=json.load\\(sys.stdin\\); publishers=set\\(r.get\\('publisher_name',''\\) for r in data\\); print\\('Template 274:', sorted\\(publishers\\)\\)\")",
+      "Bash(python -c \"import sys,json; data=json.load\\(sys.stdin\\); publishers=set\\(r.get\\('publisher_name',''\\) for r in data\\); print\\('Template 279:', sorted\\(publishers\\)\\)\")",
+      "Bash(python -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(r.get\\('publisher_name',''\\)\\) for r in data]\")",
+      "Bash(python -c \"import sys,json; data=json.load\\(sys.stdin\\); print\\(f'Rows: {len\\(data\\)}'\\); [print\\(r.get\\('publisher_name',''\\), '|', r.get\\('date',''\\), '|', r.get\\('impressions',''\\)\\) for r in data[:5]]\")"
     ],
     "deny": [],
     "ask": []

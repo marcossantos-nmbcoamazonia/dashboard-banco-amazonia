@@ -30,11 +30,19 @@ export function diasRestantesNoMes(inicio: string): number {
 }
 
 export const CONTRATOS_CUSTEIO_AGRICOLA: ContratoVeiculo[] = [
-  { publisher: "ALRIGHT",   tipo: "CPM", quantidade: 5_076_414, formato: "DISPLAY"       },
-  { publisher: "ALRIGHT",   tipo: "CPV", quantidade: 700_000,   formato: "VIDEO"          },
-  { publisher: "ZAP MEDIA", tipo: "CPC", quantidade: 32_115,    formato: "DISPLAY"        },
-  { publisher: "SPOTIFY",   tipo: "CPM", quantidade: 2_500_000, formato: "AUDIO+DISPLAY"  },
-  { publisher: "DEEZER",    tipo: "CPM", quantidade: 700_000,   formato: "AUDIO+DISPLAY"  },
+  { publisher: "ALRIGHT",            tipo: "CPM",    quantidade: 5_076_414, formato: "DISPLAY"       },
+  { publisher: "ALRIGHT",            tipo: "CPV",    quantidade: 700_000,   formato: "VIDEO"          },
+  { publisher: "ZAP MEDIA",          tipo: "CPC",    quantidade: 32_115,    formato: "DISPLAY"        },
+  { publisher: "SPOTIFY",            tipo: "CPM",    quantidade: 2_500_000, formato: "AUDIO+DISPLAY"  },
+  { publisher: "DEEZER",             tipo: "CPM",    quantidade: 700_000,   formato: "AUDIO+DISPLAY"  },
+  { publisher: "CONEXÃO TOCANTINS",  tipo: "CPM",    quantidade: 25_000    },
+  { publisher: "GAZETA DO CERRADO",  tipo: "DIARIA", quantidade: 6         },
+  { publisher: "O IMPARCIAL ON LINE",tipo: "DIARIA", quantidade: 6         },
+  { publisher: "O PEQUENO",          tipo: "DIARIA", quantidade: 6         },
+  { publisher: "RONDONIA AO VIVO",   tipo: "DIARIA", quantidade: 6         },
+  { publisher: "NEWS RONDONIA",      tipo: "DIARIA", quantidade: 6         },
+  { publisher: "DIÁRIO DA AMAZÔNIA", tipo: "DIARIA", quantidade: 6         },
+  { publisher: "PORTAL IMIRANTE",    tipo: "DIARIA", quantidade: 6         },
 ]
 
 export const CONTRATOS_CAPITAL_DE_GIRO: ContratoVeiculo[] = [
