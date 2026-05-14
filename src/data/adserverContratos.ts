@@ -35,6 +35,7 @@ export const CONTRATOS_CUSTEIO_AGRICOLA: ContratoVeiculo[] = [
   { publisher: "ZAP MEDIA",          tipo: "CPC",    quantidade: 32_115,    formato: "DISPLAY"        },
   { publisher: "SPOTIFY",            tipo: "CPM",    quantidade: 2_500_000, formato: "AUDIO+DISPLAY"  },
   { publisher: "DEEZER",             tipo: "CPM",    quantidade: 700_000,   formato: "AUDIO+DISPLAY"  },
+  // ── Portais regionais (template 343) ─────────────────────────────────────────
   { publisher: "CONEXÃO TOCANTINS",  tipo: "CPM",    quantidade: 25_000    },
   { publisher: "GAZETA DO CERRADO",  tipo: "DIARIA", quantidade: 6         },
   { publisher: "O IMPARCIAL ON LINE",tipo: "DIARIA", quantidade: 6         },
@@ -43,6 +44,26 @@ export const CONTRATOS_CUSTEIO_AGRICOLA: ContratoVeiculo[] = [
   { publisher: "NEWS RONDONIA",      tipo: "DIARIA", quantidade: 6         },
   { publisher: "DIÁRIO DA AMAZÔNIA", tipo: "DIARIA", quantidade: 6         },
   { publisher: "PORTAL IMIRANTE",    tipo: "DIARIA", quantidade: 6         },
+  // ── Portais nacionais (template 342) ─────────────────────────────────────────
+  { publisher: "CNN",             tipo: "CPM",    quantidade: 750_000   },
+  { publisher: "DOL",             tipo: "DIARIA", quantidade: 83        },
+  { publisher: "DOL",             tipo: "DIARIA", quantidade: 84        },
+  { publisher: "ESTADÃO.COM",     tipo: "CPM",    quantidade: 540_000   },
+  { publisher: "EXAME",           tipo: "CPM",    quantidade: 500_000   },
+  { publisher: "FOLHA DE SP",     tipo: "CPM",    quantidade: 680_000   },
+  { publisher: "GLOBO.COM",       tipo: "CPM",    quantidade: 1_680_000 },
+  { publisher: "IDEAL",           tipo: "CPM",    quantidade: 1_800_000 },
+  { publisher: "INFOMONEY",       tipo: "CPM",    quantidade: 1_500_000 },
+  { publisher: "METRÓPOLES",      tipo: "CPM",    quantidade: 600_000   },
+  { publisher: "O GLOBO",         tipo: "CPM",    quantidade: 165_000   },
+  { publisher: "O LIBERAL",       tipo: "CPM",    quantidade: 1_240_000 },
+  { publisher: "O LIBERAL",       tipo: "DIARIA", quantidade: 32        },
+  { publisher: "PEGN (GLOBO.COM)",tipo: "CPM",    quantidade: 1_680_000 },
+  { publisher: "R7",              tipo: "CPM",    quantidade: 1_980_000 },
+  { publisher: "TERRA",           tipo: "CPM",    quantidade: 855_000   },
+  { publisher: "UOL",             tipo: "CPM",    quantidade: 750_000   },
+  { publisher: "VALOR ECONÔMICO", tipo: "CPM",    quantidade: 165_000   },
+  { publisher: "VEJA",            tipo: "CPM",    quantidade: 1_023_000 },
 ]
 
 export const CONTRATOS_CAPITAL_DE_GIRO: ContratoVeiculo[] = [

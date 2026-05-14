@@ -56,7 +56,10 @@
       "Bash(python -c \"import sys,json; data=json.load\\(sys.stdin\\); publishers=set\\(r.get\\('publisher_name',''\\) for r in data\\); print\\('Template 274:', sorted\\(publishers\\)\\)\")",
       "Bash(python -c \"import sys,json; data=json.load\\(sys.stdin\\); publishers=set\\(r.get\\('publisher_name',''\\) for r in data\\); print\\('Template 279:', sorted\\(publishers\\)\\)\")",
       "Bash(python -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(r.get\\('publisher_name',''\\)\\) for r in data]\")",
-      "Bash(python -c \"import sys,json; data=json.load\\(sys.stdin\\); print\\(f'Rows: {len\\(data\\)}'\\); [print\\(r.get\\('publisher_name',''\\), '|', r.get\\('date',''\\), '|', r.get\\('impressions',''\\)\\) for r in data[:5]]\")"
+      "Bash(python -c \"import sys,json; data=json.load\\(sys.stdin\\); print\\(f'Rows: {len\\(data\\)}'\\); [print\\(r.get\\('publisher_name',''\\), '|', r.get\\('date',''\\), '|', r.get\\('impressions',''\\)\\) for r in data[:5]]\")",
+      "Bash(curl -s \"https://dashbrasiladserver.com.br/api/templates/342/bi?token=sw2qFEMv17\")",
+      "Bash(python -c \"import sys,json; data=json.load\\(sys.stdin\\); print\\(f'Rows: {len\\(data\\)}'\\); pubs=sorted\\(set\\(r.get\\('publisher_name',''\\) for r in data\\)\\); [print\\(p\\) for p in pubs]\")",
+      "Bash(python -c ' *)"
     ],
     "deny": [],
     "ask": []

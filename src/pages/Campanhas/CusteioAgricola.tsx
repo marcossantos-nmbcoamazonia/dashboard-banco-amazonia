@@ -125,6 +125,7 @@ const CusteioAgricola: React.FC = () => {
   const [adServer, setAdServer] = useState<AdServerRow[]>([])
   const [adServer2, setAdServer2] = useState<AdServerRow[]>([])
   const [adServer3, setAdServer3] = useState<AdServerRow[]>([])
+  const [adServer4, setAdServer4] = useState<AdServerRow[]>([])
   const [offlineRaw, setOfflineRaw] = useState<string[][]>([])
   const [expandedMeios, setExpandedMeios] = useState<Record<string, boolean>>({})
   const [expandedPracas, setExpandedPracas] = useState<Record<string, boolean>>({})
@@ -143,7 +144,7 @@ const CusteioAgricola: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const [consRes, lpSummaryRes, adServerRes, adServer2Res, adServer3Res, offlineRes] = await Promise.all([
+        const [consRes, lpSummaryRes, adServerRes, adServer2Res, adServer3Res, adServer4Res, offlineRes] = await Promise.all([
           axios.get(
             "https://nmbcoamazonia-api.vercel.app/google/sheets/1zxvpiES5XndqmRm36Ix2Nck1YR5WD6cJcttoimJzgas/data?range=consolidado"
           ),
@@ -151,6 +152,7 @@ const CusteioAgricola: React.FC = () => {
           axios.get("https://dashbrasiladserver.com.br/api/templates/310/bi?token=NOP2VowjgW").catch(() => ({ data: [] })),
           axios.get("https://dashbrasiladserver.com.br/api/templates/315/bi?token=EJb3iiYWom").catch(() => ({ data: [] })),
           axios.get("https://dashbrasiladserver.com.br/api/templates/343/bi?token=wBNTzINzMq").catch(() => ({ data: [] })),
+          axios.get("https://dashbrasiladserver.com.br/api/templates/342/bi?token=sw2qFEMv17").catch(() => ({ data: [] })),
           axios.get("https://nmbcoamazonia-api.vercel.app/google/sheets/1gyIm-B64gY7nEuJ_VGchcEzAvINEHgFSmoAbL5RYMLo/data?range=Offline%20-%20Consolidado").catch(() => ({ data: { success: false } })),
         ])
 
@@ -206,6 +208,9 @@ const CusteioAgricola: React.FC = () => {
         }
         if (Array.isArray(adServer3Res.data) && adServer3Res.data.length > 0) {
           setAdServer3(adServer3Res.data)
+        }
+        if (Array.isArray(adServer4Res.data) && adServer4Res.data.length > 0) {
+          setAdServer4(adServer4Res.data)
         }
         if (offlineRes.data?.success && offlineRes.data?.data?.values) {
           setOfflineRaw(offlineRes.data.data.values)
@@ -305,7 +310,15 @@ const CusteioAgricola: React.FC = () => {
 
   const maxLeadsDay = useMemo(() => Math.max(...leadsByDay.map((d) => d[1]), 1), [leadsByDay])
 
-  const allAdServer = useMemo(() => [...adServer, ...adServer2, ...adServer3], [adServer, adServer2, adServer3])
+  const allAdServer = useMemo(() => {
+    const seen = new Set<string>()
+    const result: AdServerRow[] = []
+    for (const r of [...adServer, ...adServer2, ...adServer3, ...adServer4]) {
+      const key = `${r.publisher_name}__${r.date}`
+      if (!seen.has(key)) { seen.add(key); result.push(r) }
+    }
+    return result
+  }, [adServer, adServer2, adServer3, adServer4])
 
   const adServerByPublisher = useMemo(() => {
     const normalize = (s: string) => s.toUpperCase().trim()
