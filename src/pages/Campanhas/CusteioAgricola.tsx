@@ -310,15 +310,10 @@ const CusteioAgricola: React.FC = () => {
 
   const maxLeadsDay = useMemo(() => Math.max(...leadsByDay.map((d) => d[1]), 1), [leadsByDay])
 
-  const allAdServer = useMemo(() => {
-    const seen = new Set<string>()
-    const result: AdServerRow[] = []
-    for (const r of [...adServer, ...adServer2, ...adServer3, ...adServer4]) {
-      const key = `${r.publisher_name}__${r.date}`
-      if (!seen.has(key)) { seen.add(key); result.push(r) }
-    }
-    return result
-  }, [adServer, adServer2, adServer3, adServer4])
+  const allAdServer = useMemo(
+    () => [...adServer, ...adServer2, ...adServer3, ...adServer4],
+    [adServer, adServer2, adServer3, adServer4]
+  )
 
   const adServerByPublisher = useMemo(() => {
     const normalize = (s: string) => s.toUpperCase().trim()
