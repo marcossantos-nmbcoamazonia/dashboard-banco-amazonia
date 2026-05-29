@@ -461,7 +461,7 @@ const CapitalDeGiro: React.FC = () => {
 
   // Veiculação Off-line — agrupa por Meio → Veículo → Praça
   const offlineData = useMemo(() => {
-    if (offlineRaw.length < 2) return { meios: {}, totalInsercoes: 0, totalInvestimento: 0 }
+    if (offlineRaw.length < 2) return { meios: {}, totalInsercoes: 0, totalInvestimento: 0, totalExecucaoProjeto: 0 }
 
     const headers = offlineRaw[0]
     const iMeio      = headers.indexOf("MEIO")
@@ -470,19 +470,21 @@ const CapitalDeGiro: React.FC = () => {
     // O cabeçalho pode vir como "Total Inserções" ou "Total Inserções/Impactos"
     const iInsercoes = headers.findIndex((h) => h.startsWith("Total Inserções"))
     const iInvest    = headers.indexOf("Investimento")
+    const iExecucao  = headers.findIndex((h) => h.includes("Projeto"))
 
     const parseCur = (v: string): number => {
       if (!v || v === "-") return 0
       return parseFloat(v.replace(/R\$\s?/g, "").replace(/\./g, "").replace(",", ".")) || 0
     }
 
-    type PracaEntry   = { insercoes: number; investimento: number }
-    type VeiculoEntry = { pracas: Record<string, PracaEntry>; insercoes: number; investimento: number }
-    type MeioEntry    = { veiculos: Record<string, VeiculoEntry>; insercoes: number; investimento: number }
+    type PracaEntry   = { insercoes: number; investimento: number; execucaoProjeto: number }
+    type VeiculoEntry = { pracas: Record<string, PracaEntry>; insercoes: number; investimento: number; execucaoProjeto: number }
+    type MeioEntry    = { veiculos: Record<string, VeiculoEntry>; insercoes: number; investimento: number; execucaoProjeto: number }
 
     const meios: Record<string, MeioEntry> = {}
     let totalInsercoes = 0
     let totalInvestimento = 0
+    let totalExecucaoProjeto = 0
 
     offlineRaw.slice(1).forEach((row) => {
       const meio    = row[iMeio]    || ""
@@ -490,26 +492,31 @@ const CapitalDeGiro: React.FC = () => {
       const praca   = row[iPraca]   || ""
       const ins     = parseInt((row[iInsercoes] || "0").replace(/\./g, "").replace(",", ".")) || 0
       const inv     = parseCur(row[iInvest] || "0")
+      const exec    = iExecucao >= 0 ? parseCur(row[iExecucao] || "0") : 0
 
       if (!meio || !veiculo) return
 
-      totalInsercoes    += ins
-      totalInvestimento += inv
+      totalInsercoes       += ins
+      totalInvestimento    += inv
+      totalExecucaoProjeto += exec
 
-      if (!meios[meio]) meios[meio] = { veiculos: {}, insercoes: 0, investimento: 0 }
-      meios[meio].insercoes    += ins
-      meios[meio].investimento += inv
+      if (!meios[meio]) meios[meio] = { veiculos: {}, insercoes: 0, investimento: 0, execucaoProjeto: 0 }
+      meios[meio].insercoes       += ins
+      meios[meio].investimento    += inv
+      meios[meio].execucaoProjeto += exec
 
-      if (!meios[meio].veiculos[veiculo]) meios[meio].veiculos[veiculo] = { pracas: {}, insercoes: 0, investimento: 0 }
-      meios[meio].veiculos[veiculo].insercoes    += ins
-      meios[meio].veiculos[veiculo].investimento += inv
+      if (!meios[meio].veiculos[veiculo]) meios[meio].veiculos[veiculo] = { pracas: {}, insercoes: 0, investimento: 0, execucaoProjeto: 0 }
+      meios[meio].veiculos[veiculo].insercoes       += ins
+      meios[meio].veiculos[veiculo].investimento    += inv
+      meios[meio].veiculos[veiculo].execucaoProjeto += exec
 
-      if (!meios[meio].veiculos[veiculo].pracas[praca]) meios[meio].veiculos[veiculo].pracas[praca] = { insercoes: 0, investimento: 0 }
-      meios[meio].veiculos[veiculo].pracas[praca].insercoes    += ins
-      meios[meio].veiculos[veiculo].pracas[praca].investimento += inv
+      if (!meios[meio].veiculos[veiculo].pracas[praca]) meios[meio].veiculos[veiculo].pracas[praca] = { insercoes: 0, investimento: 0, execucaoProjeto: 0 }
+      meios[meio].veiculos[veiculo].pracas[praca].insercoes       += ins
+      meios[meio].veiculos[veiculo].pracas[praca].investimento    += inv
+      meios[meio].veiculos[veiculo].pracas[praca].execucaoProjeto += exec
     })
 
-    return { meios, totalInsercoes, totalInvestimento }
+    return { meios, totalInsercoes, totalInvestimento, totalExecucaoProjeto }
   }, [offlineRaw])
 
   const DATA_KEY = "capital-de-giro"
@@ -1056,12 +1063,18 @@ const CapitalDeGiro: React.FC = () => {
           </div>
 
           {/* KPIs */}
-          <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="grid grid-cols-3 gap-3 mb-4">
             <div className="bg-green-50 rounded-lg p-3 text-center">
               <p className="text-xl font-bold text-green-700">
                 {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(offlineData.totalInvestimento)}
               </p>
               <p className="text-xs text-gray-500 mt-0.5">Investimento</p>
+            </div>
+            <div className="bg-amber-50 rounded-lg p-3 text-center">
+              <p className="text-xl font-bold text-amber-700">
+                {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(offlineData.totalExecucaoProjeto)}
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5">Investimento Projetos</p>
             </div>
             <div className="bg-blue-50 rounded-lg p-3 text-center">
               <p className="text-xl font-bold text-blue-700">
@@ -1100,6 +1113,14 @@ const CapitalDeGiro: React.FC = () => {
                         {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(meio.investimento)}
                       </p>
                     </div>
+                    {meio.execucaoProjeto > 0 && (
+                      <div>
+                        <p className="text-amber-600">Projetos</p>
+                        <p className="font-semibold text-amber-700">
+                          {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(meio.execucaoProjeto)}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1134,6 +1155,14 @@ const CapitalDeGiro: React.FC = () => {
                                   {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(veiculo.investimento)}
                                 </span>
                               </div>
+                              {veiculo.execucaoProjeto > 0 && (
+                                <div>
+                                  <span className="text-amber-600">Projetos: </span>
+                                  <span className="font-medium text-amber-700">
+                                    {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(veiculo.execucaoProjeto)}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           </div>
 
@@ -1145,6 +1174,7 @@ const CapitalDeGiro: React.FC = () => {
                                     <th className="text-left py-1 text-gray-500 font-medium">Praça</th>
                                     <th className="text-right py-1 text-gray-500 font-medium">Inserções</th>
                                     <th className="text-right py-1 text-gray-500 font-medium">Investimento</th>
+                                    <th className="text-right py-1 text-amber-600 font-medium">Projetos</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -1154,6 +1184,11 @@ const CapitalDeGiro: React.FC = () => {
                                       <td className="py-1 text-right text-blue-600 font-semibold">{new Intl.NumberFormat("pt-BR").format(p.insercoes)}</td>
                                       <td className="py-1 text-right text-green-700 font-semibold">
                                         {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(p.investimento)}
+                                      </td>
+                                      <td className="py-1 text-right text-amber-700 font-semibold">
+                                        {p.execucaoProjeto > 0
+                                          ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(p.execucaoProjeto)
+                                          : <span className="text-gray-300">—</span>}
                                       </td>
                                     </tr>
                                   ))}
