@@ -476,3 +476,76 @@ export const usePlanoMidia = () => {
 
   return { data, loading, error, refetch: loadData }
 }
+
+// Planilha de Saldo de Projetos (Mídia Exterior / Portais / Portais Net)
+const PROJETOS_SHEET_ID = "1-aLCEJBF9_nn8Xl_tq_dC6X6u1ZG__7eSkyUXGgfd2o"
+
+// Função para buscar dados de Projetos - Mídia Exterior
+export const fetchProjetosMidiaExterior = async (): Promise<ConsolidadoData> => {
+  try {
+    const response = await consolidadoApi.get(`/google/sheets/${PROJETOS_SHEET_ID}/data?range=PROJETOS%20-%20MIDIA%20EXTERIOR`)
+    return response.data
+  } catch (error) {
+    console.error("Erro ao buscar dados de Projetos - Mídia Exterior:", error)
+    throw error
+  }
+}
+
+// Função para buscar dados de Projetos - Portais
+export const fetchProjetosPortais = async (): Promise<ConsolidadoData> => {
+  try {
+    const response = await consolidadoApi.get(`/google/sheets/${PROJETOS_SHEET_ID}/data?range=PROJETOS%20-%20PORTAIS`)
+    return response.data
+  } catch (error) {
+    console.error("Erro ao buscar dados de Projetos - Portais:", error)
+    throw error
+  }
+}
+
+// Função para buscar dados de Projetos - Portais Net
+export const fetchProjetosPortaisNet = async (): Promise<ConsolidadoData> => {
+  try {
+    const response = await consolidadoApi.get(`/google/sheets/${PROJETOS_SHEET_ID}/data?range=PROJETOS%20-%20PORTAIS%20NET`)
+    return response.data
+  } catch (error) {
+    console.error("Erro ao buscar dados de Projetos - Portais Net:", error)
+    throw error
+  }
+}
+
+// Dados agrupados dos 3 blocos de Saldo de Projetos
+export interface SaldoProjetosData {
+  exterior: ConsolidadoData | null
+  portais: ConsolidadoData | null
+  portaisNet: ConsolidadoData | null
+}
+
+// Hook para dados de Saldo de Projetos (busca os 3 ranges em paralelo)
+export const useSaldoProjetos = () => {
+  const [data, setData] = useState<SaldoProjetosData>({ exterior: null, portais: null, portaisNet: null })
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  const loadData = React.useCallback(async () => {
+    try {
+      setLoading(true)
+      const [exterior, portais, portaisNet] = await Promise.all([
+        fetchProjetosMidiaExterior(),
+        fetchProjetosPortais(),
+        fetchProjetosPortaisNet(),
+      ])
+      setData({ exterior, portais, portaisNet })
+      setError(null)
+    } catch (err) {
+      setError(err as Error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  return { data, loading, error, refetch: loadData }
+}

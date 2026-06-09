@@ -12,8 +12,10 @@ import {
   Users,
   BarChart3,
   Target,
+  Wallet,
 } from "lucide-react"
-import { useConsolidadoGeral, usePlanoMidia } from "../../services/consolidadoApi"
+import { useConsolidadoGeral, usePlanoMidia, useSaldoProjetos } from "../../services/consolidadoApi"
+import type { ConsolidadoData } from "../../services/consolidadoApi"
 import { useGA4Data } from "../../services/api"
 import Loading from "../../components/Loading/Loading"
 import axios from "axios"
@@ -31,10 +33,159 @@ interface PortaisRawData {
   visualizacoes: number
 }
 
+// Tipos para o card "Saldo projetos"
+interface ProjetoTipoCompra {
+  tipo: string
+  contratado: number
+  utilizado: number
+  saldo: number
+  pctUtilizado: number
+}
+
+interface ProjetoVeiculo {
+  nome: string
+  praca: string
+  investimentoContratado: number
+  investimentoUtilizado: number
+  temInvestimento: boolean
+  contratadoTotal: number
+  utilizadoTotal: number
+  saldoTotal: number
+  tipos: ProjetoTipoCompra[]
+}
+
+interface ProjetoBloco {
+  veiculos: ProjetoVeiculo[]
+  temInvestimento: boolean
+  contratadoTotal: number
+  utilizadoTotal: number
+  saldoTotal: number
+}
+
+// Converte string de número brasileiro (ex.: "280.000", "2.000.000", "500000") para número
+const parseProjetoNumber = (value: string): number => {
+  if (!value || value === "0" || value.trim() === "") return 0
+  const cleaned = value.toString().replace(/\./g, "").replace(",", ".")
+  const n = parseFloat(cleaned)
+  return isNaN(n) ? 0 : n
+}
+
+// Faz o parsing de uma planilha de Projetos (Mídia Exterior / Portais / Portais Net).
+// O cabeçalho real está em values[2] e os dados começam em values[3].
+const parseProjetoSheet = (data: ConsolidadoData | null): ProjetoBloco => {
+  const empty: ProjetoBloco = { veiculos: [], temInvestimento: false, contratadoTotal: 0, utilizadoTotal: 0, saldoTotal: 0 }
+  if (!data?.success || !data?.data?.values || data.data.values.length < 4) return empty
+
+  const values = data.data.values
+  const titleRow = values[0] || []
+  const headerRow = values[2] || []
+
+  // Colunas principais ficam antes do primeiro bloco "APLICAÇÃO"
+  let boundary = titleRow.findIndex((c) => typeof c === "string" && c.startsWith("APLICAÇÃO"))
+  if (boundary < 0) boundary = headerRow.length
+  const mainHeaders = headerRow.slice(0, boundary)
+
+  const veiculoIdx = mainHeaders.indexOf("VEICULO")
+  const pracaIdx = mainHeaders.indexOf("PRAÇA DE VEICULAÇÃO")
+  const investIdx = mainHeaders.indexOf("INVESTIMENTO")
+  const tipoIdx = mainHeaders.indexOf("TIPO DE COMPRA")
+  const contratadoIdx = mainHeaders.indexOf("CONTRATADO")
+  let utilizadoIdx = mainHeaders.indexOf("ENTREGA UTILIZADA")
+  if (utilizadoIdx < 0) utilizadoIdx = mainHeaders.indexOf("UTILIZADO")
+  const saldoIdx = mainHeaders.findIndex((h) => typeof h === "string" && h.trim().toUpperCase().startsWith("SALDO"))
+
+  if (veiculoIdx < 0) return empty
+
+  type Acc = { contratado: number; utilizado: number; saldo: number; investimento: number; temInvestimento: boolean }
+  const veiculosMap = new Map<string, { praca: string; tipos: Map<string, Acc> }>()
+
+  values.slice(3).forEach((row) => {
+    const veiculo = (row[veiculoIdx] || "").toString().trim()
+    if (!veiculo) return
+
+    const praca = pracaIdx >= 0 ? (row[pracaIdx] || "").toString().trim() : ""
+    const tipo = tipoIdx >= 0 ? (row[tipoIdx] || "").toString().trim() || "—" : "—"
+    const contratado = contratadoIdx >= 0 ? parseProjetoNumber(row[contratadoIdx]) : 0
+    const utilizado = utilizadoIdx >= 0 ? parseProjetoNumber(row[utilizadoIdx]) : 0
+    const saldo = saldoIdx >= 0 ? parseProjetoNumber(row[saldoIdx]) : 0
+    const investStr = investIdx >= 0 ? (row[investIdx] || "").toString().trim() : ""
+    const investimento = parseProjetoNumber(investStr)
+
+    if (!veiculosMap.has(veiculo)) {
+      veiculosMap.set(veiculo, { praca, tipos: new Map() })
+    }
+    const v = veiculosMap.get(veiculo)!
+    if (!v.praca && praca) v.praca = praca
+
+    if (!v.tipos.has(tipo)) {
+      v.tipos.set(tipo, { contratado: 0, utilizado: 0, saldo: 0, investimento: 0, temInvestimento: false })
+    }
+    const acc = v.tipos.get(tipo)!
+    acc.contratado += contratado
+    acc.utilizado += utilizado
+    acc.saldo += saldo
+    acc.investimento += investimento
+    if (investStr !== "") acc.temInvestimento = true
+  })
+
+  let blocoTemInvestimento = false
+  let blocoContratado = 0
+  let blocoUtilizado = 0
+  let blocoSaldo = 0
+  const veiculos: ProjetoVeiculo[] = Array.from(veiculosMap.entries()).map(([nome, v]) => {
+    let investimentoContratado = 0
+    let veiculoTemInvestimento = false
+    let contratadoTotal = 0
+    let utilizadoTotal = 0
+    let saldoTotal = 0
+    const tipos: ProjetoTipoCompra[] = Array.from(v.tipos.entries()).map(([tipo, acc]) => {
+      investimentoContratado += acc.investimento
+      contratadoTotal += acc.contratado
+      utilizadoTotal += acc.utilizado
+      saldoTotal += acc.saldo
+      if (acc.temInvestimento) {
+        veiculoTemInvestimento = true
+        blocoTemInvestimento = true
+      }
+      return {
+        tipo,
+        contratado: acc.contratado,
+        utilizado: acc.utilizado,
+        saldo: acc.saldo,
+        pctUtilizado: acc.contratado > 0 ? Math.min(100, (acc.utilizado / acc.contratado) * 100) : 0,
+      }
+    })
+    blocoContratado += contratadoTotal
+    blocoUtilizado += utilizadoTotal
+    blocoSaldo += saldoTotal
+    return {
+      nome,
+      praca: v.praca,
+      investimentoContratado,
+      // Sem dados de gasto real ainda; saldo financeiro = contratado quando houver investimento
+      investimentoUtilizado: 0,
+      temInvestimento: veiculoTemInvestimento,
+      contratadoTotal,
+      utilizadoTotal,
+      saldoTotal,
+      tipos,
+    }
+  })
+
+  return {
+    veiculos,
+    temInvestimento: blocoTemInvestimento,
+    contratadoTotal: blocoContratado,
+    utilizadoTotal: blocoUtilizado,
+    saldoTotal: blocoSaldo,
+  }
+}
+
 const Midia: React.FC = () => {
   const { loading: consolidadoLoading, error: consolidadoError, data: consolidadoData } = useConsolidadoGeral()
   const { data: planoData, loading: planoLoading, error: planoError } = usePlanoMidia()
   const { data: ga4Data, loading: ga4Loading, error: ga4Error } = useGA4Data()
+  const { data: saldoProjetosData, loading: saldoProjetosLoading, error: saldoProjetosError } = useSaldoProjetos()
 
   const [selectedAgencia, setSelectedAgencia] = useState<string | null>(null)
   const [selectedMeio, setSelectedMeio] = useState<string | null>(null)
@@ -45,6 +196,7 @@ const Midia: React.FC = () => {
   const [portaisData, setPortaisData] = useState<PortaisData>({ impressoes: 0, cliques: 0, visualizacoes: 0 })
   const [portaisRawData, setPortaisRawData] = useState<PortaisRawData[]>([])
   const [portaisLoading, setPortaisLoading] = useState(true)
+  const [expandedProjetoVeiculo, setExpandedProjetoVeiculo] = useState<string | null>(null)
 
   // Buscar dados de Portais
   useEffect(() => {
@@ -411,6 +563,15 @@ const Midia: React.FC = () => {
   }, [ga4Data])
 
 
+  // Processar dados de Saldo de Projetos (3 blocos)
+  const saldoProjetos = useMemo(() => {
+    return [
+      { id: "exterior", nome: "Projetos - Mídia Exterior", bloco: parseProjetoSheet(saldoProjetosData.exterior) },
+      { id: "portais", nome: "Projetos - Portais", bloco: parseProjetoSheet(saldoProjetosData.portais) },
+      { id: "portaisNet", nome: "Projetos - Portais Net", bloco: parseProjetoSheet(saldoProjetosData.portaisNet) },
+    ]
+  }, [saldoProjetosData])
+
   // Handler para clicar em uma agência
   const handleAgenciaClick = (agenciaNome: string) => {
     setSelectedAgencia(selectedAgencia === agenciaNome ? null : agenciaNome)
@@ -450,8 +611,8 @@ const Midia: React.FC = () => {
     return value.toLocaleString("pt-BR")
   }
 
-  const loading = consolidadoLoading || planoLoading || ga4Loading || portaisLoading
-  const error = consolidadoError || planoError || ga4Error
+  const loading = consolidadoLoading || planoLoading || ga4Loading || portaisLoading || saldoProjetosLoading
+  const error = consolidadoError || planoError || ga4Error || saldoProjetosError
 
   if (loading) {
     return <Loading message="Carregando dados de mídia..." />
@@ -808,6 +969,153 @@ const Midia: React.FC = () => {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Saldo projetos - 3 blocos (Mídia Exterior / Portais / Portais Net) */}
+      <div className="card-overlay rounded-xl shadow-lg p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-bold text-gray-900 flex items-center">
+            <Wallet className="w-4 h-4 mr-2 text-emerald-600" />
+            Saldo projetos
+          </h2>
+          <span className="text-xs text-gray-400">Contratado / Utilizado / Saldo por veículo e tipo de compra</span>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {saldoProjetos.map((projeto) => (
+            <div key={projeto.id} className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 flex flex-col">
+              {/* Cabeçalho do bloco */}
+              <div className="mb-3 flex items-start justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">{projeto.nome}</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {projeto.bloco.veiculos.length} {projeto.bloco.veiculos.length === 1 ? "veículo" : "veículos"}
+                  </p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-[10px] text-gray-500 uppercase leading-none">Saldo restante</p>
+                  <p className="text-lg font-bold text-emerald-600 leading-tight">{formatNumber(projeto.bloco.saldoTotal)}</p>
+                </div>
+              </div>
+
+              {/* Seção financeira (placeholder enquanto INVESTIMENTO vazio) */}
+              <div className="rounded-lg bg-white border border-gray-200 p-3 mb-3">
+                {projeto.bloco.temInvestimento ? (
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    {(() => {
+                      const totalContratado = projeto.bloco.veiculos.reduce((s, v) => s + v.investimentoContratado, 0)
+                      const totalUtilizado = projeto.bloco.veiculos.reduce((s, v) => s + v.investimentoUtilizado, 0)
+                      const saldoFinal = totalContratado - totalUtilizado
+                      return (
+                        <>
+                          <div>
+                            <p className="text-[10px] text-gray-500 uppercase">Contratado</p>
+                            <p className="text-xs font-bold text-gray-900">{formatMetricValue(totalContratado, "spent")}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-gray-500 uppercase">Utilizado</p>
+                            <p className="text-xs font-bold text-orange-600">{formatMetricValue(totalUtilizado, "spent")}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-gray-500 uppercase">Saldo</p>
+                            <p className="text-xs font-bold text-emerald-600">{formatMetricValue(saldoFinal, "spent")}</p>
+                          </div>
+                        </>
+                      )
+                    })()}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-gray-500 uppercase">Investimento</span>
+                    <span className="text-xs text-gray-400 italic">Aguardando dados</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Lista de veículos (accordion) */}
+              <div className="flex-1 overflow-y-auto space-y-2 max-h-80">
+                {projeto.bloco.veiculos.length === 0 && (
+                  <p className="text-xs text-gray-400 text-center py-4">Sem dados disponíveis</p>
+                )}
+                {projeto.bloco.veiculos.map((veiculo, vIdx) => {
+                  const key = `${projeto.id}-${veiculo.nome}-${vIdx}`
+                  const isExpanded = expandedProjetoVeiculo === key
+                  return (
+                    <div
+                      key={key}
+                      className={`rounded-lg border-2 transition-all duration-200 ${
+                        isExpanded ? "bg-emerald-50 border-emerald-300" : "bg-white border-transparent hover:bg-gray-50"
+                      }`}
+                    >
+                      {/* Linha do veículo */}
+                      <div
+                        className="p-3 cursor-pointer"
+                        onClick={() => setExpandedProjetoVeiculo(isExpanded ? null : key)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium text-gray-900 truncate pr-2">{veiculo.nome}</p>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-xs font-bold text-emerald-600">
+                              Saldo: {formatNumber(veiculo.saldoTotal)}
+                            </span>
+                            <svg
+                              className={`w-4 h-4 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between mt-1">
+                          {veiculo.praca && <p className="text-xs text-gray-500 truncate">{veiculo.praca}</p>}
+                          <p className="text-xs text-gray-400 ml-auto">
+                            {veiculo.tipos.length} {veiculo.tipos.length === 1 ? "tipo de compra" : "tipos de compra"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Detalhamento por tipo de compra */}
+                      {isExpanded && (
+                        <div className="px-3 pb-3 space-y-3 border-t border-emerald-200 pt-3">
+                          {veiculo.tipos.map((t, tIdx) => (
+                            <div key={tIdx}>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs font-semibold text-gray-700 uppercase">{t.tipo}</span>
+                                <span className="text-[10px] text-gray-400">{Math.round(t.pctUtilizado)}% utilizado</span>
+                              </div>
+                              <div className="grid grid-cols-3 gap-2 text-center mb-1">
+                                <div>
+                                  <p className="text-[10px] text-gray-500">Contratado</p>
+                                  <p className="text-xs font-bold text-gray-900">{formatNumber(t.contratado)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] text-gray-500">Utilizado</p>
+                                  <p className="text-xs font-bold text-orange-600">{formatNumber(t.utilizado)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] text-gray-500">Saldo</p>
+                                  <p className="text-xs font-bold text-emerald-600">{formatNumber(t.saldo)}</p>
+                                </div>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-1.5">
+                                <div
+                                  className="bg-orange-500 h-1.5 rounded-full transition-all"
+                                  style={{ width: `${t.pctUtilizado}%` }}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
