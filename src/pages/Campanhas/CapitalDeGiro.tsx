@@ -1,8 +1,8 @@
 "use client"
 
 import type React from "react"
-import { useRef, useState, useEffect, useMemo } from "react"
-import { DollarSign, Users, MousePointerClick, Eye, Play, HelpCircle, Sparkles, RefreshCw, ArrowUpDown, Radio, ChevronRight, ChevronDown } from "lucide-react"
+import { useRef, useState, useEffect, useMemo, useCallback } from "react"
+import { DollarSign, Users, MousePointerClick, Eye, Play, HelpCircle, Sparkles, RefreshCw, ArrowUpDown, Radio, ChevronRight, ChevronDown, Calendar, X } from "lucide-react"
 import axios from "axios"
 import Loading from "../../components/Loading/Loading"
 import PDFDownloadButton from "../../components/PDFDownloadButton/PDFDownloadButton"
@@ -73,6 +73,18 @@ const parseNum = (v: string): number => {
   return parseFloat(v.replace(/\./g, "").replace(",", ".")) || 0
 }
 
+// Normaliza datas de origens diferentes (DD/MM/YYYY do Consolidado, ISO do AdServer)
+// para o formato "YYYY-MM-DD", usado na comparação com o filtro de período.
+const toISODate = (d: string): string => {
+  if (!d) return ""
+  if (d.includes("/")) {
+    const [dd, mm, yy] = d.split("/")
+    if (!dd || !mm || !yy) return ""
+    return `${yy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`
+  }
+  return d.slice(0, 10)
+}
+
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v)
 
@@ -131,6 +143,7 @@ const CapitalDeGiro: React.FC = () => {
   const [expandedPracas, setExpandedPracas] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
   const [selectedVeiculo, setSelectedVeiculo] = useState<string | null>(null)
+  const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: "", end: "" })
   type SortCol = "publisher" | "contratado" | "impressions" | "pacingPct" | "clicks" | "ctr" | "va"
   const [sortCol, setSortCol] = useState<SortCol>("impressions")
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc")
@@ -213,9 +226,29 @@ const CapitalDeGiro: React.FC = () => {
 
   // ─── Métricas agregadas ──────────────────────────────────────────────────────
 
+  // Verifica se uma data bruta (de qualquer origem) cai dentro do período selecionado.
+  // Sem período definido, todos os registros passam.
+  const inDateRange = useCallback(
+    (rawDate: string): boolean => {
+      if (!dateRange.start && !dateRange.end) return true
+      const iso = toISODate(rawDate)
+      if (!iso) return false
+      if (dateRange.start && iso < dateRange.start) return false
+      if (dateRange.end && iso > dateRange.end) return false
+      return true
+    },
+    [dateRange]
+  )
+
+  // Base do Consolidado já filtrada por período (alimenta todas as métricas de redes sociais)
+  const consolidadoPorData = useMemo(
+    () => consolidado.filter((r) => inDateRange(r.date)),
+    [consolidado, inDateRange]
+  )
+
   const filtered = useMemo(
-    () => (selectedVeiculo ? consolidado.filter((r) => r.veiculo === selectedVeiculo) : consolidado),
-    [consolidado, selectedVeiculo]
+    () => (selectedVeiculo ? consolidadoPorData.filter((r) => r.veiculo === selectedVeiculo) : consolidadoPorData),
+    [consolidadoPorData, selectedVeiculo]
   )
 
   const totals = useMemo(() => {
@@ -243,23 +276,23 @@ const CapitalDeGiro: React.FC = () => {
   // Leads de Meta por plataforma (veículo) — derivado do consolidado
   const metaLeadsByPlatform = useMemo(() => {
     const map = new Map<string, number>()
-    consolidado.forEach((r) => {
+    consolidadoPorData.forEach((r) => {
       if (r.leads > 0) map.set(r.veiculo || "Desconhecido", (map.get(r.veiculo || "Desconhecido") || 0) + r.leads)
     })
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1])
-  }, [consolidado])
+  }, [consolidadoPorData])
 
   // Veículos únicos
   const veiculos = useMemo(
-    () => Array.from(new Set(consolidado.map((r) => r.veiculo).filter(Boolean))),
-    [consolidado]
+    () => Array.from(new Set(consolidadoPorData.map((r) => r.veiculo).filter(Boolean))),
+    [consolidadoPorData]
   )
 
   // Por veículo
   const byVeiculo = useMemo(() => {
     const map = new Map<string, typeof totals>()
     veiculos.forEach((v) => {
-      const rows = consolidado.filter((r) => r.veiculo === v)
+      const rows = consolidadoPorData.filter((r) => r.veiculo === v)
       const t = rows.reduce(
         (acc, r) => ({
           cost: acc.cost + r.cost,
@@ -280,12 +313,12 @@ const CapitalDeGiro: React.FC = () => {
       map.set(v, t)
     })
     return map
-  }, [consolidado, veiculos])
+  }, [consolidadoPorData, veiculos])
 
   // Leads por dia — derivado do consolidado
   const leadsByDay = useMemo(() => {
     const map = new Map<string, number>()
-    consolidado.forEach((r) => {
+    consolidadoPorData.forEach((r) => {
       if (r.leads <= 0 || !r.date) return
       // Normalizar para YYYY-MM-DD independente do formato da planilha (DD/MM/YYYY ou YYYY-MM-DD)
       let key = r.date
@@ -298,14 +331,17 @@ const CapitalDeGiro: React.FC = () => {
     return Array.from(map.entries())
       .sort((a, b) => a[0].localeCompare(b[0]))
       .slice(-14)
-  }, [consolidado])
+  }, [consolidadoPorData])
 
   const maxLeadsDay = useMemo(() => Math.max(...leadsByDay.map((d) => d[1]), 1), [leadsByDay])
 
   // AdServer — combinar as três fontes, deduplicando por publisher+date para evitar
   // dupla contagem nos publishers que aparecem em mais de um template.
   // AdServer — combinar as duas fontes
-  const allAdServer = useMemo(() => [...adServer, ...adServer2], [adServer, adServer2])
+  const allAdServer = useMemo(
+    () => [...adServer, ...adServer2].filter((r) => inDateRange(r.date)),
+    [adServer, adServer2, inDateRange]
+  )
 
   // AdServer — agregar por publisher e cruzar com contratos fixos
   const adServerByPublisher = useMemo(() => {
@@ -608,6 +644,43 @@ const CapitalDeGiro: React.FC = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* ── Filtro de período ── */}
+      <div className="card-overlay rounded-xl shadow-lg p-3 flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2 text-gray-700">
+          <Calendar className="w-4 h-4 text-purple-600" />
+          <span className="text-sm font-semibold">Período</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={dateRange.start}
+            max={dateRange.end || undefined}
+            onChange={(e) => setDateRange((prev) => ({ ...prev, start: e.target.value }))}
+            className="px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+          />
+          <span className="text-gray-500 text-sm">até</span>
+          <input
+            type="date"
+            value={dateRange.end}
+            min={dateRange.start || undefined}
+            onChange={(e) => setDateRange((prev) => ({ ...prev, end: e.target.value }))}
+            className="px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+          />
+        </div>
+        {(dateRange.start || dateRange.end) && (
+          <button
+            onClick={() => setDateRange({ start: "", end: "" })}
+            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+            Limpar
+          </button>
+        )}
+        <span className="text-[11px] text-gray-400 ml-auto">
+          Filtra Redes Sociais e Display. LP (RD Station) e Off-line não possuem data por registro.
+        </span>
       </div>
 
       {/* ── Filtro de veículo ── */}

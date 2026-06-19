@@ -60,7 +60,8 @@
       "Bash(curl -s \"https://dashbrasiladserver.com.br/api/templates/342/bi?token=sw2qFEMv17\")",
       "Bash(python -c \"import sys,json; data=json.load\\(sys.stdin\\); print\\(f'Rows: {len\\(data\\)}'\\); pubs=sorted\\(set\\(r.get\\('publisher_name',''\\) for r in data\\)\\); [print\\(p\\) for p in pubs]\")",
       "Bash(python -c ' *)",
-      "PowerShell(npm run build)"
+      "PowerShell(npm run build)",
+      "PowerShell(npm install)"
     ],
     "deny": [],
     "ask": []
