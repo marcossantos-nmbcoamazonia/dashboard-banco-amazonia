@@ -61,7 +61,8 @@
       "Bash(python -c \"import sys,json; data=json.load\\(sys.stdin\\); print\\(f'Rows: {len\\(data\\)}'\\); pubs=sorted\\(set\\(r.get\\('publisher_name',''\\) for r in data\\)\\); [print\\(p\\) for p in pubs]\")",
       "Bash(python -c ' *)",
       "PowerShell(npm run build)",
-      "PowerShell(npm install)"
+      "PowerShell(npm install)",
+      "WebFetch(domain:nmbcoamazonia-api.vercel.app)"
     ],
     "deny": [],
     "ask": []

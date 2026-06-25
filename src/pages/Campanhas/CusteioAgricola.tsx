@@ -134,6 +134,7 @@ const CusteioAgricola: React.FC = () => {
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
   const [lpSummary, setLpSummary] = useState<LpSummary | null>(null)
+  const [lpLoading, setLpLoading] = useState(false)
   const [adServer, setAdServer] = useState<AdServerRow[]>([])
   const [adServer2, setAdServer2] = useState<AdServerRow[]>([])
   const [adServer3, setAdServer3] = useState<AdServerRow[]>([])
@@ -157,11 +158,10 @@ const CusteioAgricola: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const [consRes, lpSummaryRes, adServerRes, adServer2Res, adServer3Res, adServer4Res, offlineRes] = await Promise.all([
+        const [consRes, adServerRes, adServer2Res, adServer3Res, adServer4Res, offlineRes] = await Promise.all([
           axios.get(
             "https://nmbcoamazonia-api.vercel.app/google/sheets/1zxvpiES5XndqmRm36Ix2Nck1YR5WD6cJcttoimJzgas/data?range=consolidado"
           ),
-          axios.get("https://nmbcoamazonia-api.vercel.app/rdstation/lp-summary?url=http://basablog.rds.land/custeio").catch(() => ({ data: { success: false } })),
           axios.get("https://dashbrasiladserver.com.br/api/templates/310/bi?token=NOP2VowjgW").catch(() => ({ data: [] })),
           axios.get("https://dashbrasiladserver.com.br/api/templates/315/bi?token=EJb3iiYWom").catch(() => ({ data: [] })),
           axios.get("https://dashbrasiladserver.com.br/api/templates/343/bi?token=wBNTzINzMq").catch(() => ({ data: [] })),
@@ -209,10 +209,6 @@ const CusteioAgricola: React.FC = () => {
           setConsolidado(parsed)
         }
 
-        if (lpSummaryRes.data?.success && lpSummaryRes.data?.data) {
-          setLpSummary(lpSummaryRes.data.data)
-        }
-
         if (Array.isArray(adServerRes.data) && adServerRes.data.length > 0) {
           setAdServer(adServerRes.data)
         }
@@ -236,6 +232,34 @@ const CusteioAgricola: React.FC = () => {
     }
     fetchData()
   }, [])
+
+  // Busca o resumo da LP (RD Station) reagindo ao filtro de período.
+  // A rota aceita start_date/end_date (ISO) junto do url do asset; sem filtro, retorna o período completo.
+  useEffect(() => {
+    const fetchLpSummary = async () => {
+      try {
+        setLpLoading(true)
+        const params = new URLSearchParams({ url: "http://basablog.rds.land/custeio" })
+        if (dateRange.start || dateRange.end) {
+          const today = new Date().toISOString().slice(0, 10)
+          params.set("start_date", dateRange.start || "2025-01-01")
+          params.set("end_date", dateRange.end || today)
+        }
+        const res = await axios.get(`https://nmbcoamazonia-api.vercel.app/rdstation/lp-summary?${params.toString()}`)
+        if (res.data?.success && res.data?.data) {
+          setLpSummary(res.data.data)
+        } else {
+          setLpSummary(null)
+        }
+      } catch (err) {
+        console.error("Erro ao buscar LP summary (RD Station):", err)
+        setLpSummary(null)
+      } finally {
+        setLpLoading(false)
+      }
+    }
+    fetchLpSummary()
+  }, [dateRange])
 
   // ─── Métricas agregadas ──────────────────────────────────────────────────────
 
@@ -685,7 +709,7 @@ const CusteioAgricola: React.FC = () => {
           </button>
         )}
         <span className="text-[11px] text-gray-400 ml-auto">
-          Filtra Redes Sociais e Display. LP (RD Station) e Off-line não possuem data por registro.
+          Filtra Redes Sociais, Display e LP (RD Station). Off-line não possui data por registro.
         </span>
       </div>
 
@@ -890,14 +914,22 @@ const CusteioAgricola: React.FC = () => {
           <div className="mt-4 pt-3 border-t border-gray-100">
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-xs font-bold text-gray-700">LP Custeio Agrícola · RD Station</h4>
-              {lpSummary && (
-                <span className="text-[10px] text-gray-400">
-                  {lpSummary.period.start_date} → {lpSummary.period.end_date}
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {lpLoading && (
+                  <span className="flex items-center gap-1 text-[10px]" style={{ color: "#3b7fb8" }}>
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                    atualizando…
+                  </span>
+                )}
+                {lpSummary && (
+                  <span className="text-[10px] text-gray-400">
+                    {lpSummary.period.start_date} → {lpSummary.period.end_date}
+                  </span>
+                )}
+              </div>
             </div>
             {lpSummary ? (
-              <div className="grid grid-cols-3 gap-2">
+              <div className={`grid grid-cols-3 gap-2 transition-opacity ${lpLoading ? "opacity-50" : ""}`}>
                 <div className="bg-blue-50 rounded-lg p-2 text-center">
                   <p className="text-lg font-bold text-blue-700">{formatNum(lpSummary.visits_count)}</p>
                   <p className="text-[10px] text-gray-500">Visitantes</p>
@@ -912,7 +944,7 @@ const CusteioAgricola: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <p className="text-xs text-gray-400">Carregando dados da LP...</p>
+              <p className="text-xs text-gray-400">{lpLoading ? "Carregando dados da LP..." : "Sem dados da LP para o período."}</p>
             )}
           </div>
         </div>
