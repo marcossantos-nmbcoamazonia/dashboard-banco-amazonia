@@ -625,6 +625,10 @@ const CapitalDeGiro: React.FC = () => {
 
   if (loading) return <Loading message="Carregando dados da campanha..." />
 
+  // Caso anômalo do RD Station: leads registrados sem visitas rastreadas no período
+  // (leads podem vir de Lead Ads / importação, sem acesso à LP). Evita exibir 0 visitas / 0% enganosos.
+  const lpUntracked = !!lpSummary && lpSummary.visits_count === 0 && lpSummary.conversion_count > 0
+
   return (
     <div ref={contentRef} className="h-full flex flex-col space-y-3 overflow-auto">
 
@@ -654,7 +658,7 @@ const CapitalDeGiro: React.FC = () => {
               <div>
                 <p className="text-purple-200 text-xs">Visitantes LP</p>
                 <p className="text-2xl font-bold text-white">
-                  {lpSummary ? formatNum(lpSummary.visits_count) : "—"}
+                  {lpSummary ? (lpUntracked ? "—" : formatNum(lpSummary.visits_count)) : "—"}
                 </p>
               </div>
               <div>
@@ -662,7 +666,7 @@ const CapitalDeGiro: React.FC = () => {
                 <p className="text-2xl font-bold text-white">
                   {lpSummary ? formatNum(lpSummary.conversion_count) : "—"}
                 </p>
-                {lpSummary && (
+                {lpSummary && !lpUntracked && (
                   <p className="text-purple-200 text-xs">{lpSummary.conversion_rate.toFixed(1)}% tx. conv.</p>
                 )}
               </div>
@@ -934,20 +938,27 @@ const CapitalDeGiro: React.FC = () => {
               </div>
             </div>
             {lpSummary ? (
-              <div className={`grid grid-cols-3 gap-2 transition-opacity ${lpLoading ? "opacity-50" : ""}`}>
-                <div className="bg-purple-50 rounded-lg p-2 text-center">
-                  <p className="text-lg font-bold text-purple-700">{formatNum(lpSummary.visits_count)}</p>
-                  <p className="text-[10px] text-gray-500">Visitantes</p>
+              <>
+                <div className={`grid grid-cols-3 gap-2 transition-opacity ${lpLoading ? "opacity-50" : ""}`}>
+                  <div className="bg-purple-50 rounded-lg p-2 text-center">
+                    <p className="text-lg font-bold text-purple-700">{lpUntracked ? "—" : formatNum(lpSummary.visits_count)}</p>
+                    <p className="text-[10px] text-gray-500">Visitantes</p>
+                  </div>
+                  <div className="bg-indigo-50 rounded-lg p-2 text-center">
+                    <p className="text-lg font-bold text-indigo-700">{formatNum(lpSummary.conversion_count)}</p>
+                    <p className="text-[10px] text-gray-500">Leads</p>
+                  </div>
+                  <div className="bg-emerald-50 rounded-lg p-2 text-center">
+                    <p className="text-lg font-bold text-emerald-700">{lpUntracked ? "—" : `${lpSummary.conversion_rate.toFixed(1)}%`}</p>
+                    <p className="text-[10px] text-gray-500">Tx. Conversão</p>
+                  </div>
                 </div>
-                <div className="bg-indigo-50 rounded-lg p-2 text-center">
-                  <p className="text-lg font-bold text-indigo-700">{formatNum(lpSummary.conversion_count)}</p>
-                  <p className="text-[10px] text-gray-500">Leads</p>
-                </div>
-                <div className="bg-emerald-50 rounded-lg p-2 text-center">
-                  <p className="text-lg font-bold text-emerald-700">{lpSummary.conversion_rate.toFixed(1)}%</p>
-                  <p className="text-[10px] text-gray-500">Tx. Conversão</p>
-                </div>
-              </div>
+                {lpUntracked && (
+                  <p className="text-[10px] text-gray-400 italic mt-2 leading-snug">
+                    Sem visitas rastreadas no período
+                  </p>
+                )}
+              </>
             ) : (
               <p className="text-xs text-gray-400">{lpLoading ? "Carregando dados da LP..." : "Sem dados da LP para o período."}</p>
             )}
