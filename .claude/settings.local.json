@@ -62,7 +62,10 @@
       "Bash(python -c ' *)",
       "PowerShell(npm run build)",
       "PowerShell(npm install)",
-      "WebFetch(domain:nmbcoamazonia-api.vercel.app)"
+      "WebFetch(domain:nmbcoamazonia-api.vercel.app)",
+      "WebFetch(domain:dashbrasiladserver.com.br)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('total rows:',len\\(d\\)\\); pubs={}; [pubs.setdefault\\(r.get\\('publisher_name'\\),0\\) for r in d]; print\\('publishers:', list\\(pubs.keys\\(\\)\\)\\); vid=[r for r in d if r.get\\('type'\\) and 'video' in str\\(r.get\\('type'\\)\\).lower\\(\\) or r.get\\('complete'\\) or r.get\\('vtr'\\)]; print\\('exemplo com video/vtr:'\\); print\\(json.dumps\\(vid[0], indent=1, ensure_ascii=False\\) if vid else 'nenhum'\\)\")",
+      "Bash(npx tsc *)"
     ],
     "deny": [],
     "ask": []

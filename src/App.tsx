@@ -23,6 +23,7 @@ import CampanhasAtivas from "./pages/CampanhasAtivas/CampanhasAtivas" // Nova im
 import AnaliseSemanal from "./pages/AnaliseSemanal/AnaliseSemanal" // Nova importação para Análise Semanal
 import CapitalDeGiro from "./pages/Campanhas/CapitalDeGiro"
 import CusteioAgricola from "./pages/Campanhas/CusteioAgricola"
+import Portais2026 from "./pages/Campanhas/Portais2026"
 import "./App.css"
 
 function App() {
@@ -56,6 +57,7 @@ function App() {
             <Route path="/analise-semanal" element={<AnaliseSemanal />} /> {/* Nova rota para Análise Semanal */}
             <Route path="/campanhas/capital-de-giro" element={<CapitalDeGiro />} />
             <Route path="/campanhas/custeio-agricola" element={<CusteioAgricola />} />
+            <Route path="/campanhas/portais-2026" element={<Portais2026 />} />
             <Route path="/glossario" element={<Glossario />} /> {/* Nova rota para Glossario */}
           </Routes>
         </Layout>
