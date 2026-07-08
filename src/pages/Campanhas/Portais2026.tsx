@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useRef, useState, useEffect, useMemo, useCallback } from "react"
-import { MousePointerClick, Eye, Play, Gauge, ArrowUpDown, Calendar, X, Globe } from "lucide-react"
+import { MousePointerClick, Eye, Play, Gauge, ArrowUpDown, Calendar, X, Globe, MapPin, Radio } from "lucide-react"
 import axios from "axios"
 import Loading from "../../components/Loading/Loading"
 import PDFDownloadButton from "../../components/PDFDownloadButton/PDFDownloadButton"
@@ -15,7 +15,7 @@ import {
   type ContratoVeiculo,
 } from "../../data/adserverContratos"
 
-// ─── Interfaces ───────────────────────────────────────────────────────────────
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 
 interface AdServerRow {
   date: string
@@ -26,10 +26,42 @@ interface AdServerRow {
   ctr: string
   va: string
   vtr: string | null
-  start: string | null        // VAST: vídeos/áudios iniciados
-  complete: string | null     // VAST: concluídos
+  start: string | null // VAST: vídeos/áudios iniciados
+  complete: string | null // VAST: concluídos
   type: string
   dimension: string
+}
+
+type Categoria = "nacional" | "regional" | "outros"
+
+type SortCol = "publisher" | "contratado" | "impressions" | "pacingPct" | "clicks" | "ctr" | "vtr" | "va"
+
+interface PubRow {
+  groupKey: string
+  name: string
+  rowKey: string
+  impressions: number
+  clicks: number
+  vieweables: number
+  diasValidos: number
+  metaDias: number | null
+  inicioPublisher: string
+  tipo: TipoCompra | null
+  contrato: ContratoVeiculo | null
+  pacingPct: number
+  ctr: number
+  va: number
+  vtr: number | null
+  isSubrow: boolean
+  categoria: Categoria
+}
+
+interface Kpis {
+  impressions: number
+  clicks: number
+  ctr: number
+  vtr: number
+  va: number
 }
 
 // Todos os templates do AdServer (Capital de Giro + Custeio Agrícola), sem distinção de campanha.
@@ -41,6 +73,12 @@ const SOURCES: { id: number; token: string }[] = [
   { id: 343, token: "wBNTzINzMq" }, // Custeio Agrícola (portais regionais)
   { id: 342, token: "sw2qFEMv17" }, // Custeio Agrícola (portais nacionais)
 ]
+
+// Planilhas de projetos: classificam os veículos em Nacional x Regional (coluna "Veículo").
+const SHEET_BASE =
+  "https://nmbcoamazonia-api.vercel.app/google/sheets/1-aLCEJBF9_nn8Xl_tq_dC6X6u1ZG__7eSkyUXGgfd2o/data?range="
+const SHEET_NACIONAL = `${SHEET_BASE}${encodeURIComponent("PROJETOS - PORTAIS NET")}`
+const SHEET_REGIONAL = `${SHEET_BASE}${encodeURIComponent("PROJETOS - PORTAIS")}`
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -73,8 +111,8 @@ const formatNum = (v: number) => new Intl.NumberFormat("pt-BR").format(Math.roun
 const stripAccents = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "")
 
 // Chave canônica: funde as variações de nome do MESMO portal que aparecem entre os
-// 6 templates e as 2 listas de contrato (ex.: "DOL" / "RBA - DOL" / "Diário do Pará - DOL").
-// Rodamos tanto os nomes do AdServer quanto os dos contratos por aqui → eles colidem.
+// 6 templates, as 2 listas de contrato e as 2 planilhas de projetos
+// (ex.: "DOL" / "RBA - DOL" / "Diário do Pará - DOL"). Rodamos TODOS os nomes por aqui → colidem.
 const normKey = (raw: string): string => {
   let s = stripAccents(String(raw ?? "")).toUpperCase().trim()
   s = s.replace(/\.COM(\.BR)?/g, "").replace(/\s+/g, " ").trim()
@@ -85,7 +123,7 @@ const normKey = (raw: string): string => {
   if (s.startsWith("ALRIGHT")) return "ALRIGHT"
   if (s.startsWith("ZAP")) return "ZAP MEDIA"
 
-  // Famílias com nomes divergentes entre templates/contratos
+  // Famílias com nomes divergentes entre templates/contratos/planilhas
   if (s.includes("DOL")) return "DOL" // DOL, RBA - DOL, DIARIO DO PARA - DOL
   if (s.includes("PEGN")) return "PEGN" // REVISTA PEGN, PEGN (GLOBO)
   if (s.startsWith("O GLOBO")) return "O GLOBO" // jornal O Globo — distinto do portal Globo.com
@@ -115,6 +153,44 @@ const PRETTY: Record<string, string> = {
   "DIARIO DA AMAZONIA": "Diário da Amazônia",
 }
 
+// Classificação manual dos veículos que NÃO constam nas planilhas de projetos.
+// Decisão do time: só Roma News é regional; streaming (Spotify/Deezer/Alright),
+// GO ON e Zap entram como nacional. Só vale para chaves fora das planilhas.
+const MANUAL_OVERRIDE: Record<string, Categoria> = {
+  "ROMA NEWS": "regional",
+  "GO ON": "nacional",
+  ALRIGHT: "nacional",
+  DEEZER: "nacional",
+  SPOTIFY: "nacional",
+  "ZAP MEDIA": "nacional",
+}
+
+// Extrai as chaves de veículo (normalizadas) da coluna "Veículo" de uma planilha de projetos.
+// O cabeçalho não está na 1ª linha (há um título mesclado antes), então localizamos a
+// linha/coluna cujo header seja "Veículo".
+const extractVeiculoKeys = (sheetBody: any): Set<string> => {
+  const keys = new Set<string>()
+  const vals: string[][] | undefined = sheetBody?.data?.values
+  if (!Array.isArray(vals)) return keys
+  let hr = -1
+  let hc = -1
+  for (let ri = 0; ri < Math.min(6, vals.length) && hr < 0; ri++) {
+    for (let ci = 0; ci < vals[ri].length; ci++) {
+      if (stripAccents(vals[ri][ci] || "").trim().toLowerCase() === "veiculo") {
+        hr = ri
+        hc = ci
+        break
+      }
+    }
+  }
+  if (hr < 0) return keys
+  for (let ri = hr + 1; ri < vals.length; ri++) {
+    const v = vals[ri]?.[hc]
+    if (v && v.trim()) keys.add(normKey(v))
+  }
+  return keys
+}
+
 // Contratos unificados: junta as duas campanhas e, por chave de veículo, SOMA as metas
 // de mesmo tipo (CPM+CPM, DIARIA+DIARIA...). Metas numéricas vencem "null" (dias do mês).
 const TYPE_ORDER: Record<TipoCompra, number> = { CPM: 0, CPV: 1, CPC: 2, DIARIA: 3 }
@@ -141,12 +217,7 @@ const CONTRATOS_PORTAIS: Map<string, ContratoVeiculo[]> = (() => {
   byKey.forEach((tMap, key) => {
     const arr: ContratoVeiculo[] = []
     tMap.forEach((acc, tipo) => {
-      arr.push({
-        publisher: key,
-        tipo,
-        quantidade: acc.hasNum ? acc.sum : null,
-        formato: acc.formato,
-      })
+      arr.push({ publisher: key, tipo, quantidade: acc.hasNum ? acc.sum : null, formato: acc.formato })
     })
     arr.sort((a, b) => TYPE_ORDER[a.tipo] - TYPE_ORDER[b.tipo])
     out.set(key, arr)
@@ -154,15 +225,202 @@ const CONTRATOS_PORTAIS: Map<string, ContratoVeiculo[]> = (() => {
   return out
 })()
 
+// ─── Card reutilizável ────────────────────────────────────────────────────────
+
+interface PortalCardProps {
+  title: string
+  subtitle: string
+  icon: React.ReactNode
+  rows: PubRow[] // já ordenadas
+  kpis: Kpis
+  sortCol: SortCol
+  onToggleSort: (c: SortCol) => void
+}
+
+const PortalCard: React.FC<PortalCardProps> = ({ title, subtitle, icon, rows, kpis, sortCol, onToggleSort }) => {
+  const veiculos = rows.filter((r) => !r.isSubrow).length
+  const labels: Record<string, string> = {
+    publisher: "Veículo",
+    impressions: "Entregue",
+    pacingPct: "Pacing",
+    contratado: "Contratado",
+    clicks: "Cliques",
+    ctr: "CTR",
+    vtr: "VTR",
+    va: "Viewability",
+  }
+
+  return (
+    <div className="card-overlay rounded-xl shadow-lg p-4">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-emerald-600 text-white">{icon}</div>
+        <div>
+          <h3 className="text-sm font-bold text-gray-900">
+            {title} <span className="text-gray-400 font-medium">· {veiculos} veículos</span>
+          </h3>
+          <p className="text-[10px] text-gray-400">{subtitle}</p>
+        </div>
+      </div>
+
+      {/* KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+        <div className="bg-emerald-50 rounded-lg p-3 text-center">
+          <p className="text-lg font-bold text-emerald-700">{formatNum(kpis.impressions)}</p>
+          <p className="text-[10px] text-gray-500">Impressões</p>
+        </div>
+        <div className="bg-cyan-50 rounded-lg p-3 text-center">
+          <p className="text-lg font-bold text-cyan-700">{formatNum(kpis.clicks)}</p>
+          <p className="text-[10px] text-gray-500">Cliques</p>
+        </div>
+        <div className="bg-indigo-50 rounded-lg p-3 text-center">
+          <p className="text-lg font-bold text-indigo-700">{kpis.ctr.toFixed(2)}%</p>
+          <p className="text-[10px] text-gray-500">CTR</p>
+        </div>
+        <div className="bg-teal-50 rounded-lg p-3 text-center">
+          <p className="text-lg font-bold text-teal-700">{kpis.vtr.toFixed(1)}%</p>
+          <p className="text-[10px] text-gray-500">VTR</p>
+        </div>
+        <div className="bg-blue-50 rounded-lg p-3 text-center">
+          <p className="text-lg font-bold text-blue-700">{kpis.va.toFixed(1)}%</p>
+          <p className="text-[10px] text-gray-500">Viewability</p>
+        </div>
+      </div>
+
+      {/* Tabela */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-gray-200">
+              {(["publisher", "contratado", "impressions", "pacingPct", "clicks", "ctr", "vtr", "va"] as const).map(
+                (col) => {
+                  const isActive = sortCol === col
+                  const isLeft = col === "publisher"
+                  const isPacing = col === "pacingPct"
+                  return (
+                    <th
+                      key={col}
+                      onClick={() => onToggleSort(col)}
+                      className={`py-2 font-medium cursor-pointer select-none ${
+                        isLeft ? "text-left" : isPacing ? "pl-3" : "text-right"
+                      } ${isActive ? "text-emerald-700" : "text-gray-500"}`}
+                    >
+                      <div className={`flex items-center gap-1 ${isLeft ? "" : isPacing ? "" : "justify-end"}`}>
+                        {labels[col]}
+                        <ArrowUpDown className={`w-3 h-3 shrink-0 ${isActive ? "text-emerald-700" : "text-gray-300"}`} />
+                      </div>
+                    </th>
+                  )
+                }
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((p) => (
+              <tr
+                key={p.rowKey}
+                className={`border-b border-gray-50 hover:bg-gray-50 ${p.isSubrow ? "bg-gray-50/60" : ""}`}
+              >
+                {/* Veículo */}
+                <td className="py-2 font-semibold text-gray-800">
+                  {p.isSubrow ? <span className="pl-4 text-gray-400 font-normal">↳</span> : p.name}
+                </td>
+
+                {/* Contratado (com badge de tipo) */}
+                <td className="py-2 text-right text-gray-500 whitespace-nowrap">
+                  <div className="flex items-center justify-end gap-2">
+                    {p.tipo && (
+                      <span
+                        className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                          p.tipo === "CPM"
+                            ? "bg-indigo-100 text-indigo-700"
+                            : p.tipo === "CPV"
+                            ? "bg-teal-100 text-teal-700"
+                            : p.tipo === "CPC"
+                            ? "bg-rose-100 text-rose-700"
+                            : "bg-amber-100 text-amber-700"
+                        }`}
+                      >
+                        {p.tipo}
+                      </span>
+                    )}
+                    <span>
+                      {(p.tipo === "CPM" || p.tipo === "CPV") && p.contrato ? (
+                        formatNum(p.contrato.quantidade ?? 0)
+                      ) : p.tipo === "CPC" && p.contrato ? (
+                        `${formatNum(p.contrato.quantidade ?? 0)} cliques`
+                      ) : p.tipo === "DIARIA" && p.contrato ? (
+                        `${p.diasValidos} / ${p.metaDias} dias`
+                      ) : (
+                        "—"
+                      )}
+                    </span>
+                  </div>
+                </td>
+
+                {/* Entregue */}
+                <td className="py-2 text-right text-emerald-700 font-semibold">
+                  {!p.isSubrow
+                    ? p.contrato?.tipo === "CPC"
+                      ? formatNum(p.clicks)
+                      : formatNum(p.impressions)
+                    : p.contrato?.tipo === "CPC"
+                    ? formatNum(p.clicks)
+                    : p.contrato?.tipo === "CPV"
+                    ? formatNum(p.vieweables)
+                    : ""}
+                </td>
+
+                {/* Pacing */}
+                <td className="py-2 pl-3 w-36">
+                  {p.contrato ? (
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: `${p.pacingPct}%`, backgroundColor: pacingColor(p.pacingPct) }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-gray-500 w-8 text-right">{p.pacingPct.toFixed(0)}%</span>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-gray-400">s/ contrato</span>
+                  )}
+                </td>
+
+                {/* Cliques */}
+                <td className="py-2 text-right text-gray-700">{!p.isSubrow ? formatNum(p.clicks) : ""}</td>
+
+                {/* CTR — oculto p/ mídia push (ZAP): cliques não vêm de impressão */}
+                <td className="py-2 text-right text-indigo-600 font-semibold">
+                  {!p.isSubrow ? (p.name.toUpperCase().includes("ZAP") ? "-" : `${p.ctr.toFixed(2)}%`) : ""}
+                </td>
+
+                {/* VTR */}
+                <td className="py-2 text-right text-teal-600 font-semibold">
+                  {!p.isSubrow ? (p.vtr !== null ? `${p.vtr.toFixed(1)}%` : "—") : ""}
+                </td>
+
+                {/* Viewability */}
+                <td className="py-2 text-right text-blue-600">{!p.isSubrow ? `${p.va.toFixed(1)}%` : ""}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 const Portais2026: React.FC = () => {
   const contentRef = useRef<HTMLDivElement>(null)
   const [rows, setRows] = useState<AdServerRow[]>([])
+  const [natKeys, setNatKeys] = useState<Set<string>>(new Set())
+  const [regKeys, setRegKeys] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: "", end: "" })
 
-  type SortCol = "publisher" | "contratado" | "impressions" | "pacingPct" | "clicks" | "ctr" | "vtr" | "va"
   const [sortCol, setSortCol] = useState<SortCol>("impressions")
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc")
 
@@ -178,18 +436,25 @@ const Portais2026: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const results = await Promise.all(
-          SOURCES.map((s) =>
-            axios
-              .get(`https://dashbrasiladserver.com.br/api/templates/${s.id}/bi?token=${s.token}`)
-              .catch(() => ({ data: [] }))
-          )
-        )
+        const [tplResults, natSheet, regSheet] = await Promise.all([
+          Promise.all(
+            SOURCES.map((s) =>
+              axios
+                .get(`https://dashbrasiladserver.com.br/api/templates/${s.id}/bi?token=${s.token}`)
+                .catch(() => ({ data: [] }))
+            )
+          ),
+          axios.get(SHEET_NACIONAL).catch(() => ({ data: { success: false } })),
+          axios.get(SHEET_REGIONAL).catch(() => ({ data: { success: false } })),
+        ])
+
         const merged: AdServerRow[] = []
-        results.forEach((res) => {
+        tplResults.forEach((res) => {
           if (Array.isArray(res.data)) merged.push(...(res.data as AdServerRow[]))
         })
         setRows(merged)
+        setNatKeys(extractVeiculoKeys(natSheet.data))
+        setRegKeys(extractVeiculoKeys(regSheet.data))
       } catch (err) {
         console.error("Erro ao buscar dados Portais 2026:", err)
       } finally {
@@ -198,6 +463,14 @@ const Portais2026: React.FC = () => {
     }
     fetchData()
   }, [])
+
+  // Prioridade: planilha Nacional → planilha Regional → classificação manual → "outros".
+  // (Nacional vence Regional quando o veículo aparece nas duas planilhas, ex.: DOL.)
+  const classify = useCallback(
+    (key: string): Categoria =>
+      natKeys.has(key) ? "nacional" : regKeys.has(key) ? "regional" : MANUAL_OVERRIDE[key] ?? "outros",
+    [natKeys, regKeys]
+  )
 
   // ─── Filtro de período ───────────────────────────────────────────────────────
   const inDateRange = useCallback(
@@ -255,27 +528,11 @@ const Portais2026: React.FC = () => {
       map.set(key, cur)
     })
 
-    const rowsOut: {
-      groupKey: string
-      name: string
-      rowKey: string
-      impressions: number
-      clicks: number
-      vieweables: number
-      diasValidos: number
-      metaDias: number | null
-      inicioPublisher: string
-      tipo: TipoCompra | null
-      contrato: ContratoVeiculo | null
-      pacingPct: number
-      ctr: number
-      va: number
-      vtr: number | null
-      isSubrow: boolean
-    }[] = []
+    const rowsOut: PubRow[] = []
 
     Array.from(map.entries()).forEach(([key, v]) => {
       const contratos = CONTRATOS_PORTAIS.get(key) ?? []
+      const categoria = classify(key)
 
       const diasValidos = Array.from(v.byDay.entries()).filter(
         ([date, imp]) => date >= v.inicioPublisher && imp > DIARIA_MIN_IMPRESSOES
@@ -303,6 +560,7 @@ const Portais2026: React.FC = () => {
           va,
           vtr,
           isSubrow: false,
+          categoria,
         })
         return
       }
@@ -339,63 +597,81 @@ const Portais2026: React.FC = () => {
           va: i === 0 ? va : 0,
           vtr: i === 0 ? vtr : null,
           isSubrow: i > 0,
+          categoria,
         })
       })
     })
 
     return rowsOut
-  }, [allAdServer])
+  }, [allAdServer, classify])
 
-  const adServerSorted = useMemo(() => {
-    // valor de ordenação por veículo (linha principal, i=0)
-    const valMap = new Map<string, number | string>()
-    adServerByPublisher.forEach((r) => {
-      if (r.isSubrow) return
-      let v: number | string = 0
-      if (sortCol === "publisher") v = r.name
-      else if (sortCol === "impressions") v = r.impressions
-      else if (sortCol === "clicks") v = r.clicks
-      // ZAP é mídia push/CPC (cliques ≫ impressões) → CTR não faz sentido; joga p/ o fim
-      else if (sortCol === "ctr") v = /zap/i.test(r.name) ? -1 : r.ctr
-      else if (sortCol === "vtr") v = r.vtr ?? -1
-      else if (sortCol === "va") v = r.va
-      else if (sortCol === "pacingPct") v = r.pacingPct
-      else if (sortCol === "contratado") v = r.contrato?.quantidade ?? 0
-      valMap.set(r.groupKey, v)
-    })
+  // Ordena um subconjunto de linhas mantendo subrows logo abaixo da sua linha principal.
+  const sortRows = useCallback(
+    (subset: PubRow[]): PubRow[] => {
+      const valMap = new Map<string, number | string>()
+      subset.forEach((r) => {
+        if (r.isSubrow) return
+        let v: number | string = 0
+        if (sortCol === "publisher") v = r.name
+        else if (sortCol === "impressions") v = r.impressions
+        else if (sortCol === "clicks") v = r.clicks
+        // ZAP é mídia push/CPC (cliques ≫ impressões) → CTR não faz sentido; joga p/ o fim
+        else if (sortCol === "ctr") v = /zap/i.test(r.name) ? -1 : r.ctr
+        else if (sortCol === "vtr") v = r.vtr ?? -1
+        else if (sortCol === "va") v = r.va
+        else if (sortCol === "pacingPct") v = r.pacingPct
+        else if (sortCol === "contratado") v = r.contrato?.quantidade ?? 0
+        valMap.set(r.groupKey, v)
+      })
 
-    return [...adServerByPublisher].sort((a, b) => {
-      if (a.groupKey === b.groupKey) return a.isSubrow ? 1 : -1
-      const vA = valMap.get(a.groupKey) ?? 0
-      const vB = valMap.get(b.groupKey) ?? 0
-      const cmp = typeof vA === "string" ? vA.localeCompare(vB as string) : (vB as number) - (vA as number)
-      return sortDir === "asc" ? -cmp : cmp
-    })
-  }, [adServerByPublisher, sortCol, sortDir])
+      return [...subset].sort((a, b) => {
+        if (a.groupKey === b.groupKey) return a.isSubrow ? 1 : -1
+        const vA = valMap.get(a.groupKey) ?? 0
+        const vB = valMap.get(b.groupKey) ?? 0
+        const cmp = typeof vA === "string" ? vA.localeCompare(vB as string) : (vB as number) - (vA as number)
+        return sortDir === "asc" ? -cmp : cmp
+      })
+    },
+    [sortCol, sortDir]
+  )
 
-  const totals = useMemo(() => {
-    const t = allAdServer.reduce(
-      (acc, r) => ({
-        impressions: acc.impressions + toInt(r.impressions),
-        clicks: acc.clicks + toInt(r.clicks),
-        vieweables: acc.vieweables + toInt(r.vieweables),
-        vStart: acc.vStart + toInt(r.start),
-        vComplete: acc.vComplete + toInt(r.complete),
-      }),
-      { impressions: 0, clicks: 0, vieweables: 0, vStart: 0, vComplete: 0 }
-    )
+  const byCategoria = useMemo(() => {
+    const g: Record<Categoria, PubRow[]> = { nacional: [], regional: [], outros: [] }
+    adServerByPublisher.forEach((r) => g[r.categoria].push(r))
     return {
-      ...t,
+      nacional: sortRows(g.nacional),
+      regional: sortRows(g.regional),
+      outros: sortRows(g.outros),
+    }
+  }, [adServerByPublisher, sortRows])
+
+  // KPIs por categoria — a partir das linhas cruas (respeita o período)
+  const kpisByCategoria = useMemo(() => {
+    const mk = () => ({ impressions: 0, clicks: 0, vieweables: 0, vStart: 0, vComplete: 0 })
+    const g: Record<Categoria, ReturnType<typeof mk>> = { nacional: mk(), regional: mk(), outros: mk() }
+    allAdServer.forEach((r) => {
+      const t = g[classify(normKey(r.publisher_name))]
+      t.impressions += toInt(r.impressions)
+      t.clicks += toInt(r.clicks)
+      t.vieweables += toInt(r.vieweables)
+      t.vStart += toInt(r.start)
+      t.vComplete += toInt(r.complete)
+    })
+    const fin = (t: ReturnType<typeof mk>): Kpis => ({
+      impressions: t.impressions,
+      clicks: t.clicks,
       ctr: t.impressions > 0 ? (t.clicks / t.impressions) * 100 : 0,
       va: t.impressions > 0 ? (t.vieweables / t.impressions) * 100 : 0,
       vtr: t.vStart > 0 ? (t.vComplete / t.vStart) * 100 : 0,
-    }
-  }, [allAdServer])
+    })
+    return { nacional: fin(g.nacional), regional: fin(g.regional), outros: fin(g.outros) }
+  }, [allAdServer, classify])
 
-  const veiculosCount = useMemo(
+  const totalVeiculos = useMemo(
     () => new Set(adServerByPublisher.filter((r) => !r.isSubrow).map((r) => r.groupKey)).size,
     [adServerByPublisher]
   )
+  const totalImpressions = allAdServer.reduce((a, r) => a + toInt(r.impressions), 0)
 
   const dateSpan = useMemo(() => {
     let min = ""
@@ -439,24 +715,22 @@ const Portais2026: React.FC = () => {
           </div>
           <div className="absolute bottom-0 left-0 right-0 p-4 flex items-end justify-between">
             <div>
-              <p className="text-emerald-100 text-xs font-medium mb-1 uppercase tracking-wider">Campanhas · Display AdServer</p>
+              <p className="text-emerald-100 text-xs font-medium mb-1 uppercase tracking-wider">
+                Campanhas · Display AdServer
+              </p>
               <h1 className="text-2xl font-bold text-white flex items-center gap-2">
                 <Globe className="w-6 h-6" /> Portais - 2026
               </h1>
-              <p className="text-emerald-100 text-sm">Todos os veículos de display, consolidados</p>
+              <p className="text-emerald-100 text-sm">Nacionais e Regionais, consolidados</p>
             </div>
             <div className="text-right flex gap-4">
               <div>
                 <p className="text-emerald-100 text-xs">Veículos</p>
-                <p className="text-2xl font-bold text-white">{veiculosCount}</p>
+                <p className="text-2xl font-bold text-white">{totalVeiculos}</p>
               </div>
               <div>
                 <p className="text-emerald-100 text-xs">Impressões</p>
-                <p className="text-2xl font-bold text-white">{formatNum(totals.impressions)}</p>
-              </div>
-              <div>
-                <p className="text-emerald-100 text-xs">Cliques</p>
-                <p className="text-2xl font-bold text-white">{formatNum(totals.clicks)}</p>
+                <p className="text-2xl font-bold text-white">{formatNum(totalImpressions)}</p>
               </div>
             </div>
           </div>
@@ -500,202 +774,78 @@ const Portais2026: React.FC = () => {
         </span>
       </div>
 
-      {/* ── KPIs ── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-        <div className="card-overlay rounded-xl shadow-lg p-4 text-center">
-          <p className="text-xl font-bold text-emerald-700">{formatNum(totals.impressions)}</p>
-          <p className="text-xs text-gray-500 mt-1">Impressões</p>
-        </div>
-        <div className="card-overlay rounded-xl shadow-lg p-4 text-center">
-          <p className="text-xl font-bold text-cyan-700">{formatNum(totals.clicks)}</p>
-          <p className="text-xs text-gray-500 mt-1">Cliques</p>
-        </div>
-        <div className="card-overlay rounded-xl shadow-lg p-4 text-center">
-          <p className="text-xl font-bold text-indigo-700">{totals.ctr.toFixed(2)}%</p>
-          <p className="text-xs text-gray-500 mt-1">CTR</p>
-        </div>
-        <div className="card-overlay rounded-xl shadow-lg p-4 text-center">
-          <p className="text-xl font-bold text-teal-700">{totals.vtr.toFixed(1)}%</p>
-          <p className="text-xs text-gray-500 mt-1">VTR (áudio/vídeo)</p>
-        </div>
-        <div className="card-overlay rounded-xl shadow-lg p-4 text-center">
-          <p className="text-xl font-bold text-blue-700">{totals.va.toFixed(1)}%</p>
-          <p className="text-xs text-gray-500 mt-1">Viewability</p>
-        </div>
+      {/* ── Filtros rápidos (ordenam os 3 cards) ── */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs font-semibold text-gray-500">Ordenar por:</span>
+        {QUICK.map((q) => {
+          const active = sortCol === q.col && sortDir === "desc"
+          return (
+            <button
+              key={q.col}
+              onClick={() => {
+                setSortCol(q.col)
+                setSortDir("desc")
+              }}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${
+                active
+                  ? "bg-emerald-600 text-white shadow"
+                  : "bg-white text-gray-600 border border-gray-200 hover:border-emerald-400"
+              }`}
+            >
+              {q.icon}
+              {q.label}
+            </button>
+          )
+        })}
       </div>
 
-      {/* ── AdServer — tabela consolidada ── */}
-      {allAdServer.length > 0 ? (
-        <div className="card-overlay rounded-xl shadow-lg p-4">
-          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-            <h3 className="text-sm font-bold text-gray-900">Display · AdServer — {veiculosCount} veículos</h3>
-            {/* Filtros rápidos */}
-            <div className="flex gap-2 flex-wrap">
-              {QUICK.map((q) => {
-                const active = sortCol === q.col && sortDir === "desc"
-                return (
-                  <button
-                    key={q.col}
-                    onClick={() => {
-                      setSortCol(q.col)
-                      setSortDir("desc")
-                    }}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${
-                      active
-                        ? "bg-emerald-600 text-white shadow"
-                        : "bg-white text-gray-600 border border-gray-200 hover:border-emerald-400"
-                    }`}
-                  >
-                    {q.icon}
-                    {q.label}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  {(["publisher", "contratado", "impressions", "pacingPct", "clicks", "ctr", "vtr", "va"] as const).map(
-                    (col) => {
-                      const isActive = sortCol === col
-                      const label: Record<string, string> = {
-                        publisher: "Veículo",
-                        impressions: "Entregue",
-                        pacingPct: "Pacing",
-                        contratado: "Contratado",
-                        clicks: "Cliques",
-                        ctr: "CTR",
-                        vtr: "VTR",
-                        va: "Viewability",
-                      }
-                      const isLeft = col === "publisher"
-                      const isPacing = col === "pacingPct"
-                      return (
-                        <th
-                          key={col}
-                          onClick={() => toggleSort(col)}
-                          className={`py-2 font-medium cursor-pointer select-none ${
-                            isLeft ? "text-left" : isPacing ? "pl-3" : "text-right"
-                          } ${isActive ? "text-emerald-700" : "text-gray-500"}`}
-                        >
-                          <div className={`flex items-center gap-1 ${isLeft ? "" : isPacing ? "" : "justify-end"}`}>
-                            {label[col]}
-                            <ArrowUpDown
-                              className={`w-3 h-3 shrink-0 ${isActive ? "text-emerald-700" : "text-gray-300"}`}
-                            />
-                          </div>
-                        </th>
-                      )
-                    }
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {adServerSorted.map((p) => (
-                  <tr
-                    key={p.rowKey}
-                    className={`border-b border-gray-50 hover:bg-gray-50 ${p.isSubrow ? "bg-gray-50/60" : ""}`}
-                  >
-                    {/* Veículo */}
-                    <td className="py-2 font-semibold text-gray-800">
-                      {p.isSubrow ? <span className="pl-4 text-gray-400 font-normal">↳</span> : p.name}
-                    </td>
-
-                    {/* Contratado (com badge de tipo) */}
-                    <td className="py-2 text-right text-gray-500 whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-2">
-                        {p.tipo && (
-                          <span
-                            className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                              p.tipo === "CPM"
-                                ? "bg-indigo-100 text-indigo-700"
-                                : p.tipo === "CPV"
-                                ? "bg-teal-100 text-teal-700"
-                                : p.tipo === "CPC"
-                                ? "bg-rose-100 text-rose-700"
-                                : "bg-amber-100 text-amber-700"
-                            }`}
-                          >
-                            {p.tipo}
-                          </span>
-                        )}
-                        <span>
-                          {(p.tipo === "CPM" || p.tipo === "CPV") && p.contrato ? (
-                            formatNum(p.contrato.quantidade ?? 0)
-                          ) : p.tipo === "CPC" && p.contrato ? (
-                            `${formatNum(p.contrato.quantidade ?? 0)} cliques`
-                          ) : p.tipo === "DIARIA" && p.contrato ? (
-                            `${p.diasValidos} / ${p.metaDias} dias`
-                          ) : (
-                            "—"
-                          )}
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* Entregue */}
-                    <td className="py-2 text-right text-emerald-700 font-semibold">
-                      {!p.isSubrow
-                        ? p.contrato?.tipo === "CPC"
-                          ? formatNum(p.clicks)
-                          : formatNum(p.impressions)
-                        : p.contrato?.tipo === "CPC"
-                        ? formatNum(p.clicks)
-                        : p.contrato?.tipo === "CPV"
-                        ? formatNum(p.vieweables)
-                        : ""}
-                    </td>
-
-                    {/* Pacing */}
-                    <td className="py-2 pl-3 w-36">
-                      {p.contrato ? (
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <div
-                              className="h-full rounded-full"
-                              style={{ width: `${p.pacingPct}%`, backgroundColor: pacingColor(p.pacingPct) }}
-                            />
-                          </div>
-                          <span className="text-[10px] text-gray-500 w-8 text-right">{p.pacingPct.toFixed(0)}%</span>
-                        </div>
-                      ) : (
-                        <span className="text-[10px] text-gray-400">s/ contrato</span>
-                      )}
-                    </td>
-
-                    {/* Cliques */}
-                    <td className="py-2 text-right text-gray-700">{!p.isSubrow ? formatNum(p.clicks) : ""}</td>
-
-                    {/* CTR — oculto p/ mídia push (ZAP): cliques não vêm de impressão */}
-                    <td className="py-2 text-right text-indigo-600 font-semibold">
-                      {!p.isSubrow ? (p.name.toUpperCase().includes("ZAP") ? "-" : `${p.ctr.toFixed(2)}%`) : ""}
-                    </td>
-
-                    {/* VTR */}
-                    <td className="py-2 text-right text-teal-600 font-semibold">
-                      {!p.isSubrow ? (p.vtr !== null ? `${p.vtr.toFixed(1)}%` : "—") : ""}
-                    </td>
-
-                    {/* Viewability */}
-                    <td className="py-2 text-right text-blue-600">{!p.isSubrow ? `${p.va.toFixed(1)}%` : ""}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <p className="text-[11px] text-gray-400 mt-3 leading-snug">
-            Pacing capado em 100%. Metas de veículos contratados em mais de uma campanha são somadas. VTR calculado
-            somente para formatos de áudio/vídeo (VAST) — display exibe “—”.
-          </p>
-        </div>
-      ) : (
+      {allAdServer.length === 0 ? (
         <div className="card-overlay rounded-xl shadow-lg p-8 text-center text-gray-400 text-sm">
           Nenhum dado de AdServer para o período selecionado.
         </div>
+      ) : (
+        <>
+          {byCategoria.nacional.length > 0 && (
+            <PortalCard
+              title="Portais Nacionais"
+              subtitle="Veículos de alcance nacional (planilha PROJETOS - PORTAIS NET)"
+              icon={<Globe className="w-4 h-4" />}
+              rows={byCategoria.nacional}
+              kpis={kpisByCategoria.nacional}
+              sortCol={sortCol}
+              onToggleSort={toggleSort}
+            />
+          )}
+
+          {byCategoria.regional.length > 0 && (
+            <PortalCard
+              title="Portais Regionais"
+              subtitle="Veículos de alcance regional (planilha PROJETOS - PORTAIS)"
+              icon={<MapPin className="w-4 h-4" />}
+              rows={byCategoria.regional}
+              kpis={kpisByCategoria.regional}
+              sortCol={sortCol}
+              onToggleSort={toggleSort}
+            />
+          )}
+
+          {byCategoria.outros.length > 0 && (
+            <PortalCard
+              title="Outros"
+              subtitle="Streaming de áudio/vídeo, push e veículos fora das planilhas de projetos"
+              icon={<Radio className="w-4 h-4" />}
+              rows={byCategoria.outros}
+              kpis={kpisByCategoria.outros}
+              sortCol={sortCol}
+              onToggleSort={toggleSort}
+            />
+          )}
+
+          <p className="text-[11px] text-gray-400 leading-snug px-1">
+            Classificação Nacional × Regional vinda das planilhas de projetos (coluna “Veículo”). Pacing capado em 100%;
+            metas de veículos contratados em mais de uma campanha são somadas. VTR só para formatos de áudio/vídeo (VAST).
+          </p>
+        </>
       )}
     </div>
   )
