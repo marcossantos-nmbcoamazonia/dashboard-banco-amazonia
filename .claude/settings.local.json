@@ -65,7 +65,14 @@
       "WebFetch(domain:nmbcoamazonia-api.vercel.app)",
       "WebFetch(domain:dashbrasiladserver.com.br)",
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('total rows:',len\\(d\\)\\); pubs={}; [pubs.setdefault\\(r.get\\('publisher_name'\\),0\\) for r in d]; print\\('publishers:', list\\(pubs.keys\\(\\)\\)\\); vid=[r for r in d if r.get\\('type'\\) and 'video' in str\\(r.get\\('type'\\)\\).lower\\(\\) or r.get\\('complete'\\) or r.get\\('vtr'\\)]; print\\('exemplo com video/vtr:'\\); print\\(json.dumps\\(vid[0], indent=1, ensure_ascii=False\\) if vid else 'nenhum'\\)\")",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(CI=false GENERATE_SOURCEMAP=false npx react-scripts build)",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\\\\n\" \"https://nmbcoamazonia-api.vercel.app/analysis/cache?dataKey=capital-de-giro\")",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\\\\n\" \"https://nmbcoamazonia-api.vercel.app/analysis/cache?dataKey=portais-2026\")",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\\\\n\" \"https://nmbcoamazonia-api.vercel.app/analysis/cache?dataKey=custeio-agricola\")",
+      "Bash(curl -s -w '\\\\nHTTP %{http_code}\\\\n' -X POST https://nmbcoamazonia-api.vercel.app/analysis/cache -H 'Content-Type: application/json' -d '{\"dataKey\":\"zz-test-persist\",\"analysis\":\"analise de teste 123\"}')",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\\\\n\" \"https://nmbcoamazonia-api.vercel.app/analysis/cache?dataKey=zz-test-persist\")",
+      "Bash(curl -s -o /dev/null -w \"cleanup HTTP %{http_code}\\\\n\" -X POST \"https://nmbcoamazonia-api.vercel.app/analysis/cache\" -H \"Content-Type: application/json\" -d '{\"dataKey\":\"zz-test-persist\",\"analysis\":\"\"}')"
     ],
     "deny": [],
     "ask": []

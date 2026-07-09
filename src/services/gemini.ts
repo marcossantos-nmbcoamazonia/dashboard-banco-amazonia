@@ -173,6 +173,90 @@ FORMATO: Exatamente 3 parágrafos curtos:
   return callGemini(prompt)
 }
 
+// ─── Portais 2026 (Display AdServer — Nacionais x Regionais) ────────────────────
+
+interface PortaisVeiculo {
+  name: string
+  impressions: number
+  clicks: number
+  ctr: number
+  va: number
+  vtr: number | null
+  pacingPct: number
+  investimento: number
+}
+
+interface PortaisBloco {
+  veiculos: PortaisVeiculo[]
+  impressions: number
+  clicks: number
+  ctr: number
+  va: number
+  vtr: number
+  investimento: number
+}
+
+interface PortaisData {
+  nacional: PortaisBloco
+  regional: PortaisBloco
+  periodo: { inicio: string; fim: string }
+}
+
+export const analyzePortais = async (data: PortaisData): Promise<string> => {
+  const fmt = (n: number) => new Intl.NumberFormat("pt-BR").format(Math.round(n))
+  const fmtCur = (n: number) =>
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n)
+
+  const bloco = (b: PortaisBloco) =>
+    b.veiculos
+      .slice(0, 15)
+      .map(
+        (v) =>
+          `  • ${v.name}: ${fmt(v.impressions)} imp, ${fmt(v.clicks)} cliques, CTR ${v.ctr.toFixed(2)}%, VTR ${
+            v.vtr !== null ? v.vtr.toFixed(1) + "%" : "—"
+          }, Viewab. ${v.va.toFixed(1)}%, Pacing ${v.pacingPct.toFixed(0)}%, Invest. ${
+            v.investimento > 0 ? fmtCur(v.investimento) : "—"
+          }`
+      )
+      .join("\n")
+
+  const prompt = `Você é um analista de performance de mídia digital (display programático / AdServer).
+Faça a leitura de performance dos PORTAIS da campanha do Banco da Amazônia em 2026, separados em Nacionais e Regionais.
+
+═══════════════════════════════════════
+PERÍODO: ${data.periodo.inicio} a ${data.periodo.fim}
+═══════════════════════════════════════
+
+📊 PORTAIS NACIONAIS (${data.nacional.veiculos.length} veículos)
+  Investimento total: ${fmtCur(data.nacional.investimento)}
+  Impressões: ${fmt(data.nacional.impressions)} | Cliques: ${fmt(data.nacional.clicks)} | CTR ${data.nacional.ctr.toFixed(2)}% | VTR ${data.nacional.vtr.toFixed(1)}% | Viewability ${data.nacional.va.toFixed(1)}%
+${bloco(data.nacional)}
+
+📊 PORTAIS REGIONAIS (${data.regional.veiculos.length} veículos)
+  Investimento total: ${fmtCur(data.regional.investimento)}
+  Impressões: ${fmt(data.regional.impressions)} | Cliques: ${fmt(data.regional.clicks)} | CTR ${data.regional.ctr.toFixed(2)}% | VTR ${data.regional.vtr.toFixed(1)}% | Viewability ${data.regional.va.toFixed(1)}%
+${bloco(data.regional)}
+
+═══════════════════════════════════════
+REGRAS PARA ANÁLISE
+═══════════════════════════════════════
+- Compare Portais Nacionais vs Regionais (entrega, CTR, viewability, pacing e investimento)
+- Aponte os veículos com melhor e pior performance em CTR, VTR e Viewability
+- Comente o pacing (entrega vs contratado) — destaque quem está claramente abaixo do esperado
+- Quando houver investimento informado, comente eficiência (relação investimento x entrega/cliques)
+- Benchmarks display: CTR ~0,05% a 0,30%, Viewability acima de 50%
+- Seja direto e factual, foque na leitura dos dados; cite números específicos
+- NÃO dê sugestões ou recomendações
+- Use português profissional
+
+FORMATO: Exatamente 3 parágrafos curtos:
+1. Panorama geral (nacionais + regionais, entrega e investimento)
+2. Comparação Nacionais x Regionais e destaques por veículo (CTR / VTR / Viewability)
+3. Pacing e pontos de atenção`
+
+  return callGemini(prompt)
+}
+
 interface CusteioAgricolaData {
   totals: {
     cost: number

@@ -14,7 +14,11 @@ export const getCachedAnalysis = async (dataKey: string): Promise<CacheResponse 
       params: { dataKey },
       timeout: 5000,
     })
-    return res.data
+    // O backend responde 200 mesmo sem cache: {cached:false, message:"..."}.
+    // Só é cache válido quando cached === true E há texto de análise; caso contrário
+    // retornamos null para que o chamador gere uma nova análise e a salve no Redis.
+    if (res.data?.cached && res.data?.analysis) return res.data
+    return null
   } catch (err: any) {
     if (err?.response?.status === 404) return null
     // Fallback: tenta localStorage

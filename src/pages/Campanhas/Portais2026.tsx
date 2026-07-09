@@ -2,10 +2,26 @@
 
 import type React from "react"
 import { useRef, useState, useEffect, useMemo, useCallback } from "react"
-import { MousePointerClick, Eye, Play, Gauge, ArrowUpDown, Calendar, X, Globe, MapPin, Radio } from "lucide-react"
+import {
+  MousePointerClick,
+  Eye,
+  Play,
+  Gauge,
+  ArrowUpDown,
+  Calendar,
+  X,
+  Globe,
+  MapPin,
+  Radio,
+  Sparkles,
+  RefreshCw,
+  DollarSign,
+} from "lucide-react"
 import axios from "axios"
 import Loading from "../../components/Loading/Loading"
 import PDFDownloadButton from "../../components/PDFDownloadButton/PDFDownloadButton"
+import { analyzePortais } from "../../services/gemini"
+import { getCachedAnalysis, setCachedAnalysis } from "../../services/analysisCache"
 import {
   CONTRATOS_CAPITAL_DE_GIRO,
   CONTRATOS_CUSTEIO_AGRICOLA,
@@ -34,12 +50,22 @@ interface AdServerRow {
 
 type Categoria = "nacional" | "regional" | "outros"
 
-type SortCol = "publisher" | "contratado" | "impressions" | "pacingPct" | "clicks" | "ctr" | "vtr" | "va"
+type SortCol =
+  | "publisher"
+  | "investimento"
+  | "contratado"
+  | "impressions"
+  | "pacingPct"
+  | "clicks"
+  | "ctr"
+  | "vtr"
+  | "va"
 
 interface PubRow {
   groupKey: string
   name: string
   rowKey: string
+  investimento: number
   impressions: number
   clicks: number
   vieweables: number
@@ -57,6 +83,7 @@ interface PubRow {
 }
 
 interface Kpis {
+  investimento: number
   impressions: number
   clicks: number
   ctr: number
@@ -74,11 +101,13 @@ const SOURCES: { id: number; token: string }[] = [
   { id: 342, token: "sw2qFEMv17" }, // Custeio Agrícola (portais nacionais)
 ]
 
-// Planilhas de projetos: classificam os veículos em Nacional x Regional (coluna "Veículo").
+// Planilhas de projetos: classificam os veículos (Nacional x Regional) e trazem o investimento.
 const SHEET_BASE =
   "https://nmbcoamazonia-api.vercel.app/google/sheets/1-aLCEJBF9_nn8Xl_tq_dC6X6u1ZG__7eSkyUXGgfd2o/data?range="
 const SHEET_NACIONAL = `${SHEET_BASE}${encodeURIComponent("PROJETOS - PORTAIS NET")}`
 const SHEET_REGIONAL = `${SHEET_BASE}${encodeURIComponent("PROJETOS - PORTAIS")}`
+// Fonte secundária de investimento (linhas "PROPOSTA <veículo>" com meio Internet).
+const SHEET_ACOES = `${SHEET_BASE}${encodeURIComponent("AÇÕES MÍDIA")}`
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -96,6 +125,13 @@ const toInt = (v: unknown): number => {
   return isNaN(n) ? 0 : n
 }
 
+// "R$ 9.409,40" → 9409.4
+const parseCurrency = (v: string): number => {
+  if (!v || v.trim() === "" || v.trim() === "-") return 0
+  const s = v.replace(/[R$\s]/g, "").replace(/\./g, "").replace(",", ".")
+  return parseFloat(s) || 0
+}
+
 const toISODate = (d: string): string => {
   if (!d) return ""
   if (d.includes("/")) {
@@ -107,6 +143,8 @@ const toISODate = (d: string): string => {
 }
 
 const formatNum = (v: number) => new Intl.NumberFormat("pt-BR").format(Math.round(v))
+const formatCurrency = (v: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v)
 
 const stripAccents = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "")
 
@@ -125,6 +163,7 @@ const normKey = (raw: string): string => {
 
   // Famílias com nomes divergentes entre templates/contratos/planilhas
   if (s.includes("DOL")) return "DOL" // DOL, RBA - DOL, DIARIO DO PARA - DOL
+  if (s.includes("DIARIO DO PARA")) return "DOL" // "Diário do Pará" (AÇÕES MÍDIA) = portal DOL
   if (s.includes("PEGN")) return "PEGN" // REVISTA PEGN, PEGN (GLOBO)
   if (s.startsWith("O GLOBO")) return "O GLOBO" // jornal O Globo — distinto do portal Globo.com
   if (s.startsWith("GLOBO")) return "GLOBO" // GLOBO, GLOBO.COM
@@ -153,42 +192,88 @@ const PRETTY: Record<string, string> = {
   "DIARIO DA AMAZONIA": "Diário da Amazônia",
 }
 
+// Projetos especiais — REMOVIDOS desta página (tratados à parte). Excluídos de tudo
+// (cards, KPIs e totais). "GO ON" é como vem no adserver; "GOON" incluso por segurança.
+const PROJETOS_ESPECIAIS = new Set<string>(["GO ON", "GOON", "ALRIGHT", "DEEZER", "IDEAL", "SPOTIFY", "ZAP MEDIA"])
+
 // Classificação manual dos veículos que NÃO constam nas planilhas de projetos.
-// Decisão do time: só Roma News é regional; streaming (Spotify/Deezer/Alright),
-// GO ON e Zap entram como nacional. Só vale para chaves fora das planilhas.
+// Decisão do time: Roma News é regional. Só vale para chaves fora das planilhas.
 const MANUAL_OVERRIDE: Record<string, Categoria> = {
   "ROMA NEWS": "regional",
-  "GO ON": "nacional",
-  ALRIGHT: "nacional",
-  DEEZER: "nacional",
-  SPOTIFY: "nacional",
-  "ZAP MEDIA": "nacional",
 }
 
-// Extrai as chaves de veículo (normalizadas) da coluna "Veículo" de uma planilha de projetos.
-// O cabeçalho não está na 1ª linha (há um título mesclado antes), então localizamos a
-// linha/coluna cujo header seja "Veículo".
-const extractVeiculoKeys = (sheetBody: any): Set<string> => {
+// Extrai da planilha de projetos: chaves de veículo (normalizadas) + investimento por veículo.
+// O cabeçalho não está na 1ª linha (há um título mesclado antes), então localizamos as
+// colunas "Veículo" e "Investimento". Um mesmo veículo pode ter várias linhas → soma.
+const extractProjetos = (sheetBody: any): { keys: Set<string>; invest: Map<string, number> } => {
   const keys = new Set<string>()
+  const invest = new Map<string, number>()
   const vals: string[][] | undefined = sheetBody?.data?.values
-  if (!Array.isArray(vals)) return keys
+  if (!Array.isArray(vals)) return { keys, invest }
+
   let hr = -1
-  let hc = -1
+  let hcVeic = -1
+  let hcInvest = -1
   for (let ri = 0; ri < Math.min(6, vals.length) && hr < 0; ri++) {
     for (let ci = 0; ci < vals[ri].length; ci++) {
-      if (stripAccents(vals[ri][ci] || "").trim().toLowerCase() === "veiculo") {
+      const t = stripAccents(vals[ri][ci] || "").trim().toLowerCase()
+      if (t === "veiculo") {
         hr = ri
-        hc = ci
-        break
+        hcVeic = ci
       }
+      if (t === "investimento") hcInvest = ci
     }
   }
-  if (hr < 0) return keys
+  if (hr < 0) return { keys, invest }
+
   for (let ri = hr + 1; ri < vals.length; ri++) {
-    const v = vals[ri]?.[hc]
-    if (v && v.trim()) keys.add(normKey(v))
+    const nome = vals[ri]?.[hcVeic]
+    if (!nome || !nome.trim()) continue
+    const key = normKey(nome)
+    keys.add(key)
+    const inv = hcInvest >= 0 ? parseCurrency(vals[ri][hcInvest] || "") : 0
+    invest.set(key, (invest.get(key) ?? 0) + inv)
   }
-  return keys
+  return { keys, invest }
+}
+
+// Investimento de fallback (aba "AÇÕES MÍDIA"): linhas "PROPOSTA <veículo>" com meio
+// Internet e o valor em "VALOR (94%)". Usado só para veículos sem investimento na planilha PROJETOS.
+const extractAcoesFallback = (sheetBody: any): Map<string, number> => {
+  const fb = new Map<string, number>()
+  const vals: string[][] | undefined = sheetBody?.data?.values
+  if (!Array.isArray(vals)) return fb
+
+  let hr = -1
+  let cAcao = -1
+  let cMeio = -1
+  let cValor = -1
+  for (let ri = 0; ri < Math.min(8, vals.length) && hr < 0; ri++) {
+    for (let ci = 0; ci < vals[ri].length; ci++) {
+      const t = stripAccents(vals[ri][ci] || "").trim().toLowerCase()
+      if (t === "acao") {
+        hr = ri
+        cAcao = ci
+      }
+      if (t === "meios") cMeio = ci
+      if (t.includes("valor") && t.includes("94")) cValor = ci // "VALOR (94%)"
+    }
+  }
+  if (hr < 0 || cValor < 0) return fb
+
+  for (let ri = hr + 1; ri < vals.length; ri++) {
+    const acao = vals[ri]?.[cAcao] || ""
+    if (!/^\s*proposta\s+/i.test(stripAccents(acao))) continue
+    const meio = cMeio >= 0 ? stripAccents(vals[ri][cMeio] || "").toUpperCase() : ""
+    if (!meio.includes("INTERNET")) continue
+    const nome = acao.trim().replace(/^proposta\s+/i, "")
+    const val = parseCurrency(vals[ri][cValor] || "")
+    if (val > 0) {
+      const key = normKey(nome)
+      fb.set(key, (fb.get(key) ?? 0) + val)
+    }
+  }
+  return fb
 }
 
 // Contratos unificados: junta as duas campanhas e, por chave de veículo, SOMA as metas
@@ -239,8 +324,9 @@ interface PortalCardProps {
 
 const PortalCard: React.FC<PortalCardProps> = ({ title, subtitle, icon, rows, kpis, sortCol, onToggleSort }) => {
   const veiculos = rows.filter((r) => !r.isSubrow).length
-  const labels: Record<string, string> = {
+  const labels: Record<SortCol, string> = {
     publisher: "Veículo",
+    investimento: "Investimento",
     impressions: "Entregue",
     pacingPct: "Pacing",
     contratado: "Contratado",
@@ -249,6 +335,7 @@ const PortalCard: React.FC<PortalCardProps> = ({ title, subtitle, icon, rows, kp
     vtr: "VTR",
     va: "Viewability",
   }
+  const cols: SortCol[] = ["publisher", "investimento", "contratado", "impressions", "pacingPct", "clicks", "ctr", "vtr", "va"]
 
   return (
     <div className="card-overlay rounded-xl shadow-lg p-4">
@@ -263,7 +350,11 @@ const PortalCard: React.FC<PortalCardProps> = ({ title, subtitle, icon, rows, kp
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+        <div className="bg-green-50 rounded-lg p-3 text-center">
+          <p className="text-lg font-bold text-green-700">{formatCurrency(kpis.investimento)}</p>
+          <p className="text-[10px] text-gray-500">Investimento</p>
+        </div>
         <div className="bg-emerald-50 rounded-lg p-3 text-center">
           <p className="text-lg font-bold text-emerald-700">{formatNum(kpis.impressions)}</p>
           <p className="text-[10px] text-gray-500">Impressões</p>
@@ -291,27 +382,25 @@ const PortalCard: React.FC<PortalCardProps> = ({ title, subtitle, icon, rows, kp
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-gray-200">
-              {(["publisher", "contratado", "impressions", "pacingPct", "clicks", "ctr", "vtr", "va"] as const).map(
-                (col) => {
-                  const isActive = sortCol === col
-                  const isLeft = col === "publisher"
-                  const isPacing = col === "pacingPct"
-                  return (
-                    <th
-                      key={col}
-                      onClick={() => onToggleSort(col)}
-                      className={`py-2 font-medium cursor-pointer select-none ${
-                        isLeft ? "text-left" : isPacing ? "pl-3" : "text-right"
-                      } ${isActive ? "text-emerald-700" : "text-gray-500"}`}
-                    >
-                      <div className={`flex items-center gap-1 ${isLeft ? "" : isPacing ? "" : "justify-end"}`}>
-                        {labels[col]}
-                        <ArrowUpDown className={`w-3 h-3 shrink-0 ${isActive ? "text-emerald-700" : "text-gray-300"}`} />
-                      </div>
-                    </th>
-                  )
-                }
-              )}
+              {cols.map((col) => {
+                const isActive = sortCol === col
+                const isLeft = col === "publisher"
+                const isPacing = col === "pacingPct"
+                return (
+                  <th
+                    key={col}
+                    onClick={() => onToggleSort(col)}
+                    className={`py-2 font-medium cursor-pointer select-none ${
+                      isLeft ? "text-left" : isPacing ? "pl-3" : "text-right"
+                    } ${isActive ? "text-emerald-700" : "text-gray-500"}`}
+                  >
+                    <div className={`flex items-center gap-1 ${isLeft ? "" : isPacing ? "" : "justify-end"}`}>
+                      {labels[col]}
+                      <ArrowUpDown className={`w-3 h-3 shrink-0 ${isActive ? "text-emerald-700" : "text-gray-300"}`} />
+                    </div>
+                  </th>
+                )
+              })}
             </tr>
           </thead>
           <tbody>
@@ -323,6 +412,11 @@ const PortalCard: React.FC<PortalCardProps> = ({ title, subtitle, icon, rows, kp
                 {/* Veículo */}
                 <td className="py-2 font-semibold text-gray-800">
                   {p.isSubrow ? <span className="pl-4 text-gray-400 font-normal">↳</span> : p.name}
+                </td>
+
+                {/* Investimento */}
+                <td className="py-2 text-right text-green-700 font-semibold whitespace-nowrap">
+                  {!p.isSubrow ? (p.investimento > 0 ? formatCurrency(p.investimento) : "—") : ""}
                 </td>
 
                 {/* Contratado (com badge de tipo) */}
@@ -418,8 +512,14 @@ const Portais2026: React.FC = () => {
   const [rows, setRows] = useState<AdServerRow[]>([])
   const [natKeys, setNatKeys] = useState<Set<string>>(new Set())
   const [regKeys, setRegKeys] = useState<Set<string>>(new Set())
+  const [investByKey, setInvestByKey] = useState<Map<string, number>>(new Map())
+  const [investFallback, setInvestFallback] = useState<Map<string, number>>(new Map())
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: "", end: "" })
+
+  const [aiAnalysis, setAiAnalysis] = useState<string>("")
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
 
   const [sortCol, setSortCol] = useState<SortCol>("impressions")
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc")
@@ -436,7 +536,7 @@ const Portais2026: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const [tplResults, natSheet, regSheet] = await Promise.all([
+        const [tplResults, natSheet, regSheet, acoesSheet] = await Promise.all([
           Promise.all(
             SOURCES.map((s) =>
               axios
@@ -446,6 +546,7 @@ const Portais2026: React.FC = () => {
           ),
           axios.get(SHEET_NACIONAL).catch(() => ({ data: { success: false } })),
           axios.get(SHEET_REGIONAL).catch(() => ({ data: { success: false } })),
+          axios.get(SHEET_ACOES).catch(() => ({ data: { success: false } })),
         ])
 
         const merged: AdServerRow[] = []
@@ -453,8 +554,16 @@ const Portais2026: React.FC = () => {
           if (Array.isArray(res.data)) merged.push(...(res.data as AdServerRow[]))
         })
         setRows(merged)
-        setNatKeys(extractVeiculoKeys(natSheet.data))
-        setRegKeys(extractVeiculoKeys(regSheet.data))
+
+        const nat = extractProjetos(natSheet.data)
+        const reg = extractProjetos(regSheet.data)
+        setNatKeys(nat.keys)
+        setRegKeys(reg.keys)
+        // Merge somando (o veículo pode estar nas duas planilhas, ex.: DOL)
+        const inv = new Map(nat.invest)
+        reg.invest.forEach((v, k) => inv.set(k, (inv.get(k) ?? 0) + v))
+        setInvestByKey(inv)
+        setInvestFallback(extractAcoesFallback(acoesSheet.data))
       } catch (err) {
         console.error("Erro ao buscar dados Portais 2026:", err)
       } finally {
@@ -485,7 +594,10 @@ const Portais2026: React.FC = () => {
     [dateRange]
   )
 
-  const allAdServer = useMemo(() => rows.filter((r) => inDateRange(r.date)), [rows, inDateRange])
+  const allAdServer = useMemo(
+    () => rows.filter((r) => inDateRange(r.date) && !PROJETOS_ESPECIAIS.has(normKey(r.publisher_name))),
+    [rows, inDateRange]
+  )
 
   // ─── Agregação por veículo (chave canônica) ──────────────────────────────────
   const adServerByPublisher = useMemo(() => {
@@ -533,6 +645,9 @@ const Portais2026: React.FC = () => {
     Array.from(map.entries()).forEach(([key, v]) => {
       const contratos = CONTRATOS_PORTAIS.get(key) ?? []
       const categoria = classify(key)
+      // Primário: planilha PROJETOS. Fallback: aba AÇÕES MÍDIA (se PROJETOS não preencheu).
+      const primaryInvest = investByKey.get(key) ?? 0
+      const investimento = primaryInvest > 0 ? primaryInvest : investFallback.get(key) ?? 0
 
       const diasValidos = Array.from(v.byDay.entries()).filter(
         ([date, imp]) => date >= v.inicioPublisher && imp > DIARIA_MIN_IMPRESSOES
@@ -547,6 +662,7 @@ const Portais2026: React.FC = () => {
           groupKey: key,
           name: v.name,
           rowKey: key,
+          investimento,
           impressions: v.impressions,
           clicks: v.clicks,
           vieweables: v.vieweables,
@@ -584,6 +700,7 @@ const Portais2026: React.FC = () => {
           groupKey: key,
           name: v.name,
           rowKey: `${key}__${contrato.tipo}__${i}`,
+          investimento: i === 0 ? investimento : 0,
           impressions: i === 0 ? v.impressions : 0,
           clicks: v.clicks,
           vieweables: v.vieweables,
@@ -603,7 +720,7 @@ const Portais2026: React.FC = () => {
     })
 
     return rowsOut
-  }, [allAdServer, classify])
+  }, [allAdServer, classify, investByKey, investFallback])
 
   // Ordena um subconjunto de linhas mantendo subrows logo abaixo da sua linha principal.
   const sortRows = useCallback(
@@ -613,6 +730,7 @@ const Portais2026: React.FC = () => {
         if (r.isSubrow) return
         let v: number | string = 0
         if (sortCol === "publisher") v = r.name
+        else if (sortCol === "investimento") v = r.investimento
         else if (sortCol === "impressions") v = r.impressions
         else if (sortCol === "clicks") v = r.clicks
         // ZAP é mídia push/CPC (cliques ≫ impressões) → CTR não faz sentido; joga p/ o fim
@@ -645,9 +763,9 @@ const Portais2026: React.FC = () => {
     }
   }, [adServerByPublisher, sortRows])
 
-  // KPIs por categoria — a partir das linhas cruas (respeita o período)
+  // KPIs por categoria — métricas das linhas cruas + investimento das linhas agregadas
   const kpisByCategoria = useMemo(() => {
-    const mk = () => ({ impressions: 0, clicks: 0, vieweables: 0, vStart: 0, vComplete: 0 })
+    const mk = () => ({ investimento: 0, impressions: 0, clicks: 0, vieweables: 0, vStart: 0, vComplete: 0 })
     const g: Record<Categoria, ReturnType<typeof mk>> = { nacional: mk(), regional: mk(), outros: mk() }
     allAdServer.forEach((r) => {
       const t = g[classify(normKey(r.publisher_name))]
@@ -657,7 +775,12 @@ const Portais2026: React.FC = () => {
       t.vStart += toInt(r.start)
       t.vComplete += toInt(r.complete)
     })
+    // Investimento: uma vez por veículo (linha principal)
+    adServerByPublisher.forEach((r) => {
+      if (!r.isSubrow) g[r.categoria].investimento += r.investimento
+    })
     const fin = (t: ReturnType<typeof mk>): Kpis => ({
+      investimento: t.investimento,
       impressions: t.impressions,
       clicks: t.clicks,
       ctr: t.impressions > 0 ? (t.clicks / t.impressions) * 100 : 0,
@@ -665,7 +788,7 @@ const Portais2026: React.FC = () => {
       vtr: t.vStart > 0 ? (t.vComplete / t.vStart) * 100 : 0,
     })
     return { nacional: fin(g.nacional), regional: fin(g.regional), outros: fin(g.outros) }
-  }, [allAdServer, classify])
+  }, [allAdServer, classify, adServerByPublisher])
 
   const totalVeiculos = useMemo(
     () => new Set(adServerByPublisher.filter((r) => !r.isSubrow).map((r) => r.groupKey)).size,
@@ -690,6 +813,69 @@ const Portais2026: React.FC = () => {
     return { min: br(min), max: br(max) }
   }, [allAdServer])
 
+  // ─── Análise IA ──────────────────────────────────────────────────────────────
+  const DATA_KEY = "portais-2026"
+
+  const buildAnalysisPayload = () => {
+    const bloco = (cat: Categoria) => {
+      const veiculos = byCategoria[cat]
+        .filter((r) => !r.isSubrow)
+        .map((r) => ({
+          name: r.name,
+          impressions: r.impressions,
+          clicks: r.clicks,
+          ctr: r.ctr,
+          va: r.va,
+          vtr: r.vtr,
+          pacingPct: r.pacingPct,
+          investimento: r.investimento,
+        }))
+      const k = kpisByCategoria[cat]
+      return {
+        veiculos,
+        impressions: k.impressions,
+        clicks: k.clicks,
+        ctr: k.ctr,
+        va: k.va,
+        vtr: k.vtr,
+        investimento: k.investimento,
+      }
+    }
+    return {
+      nacional: bloco("nacional"),
+      regional: bloco("regional"),
+      periodo: { inicio: dateSpan.min, fim: dateSpan.max },
+    }
+  }
+
+  const runAiAnalysis = async (forceRefresh = false) => {
+    setAiLoading(true)
+    setAiError(null)
+    try {
+      if (!forceRefresh) {
+        const cached = await getCachedAnalysis(DATA_KEY)
+        if (cached) {
+          setAiAnalysis(cached.analysis)
+          setAiLoading(false)
+          return
+        }
+      }
+      const result = await analyzePortais(buildAnalysisPayload())
+      setAiAnalysis(result)
+      await setCachedAnalysis(DATA_KEY, result)
+    } catch {
+      setAiError("Não foi possível gerar a análise. Tente novamente.")
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  // Auto-análise quando os dados terminam de carregar (só se houver veículos,
+  // p/ não cachear no Redis uma análise vazia caso os templates falhem)
+  useEffect(() => {
+    if (!loading && !aiAnalysis && !aiLoading && adServerByPublisher.length > 0) runAiAnalysis()
+  }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
+
   if (loading) return <Loading message="Carregando portais do AdServer..." />
 
   const QUICK: { col: SortCol; label: string; icon: React.ReactNode }[] = [
@@ -697,6 +883,7 @@ const Portais2026: React.FC = () => {
     { col: "vtr", label: "Melhor VTR", icon: <Play className="w-3.5 h-3.5" /> },
     { col: "impressions", label: "Maior Entrega", icon: <Eye className="w-3.5 h-3.5" /> },
     { col: "pacingPct", label: "Melhor Pacing", icon: <Gauge className="w-3.5 h-3.5" /> },
+    { col: "investimento", label: "Maior Investimento", icon: <DollarSign className="w-3.5 h-3.5" /> },
   ]
 
   return (
@@ -774,7 +961,7 @@ const Portais2026: React.FC = () => {
         </span>
       </div>
 
-      {/* ── Filtros rápidos (ordenam os 3 cards) ── */}
+      {/* ── Filtros rápidos (ordenam os cards) ── */}
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs font-semibold text-gray-500">Ordenar por:</span>
         {QUICK.map((q) => {
@@ -832,7 +1019,7 @@ const Portais2026: React.FC = () => {
           {byCategoria.outros.length > 0 && (
             <PortalCard
               title="Outros"
-              subtitle="Streaming de áudio/vídeo, push e veículos fora das planilhas de projetos"
+              subtitle="Veículos fora das planilhas de projetos"
               icon={<Radio className="w-4 h-4" />}
               rows={byCategoria.outros}
               kpis={kpisByCategoria.outros}
@@ -841,9 +1028,68 @@ const Portais2026: React.FC = () => {
             />
           )}
 
+          {/* ── Análise IA ── */}
+          <div className="card-overlay rounded-xl shadow-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+                  <Sparkles className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">Leitura de Performance dos Veículos</h3>
+                  <p className="text-[10px] text-gray-400">Gerado por IA com base nos dados de Nacionais e Regionais</p>
+                </div>
+              </div>
+              <button
+                onClick={() => runAiAnalysis(true)}
+                disabled={aiLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 text-white text-xs font-medium rounded-lg transition-all"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${aiLoading ? "animate-spin" : ""}`} />
+                {aiLoading ? "Analisando..." : aiAnalysis ? "Reanalisar" : "Analisar"}
+              </button>
+            </div>
+
+            {!aiAnalysis && !aiLoading && !aiError && (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <Sparkles className="w-8 h-8 text-emerald-200 mb-2" />
+                <p className="text-sm text-gray-400">
+                  Clique em <strong>Analisar</strong> para gerar a leitura de performance dos veículos
+                </p>
+              </div>
+            )}
+
+            {aiLoading && (
+              <div className="flex items-center justify-center py-8 gap-3">
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                <div
+                  className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"
+                  style={{ animationDelay: "150ms" }}
+                />
+                <div
+                  className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"
+                  style={{ animationDelay: "300ms" }}
+                />
+                <span className="text-sm text-gray-400 ml-1">Processando dados com IA...</span>
+              </div>
+            )}
+
+            {aiError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">{aiError}</div>
+            )}
+
+            {aiAnalysis && !aiLoading && (
+              <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 rounded-lg p-4">
+                <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">{aiAnalysis}</p>
+              </div>
+            )}
+          </div>
+
           <p className="text-[11px] text-gray-400 leading-snug px-1">
-            Classificação Nacional × Regional vinda das planilhas de projetos (coluna “Veículo”). Pacing capado em 100%;
-            metas de veículos contratados em mais de uma campanha são somadas. VTR só para formatos de áudio/vídeo (VAST).
+            Classificação Nacional × Regional e investimento vindos das planilhas de projetos (colunas “Veículo” e
+            “Investimento”); quando não preenchido, o investimento cai para a aba “AÇÕES MÍDIA” (linhas “PROPOSTA”).
+            Pacing capado em 100%; metas de veículos contratados em mais de uma campanha são somadas. VTR só para
+            formatos de áudio/vídeo (VAST).
           </p>
         </>
       )}
