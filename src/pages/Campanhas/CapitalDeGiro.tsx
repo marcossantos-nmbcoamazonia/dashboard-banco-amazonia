@@ -662,11 +662,11 @@ const CapitalDeGiro: React.FC = () => {
                 </p>
               </div>
               <div>
-                <p className="text-purple-200 text-xs">Leads LP</p>
+                <p className="text-purple-200 text-xs">Conversões LP</p>
                 <p className="text-2xl font-bold text-white">
                   {lpSummary ? formatNum(lpSummary.conversion_count) : "—"}
                 </p>
-                {lpSummary && !lpUntracked && (
+                {lpSummary && !lpUntracked && lpSummary.conversion_rate <= 100 && (
                   <p className="text-purple-200 text-xs">{lpSummary.conversion_rate.toFixed(1)}% tx. conv.</p>
                 )}
               </div>
@@ -922,7 +922,15 @@ const CapitalDeGiro: React.FC = () => {
           {/* RD Station — LP Summary */}
           <div className="mt-4 pt-3 border-t border-gray-100">
             <div className="flex items-center justify-between mb-3">
-              <h4 className="text-xs font-bold text-gray-700">LP Capital de Giro · RD Station</h4>
+              <div className="flex items-center gap-1">
+                <h4 className="text-xs font-bold text-gray-700">LP Capital de Giro · RD Station</h4>
+                <div className="relative group">
+                  <HelpCircle className="w-3 h-3 text-gray-400 cursor-help" />
+                  <div className="absolute bottom-full left-0 mb-2 w-60 bg-gray-900 text-white text-[10px] rounded-lg px-2.5 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 leading-relaxed">
+                    “Conversões” conta os eventos de conversão da LP (um mesmo contato pode converter mais de uma vez), por isso difere do card “Leads” (contatos únicos) do RD Station.
+                  </div>
+                </div>
+              </div>
               <div className="flex items-center gap-2">
                 {lpLoading && (
                   <span className="flex items-center gap-1 text-[10px] text-purple-500">
@@ -946,10 +954,10 @@ const CapitalDeGiro: React.FC = () => {
                   </div>
                   <div className="bg-indigo-50 rounded-lg p-2 text-center">
                     <p className="text-lg font-bold text-indigo-700">{formatNum(lpSummary.conversion_count)}</p>
-                    <p className="text-[10px] text-gray-500">Leads</p>
+                    <p className="text-[10px] text-gray-500">Conversões</p>
                   </div>
                   <div className="bg-emerald-50 rounded-lg p-2 text-center">
-                    <p className="text-lg font-bold text-emerald-700">{lpUntracked ? "—" : `${lpSummary.conversion_rate.toFixed(1)}%`}</p>
+                    <p className="text-lg font-bold text-emerald-700">{lpUntracked || lpSummary.conversion_rate > 100 ? "—" : `${lpSummary.conversion_rate.toFixed(1)}%`}</p>
                     <p className="text-[10px] text-gray-500">Tx. Conversão</p>
                   </div>
                 </div>

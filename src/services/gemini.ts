@@ -141,7 +141,7 @@ ${publishersTexto}
 
 📊 LANDING PAGE (RD Station):
   Visitantes: ${fmt(data.lpSummary?.visits_count ?? 0)}
-  Leads LP: ${fmt(data.lpSummary?.conversion_count ?? 0)}
+  Conversões LP: ${fmt(data.lpSummary?.conversion_count ?? 0)}
   Taxa de Conversão LP: ${data.lpSummary?.conversion_rate.toFixed(1) ?? "—"}%
 
 📊 LEADS META (Formulário Tempo Real): ${fmt(data.metaLeadsTotal)}
@@ -277,6 +277,7 @@ interface CusteioAgricolaData {
     quantidade_contratada: number
   }
   metaLeadsTotal: number
+  googleAdsLeads?: number
   lpSummary: { visits_count: number; conversion_count: number; conversion_rate: number } | null
   byVeiculo: { name: string; impressions: number; clicks: number; leads: number; cost: number; ctr: number; cpl: number }[]
   adServerByPublisher: { name: string; impressions: number; clicks: number; ctr: number; va: number }[]
@@ -290,7 +291,8 @@ export const analyzeCusteioAgricola = async (data: CusteioAgricolaData): Promise
 
   const totalImpressions = data.totals.impressions + data.adServerTotals.impressions
   const totalClicks = data.totals.clicks + data.adServerTotals.clicks
-  const totalLeads = data.totals.leads + (data.lpSummary?.conversion_count ?? 0)
+  // Desconta os leads do Google Ads (já contabilizados nas conversões da LP) para não duplicar
+  const totalLeads = data.totals.leads - (data.googleAdsLeads ?? 0) + (data.lpSummary?.conversion_count ?? 0)
   const entregaPct = data.adServerTotals.quantidade_contratada > 0
     ? ((data.adServerTotals.impressions / data.adServerTotals.quantidade_contratada) * 100).toFixed(1)
     : "—"
@@ -336,7 +338,7 @@ ${publishersTexto}
 
 📊 LANDING PAGE (RD Station):
   Visitantes: ${fmt(data.lpSummary?.visits_count ?? 0)}
-  Leads LP: ${fmt(data.lpSummary?.conversion_count ?? 0)}
+  Conversões LP: ${fmt(data.lpSummary?.conversion_count ?? 0)}
   Taxa de Conversão LP: ${data.lpSummary?.conversion_rate.toFixed(1) ?? "—"}%
 
 📊 LEADS META (Formulário): ${fmt(data.metaLeadsTotal)}

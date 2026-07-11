@@ -310,6 +310,14 @@ const CusteioAgricola: React.FC = () => {
     }
   }, [filtered])
 
+  // Leads do Google Ads (fonte Google no consolidado). No TOTAL geral eles são
+  // descontados, pois esses mesmos leads já entram nas conversões da LP (RD Station)
+  // — o Google rastreia a conversão no envio do formulário da LP. Evita dupla contagem.
+  const googleAdsLeads = useMemo(
+    () => filtered.filter((r) => /google/i.test(r.veiculo)).reduce((acc, r) => acc + r.leads, 0),
+    [filtered]
+  )
+
   const metaLeadsByPlatform = useMemo(() => {
     const map = new Map<string, number>()
     consolidadoPorData.forEach((r) => {
@@ -597,7 +605,7 @@ const CusteioAgricola: React.FC = () => {
       const t = byVeiculo.get(v)!
       return { name: v, impressions: t.impressions, clicks: t.clicks, leads: t.leads, cost: t.cost, ctr: t.ctr, cpl: t.cpl }
     })
-    return { totals, adServerTotals, metaLeadsTotal: totals.leads, lpSummary, byVeiculo: byVeiculoArr, adServerByPublisher }
+    return { totals, adServerTotals, metaLeadsTotal: totals.leads, googleAdsLeads, lpSummary, byVeiculo: byVeiculoArr, adServerByPublisher }
   }
 
   const runAiAnalysis = async (forceRefresh = false) => {
@@ -667,11 +675,11 @@ const CusteioAgricola: React.FC = () => {
                 </p>
               </div>
               <div>
-                <p className="text-blue-100 text-xs">Leads LP</p>
+                <p className="text-blue-100 text-xs">Conversões LP</p>
                 <p className="text-2xl font-bold text-white">
                   {lpSummary ? formatNum(lpSummary.conversion_count) : "—"}
                 </p>
-                {lpSummary && !lpUntracked && (
+                {lpSummary && !lpUntracked && lpSummary.conversion_rate <= 100 && (
                   <p className="text-blue-100 text-xs">{lpSummary.conversion_rate.toFixed(1)}% tx. conv.</p>
                 )}
               </div>
@@ -753,7 +761,8 @@ const CusteioAgricola: React.FC = () => {
         const totalImpressions = totals.impressions + adServerTotals.impressions
         const totalClicks = totals.clicks + adServerTotals.clicks
         const totalVideoViews = totals.videoViews
-        const totalLeads = totals.leads + (lpSummary?.conversion_count ?? 0)
+        // Desconta os leads do Google Ads para não duplicar (já contam nas conversões da LP)
+        const totalLeads = totals.leads - googleAdsLeads + (lpSummary?.conversion_count ?? 0)
         const totalCpl = totalLeads > 0 ? totals.cost / totalLeads : 0
         const totalCtr = totalImpressions > 0 ? totalClicks / totalImpressions : 0
         return (
@@ -771,7 +780,7 @@ const CusteioAgricola: React.FC = () => {
               sub={`CPL: ${formatCurrency(totalCpl)}`}
               icon={<Users className="w-4 h-4 text-white" />}
               color="bg-indigo-500"
-              tooltip="Total de leads captados: soma dos leads dos anúncios (formulários Meta) com os leads da Landing Page (RD Station). CPL = Custo por Lead."
+              tooltip="Total de leads captados: leads dos anúncios (formulários Meta) + conversões da Landing Page (RD Station). Os leads do Google Ads são descontados aqui para não contar em dobro, pois já entram nas conversões da LP. CPL = Custo por Lead."
             />
             <KpiCard
               label="Impressões"
@@ -917,7 +926,15 @@ const CusteioAgricola: React.FC = () => {
           {/* RD Station — LP Summary */}
           <div className="mt-4 pt-3 border-t border-gray-100">
             <div className="flex items-center justify-between mb-3">
-              <h4 className="text-xs font-bold text-gray-700">LP Custeio Agrícola · RD Station</h4>
+              <div className="flex items-center gap-1">
+                <h4 className="text-xs font-bold text-gray-700">LP Custeio Agrícola · RD Station</h4>
+                <div className="relative group">
+                  <HelpCircle className="w-3 h-3 text-gray-400 cursor-help" />
+                  <div className="absolute bottom-full left-0 mb-2 w-60 bg-gray-900 text-white text-[10px] rounded-lg px-2.5 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 leading-relaxed">
+                    “Conversões” conta os eventos de conversão da LP (um mesmo contato pode converter mais de uma vez), por isso difere do card “Leads” (contatos únicos) do RD Station.
+                  </div>
+                </div>
+              </div>
               <div className="flex items-center gap-2">
                 {lpLoading && (
                   <span className="flex items-center gap-1 text-[10px]" style={{ color: "#3b7fb8" }}>
@@ -941,10 +958,10 @@ const CusteioAgricola: React.FC = () => {
                   </div>
                   <div className="bg-indigo-50 rounded-lg p-2 text-center">
                     <p className="text-lg font-bold text-indigo-700">{formatNum(lpSummary.conversion_count)}</p>
-                    <p className="text-[10px] text-gray-500">Leads</p>
+                    <p className="text-[10px] text-gray-500">Conversões</p>
                   </div>
                   <div className="bg-emerald-50 rounded-lg p-2 text-center">
-                    <p className="text-lg font-bold text-emerald-700">{lpUntracked ? "—" : `${lpSummary.conversion_rate.toFixed(1)}%`}</p>
+                    <p className="text-lg font-bold text-emerald-700">{lpUntracked || lpSummary.conversion_rate > 100 ? "—" : `${lpSummary.conversion_rate.toFixed(1)}%`}</p>
                     <p className="text-[10px] text-gray-500">Tx. Conversão</p>
                   </div>
                 </div>
