@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState } from "react"
 import { Link, useLocation } from "react-router-dom"
-import { Home, Clock, Eye, TrendingUp, BarChart3, Users, BookOpenText, Radio, Activity, Clapperboard, LineChart, ChevronDown, Share2, ImageIcon, CalendarDays, Megaphone, Globe } from "lucide-react"
+import { Home, Clock, Eye, TrendingUp, BarChart3, Users, BookOpenText, Radio, Activity, Clapperboard, LineChart, ChevronDown, Share2, ImageIcon, CalendarDays, Megaphone, Globe, Landmark } from "lucide-react"
 
 interface MenuItem {
   id: string
@@ -204,6 +204,12 @@ const menuStructure: MenuItemOrGroup[] = [
         label: "Portais - 2026",
         path: "/campanhas/portais-2026",
         icon: <Globe className="w-5 h-5" />,
+      },
+      {
+        id: "centro-cultural",
+        label: "Centro Cultural",
+        path: "/campanhas/centro-cultural",
+        icon: <Landmark className="w-5 h-5" />,
       },
     ],
   },

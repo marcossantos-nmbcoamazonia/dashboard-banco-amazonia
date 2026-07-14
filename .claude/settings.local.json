@@ -82,7 +82,8 @@
       "Bash(curl -s --max-time 110 \"https://nmbcoamazonia-api.vercel.app/rdstation/lp-leads?since=2026-06-01\")",
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('success:',d.get\\('success'\\),'| total contatos:',d.get\\('total'\\)\\); c=d.get\\('contacts',[]\\); print\\('exemplo campos:', list\\(c[0].keys\\(\\)\\) if c else 'vazio'\\)\")",
       "Bash(grep -iB1 -A3 -E \"CapitalDeGiro|CusteioAgricola|services\\\\\\\\\\\\\\\\gemini\")",
-      "Bash(grep -A3 -iE \"CusteioAgricola|services\\\\\\\\\\\\\\\\gemini\")"
+      "Bash(grep -A3 -iE \"CusteioAgricola|services\\\\\\\\\\\\\\\\gemini\")",
+      "Bash(node -p \"require\\('tailwindcss/package.json'\\).version\")"
     ],
     "deny": [],
     "ask": []
