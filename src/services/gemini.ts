@@ -82,6 +82,7 @@ interface CapitalDeGiroData {
     quantidade_contratada: number
   }
   metaLeadsTotal: number
+  googleAdsLeads?: number
   lpSummary: { visits_count: number; conversion_count: number; conversion_rate: number } | null
   byVeiculo: { name: string; impressions: number; clicks: number; leads: number; cost: number; ctr: number; cpl: number }[]
   adServerByPublisher: { name: string; impressions: number; clicks: number; ctr: number; va: number }[]
@@ -95,7 +96,8 @@ export const analyzeCapitalDeGiro = async (data: CapitalDeGiroData): Promise<str
 
   const totalImpressions = data.totals.impressions + data.adServerTotals.impressions
   const totalClicks = data.totals.clicks + data.adServerTotals.clicks
-  const totalLeads = data.totals.leads + (data.lpSummary?.conversion_count ?? 0)
+  // Desconta os leads do Google Ads (já contabilizados nas conversões da LP) para não duplicar
+  const totalLeads = data.totals.leads - (data.googleAdsLeads ?? 0) + (data.lpSummary?.conversion_count ?? 0)
   const entregaPct = data.adServerTotals.quantidade_contratada > 0
     ? ((data.adServerTotals.impressions / data.adServerTotals.quantidade_contratada) * 100).toFixed(1)
     : "—"

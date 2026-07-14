@@ -298,6 +298,14 @@ const CapitalDeGiro: React.FC = () => {
     }
   }, [filtered])
 
+  // Leads do Google Ads (fonte Google no consolidado). No TOTAL geral eles são
+  // descontados, pois esses mesmos leads já entram nas conversões da LP (RD Station)
+  // — o Google rastreia a conversão no envio do formulário da LP. Evita dupla contagem.
+  const googleAdsLeads = useMemo(
+    () => filtered.filter((r) => /google/i.test(r.veiculo)).reduce((acc, r) => acc + r.leads, 0),
+    [filtered]
+  )
+
   // Leads de Meta por plataforma (veículo) — derivado do consolidado
   const metaLeadsByPlatform = useMemo(() => {
     const map = new Map<string, number>()
@@ -587,7 +595,7 @@ const CapitalDeGiro: React.FC = () => {
       const t = byVeiculo.get(v)!
       return { name: v, impressions: t.impressions, clicks: t.clicks, leads: t.leads, cost: t.cost, ctr: t.ctr, cpl: t.cpl }
     })
-    return { totals, adServerTotals, metaLeadsTotal: totals.leads, lpSummary, byVeiculo: byVeiculoArr, adServerByPublisher }
+    return { totals, adServerTotals, metaLeadsTotal: totals.leads, googleAdsLeads, lpSummary, byVeiculo: byVeiculoArr, adServerByPublisher }
   }
 
   const runAiAnalysis = async (forceRefresh = false) => {
@@ -746,7 +754,8 @@ const CapitalDeGiro: React.FC = () => {
         const totalImpressions = totals.impressions + adServerTotals.impressions
         const totalClicks = totals.clicks + adServerTotals.clicks
         const totalVideoViews = totals.videoViews
-        const totalLeads = totals.leads + (lpSummary?.conversion_count ?? 0)
+        // Desconta os leads do Google Ads para não duplicar (já contam nas conversões da LP)
+        const totalLeads = totals.leads - googleAdsLeads + (lpSummary?.conversion_count ?? 0)
         const totalCpl = totalLeads > 0 ? totals.cost / totalLeads : 0
         const totalCtr = totalImpressions > 0 ? totalClicks / totalImpressions : 0
         return (
@@ -764,7 +773,7 @@ const CapitalDeGiro: React.FC = () => {
               sub={`CPL: ${formatCurrency(totalCpl)}`}
               icon={<Users className="w-4 h-4 text-white" />}
               color="bg-indigo-500"
-              tooltip="Total de leads captados: soma dos leads dos anúncios (formulários Meta/LinkedIn) com os leads da Landing Page (RD Station). CPL = Custo por Lead. Média de mercado: R$ 50 a R$ 420 — varia conforme canal, formulário, produto financeiro e nível de qualificação do lead."
+              tooltip="Total de leads captados: leads dos anúncios (formulários Meta/LinkedIn) + conversões da Landing Page (RD Station). Os leads do Google Ads são descontados aqui para não contar em dobro, pois já entram nas conversões da LP. CPL = Custo por Lead. Média de mercado: R$ 50 a R$ 420 — varia conforme canal, formulário, produto financeiro e nível de qualificação do lead."
             />
             <KpiCard
               label="Impressões"

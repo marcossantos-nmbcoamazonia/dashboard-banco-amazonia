@@ -31,8 +31,10 @@ const SHEET_URL =
 const CAMPANHA = "CCBA"
 
 // O "Total spent" da planilha é o investimento LÍQUIDO.
-// O BRUTO acrescenta 12,15% de imposto sobre esse valor.
-const IMPOSTO_PCT = 0.1215
+// O BRUTO é composto: aplica 13,83% (imposto) sobre o líquido e, sobre esse
+// subtotal, mais 10% (comissão). Fator = 1,1383 × 1,10 = 1,25213.
+const IMPOSTO_PCT = 0.1383
+const COMISSAO_PCT = 0.1
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -274,8 +276,8 @@ const CentroCultural: React.FC = () => {
     )
     return {
       ...t,
-      // Bruto = líquido + 12,15% de imposto
-      spentBruto: t.spent * (1 + IMPOSTO_PCT),
+      // Bruto = líquido × 1,1383 (imposto) × 1,10 (comissão)
+      spentBruto: t.spent * (1 + IMPOSTO_PCT) * (1 + COMISSAO_PCT),
       ctr: t.impressions > 0 ? (t.clicks / t.impressions) * 100 : 0,
       cpm: t.impressions > 0 ? (t.spent / t.impressions) * 1000 : 0,
       cpc: t.clicks > 0 ? t.spent / t.clicks : 0,
@@ -524,10 +526,10 @@ const CentroCultural: React.FC = () => {
         <KpiCard
           label="Investimento Bruto"
           value={formatCurrency(totals.spentBruto)}
-          sub="Líquido + 12,15% imposto"
+          sub="Líquido +13,83% +10% com."
           icon={<Receipt className="w-4 h-4 text-white" />}
           color="bg-amber-600"
-          tooltip="Investimento com imposto: valor líquido acrescido de 12,15%. É o custo total da mídia."
+          tooltip="Investimento bruto: sobre o líquido aplica-se 13,83% (imposto) e, sobre esse subtotal, mais 10% (comissão). Fator 1,2521."
         />
         <KpiCard
           label="Investimento Líquido"
