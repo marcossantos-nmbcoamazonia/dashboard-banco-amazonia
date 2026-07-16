@@ -6,7 +6,6 @@ import { ResponsiveLine } from "@nivo/line"
 import {
   DollarSign,
   Eye,
-  Users,
   MousePointerClick,
   Play,
   Heart,
@@ -23,6 +22,7 @@ import {
 import axios from "axios"
 import Loading from "../../components/Loading/Loading"
 import PDFDownloadButton from "../../components/PDFDownloadButton/PDFDownloadButton"
+import XLSXDownloadButton, { type XLSXRow } from "../../components/XLSXDownloadButton/XLSXDownloadButton"
 
 const SHEET_URL =
   "https://nmbcoamazonia-api.vercel.app/google/sheets/1R1ehp35FAxdP1vhI1rT-mIYw3h9fuatHMiS__5V6Yok/data?range=consolidado"
@@ -41,11 +41,12 @@ const COMISSAO_PCT = 0.1
 interface Row {
   date: string // ISO (YYYY-MM-DD)
   campaignName: string
+  adSetName: string
   creativeTitle: string
   spent: number
   impressions: number
   clicks: number
-  reach: number
+  reach: number // fora da tela; usado só na planilha exportada
   videoViews: number
   videoCompletions: number
   engagements: number
@@ -53,7 +54,7 @@ interface Row {
   formato: string // video | estatico | audio
 }
 
-type Metric = "impressions" | "spent" | "reach" | "clicks" | "engagements"
+type Metric = "impressions" | "spent" | "clicks" | "engagements"
 type Gran = "dia" | "semana" | "mes"
 type CreativeSort = "impressions" | "spent" | "clicks" | "ctr" | "engagements"
 
@@ -119,8 +120,16 @@ const periodLabel = (key: string, gran: Gran): string => {
     const [y, m] = key.split("-")
     return `${MESES[Number(m) - 1]}/${y.slice(2)}`
   }
-  const [, m, d] = key.split("-")
-  return `${d}/${m}`
+  const dm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
+  if (gran === "semana") {
+    // Rótulo como intervalo (ex.: "29/06–05/07"): a chave é a segunda-feira,
+    // então só o início confundiria quem lê o último ponto da série.
+    const fim = new Date(`${key}T00:00:00`)
+    fim.setDate(fim.getDate() + 6)
+    const fimIso = `${fim.getFullYear()}-${String(fim.getMonth() + 1).padStart(2, "0")}-${String(fim.getDate()).padStart(2, "0")}`
+    return `${dm(key)}–${dm(fimIso)}`
+  }
+  return dm(key)
 }
 
 // Paleta por veículo (com fallback para veículos novos)
@@ -138,7 +147,6 @@ const colorFor = (veiculo: string, i: number) => VEICULO_COLORS[veiculo] ?? FALL
 const METRIC_LABEL: Record<Metric, string> = {
   impressions: "Impressões",
   spent: "Investimento",
-  reach: "Alcance",
   clicks: "Cliques",
   engagements: "Engajamentos",
 }
@@ -186,7 +194,7 @@ const CentroCultural: React.FC = () => {
   const [selectedVeiculo, setSelectedVeiculo] = useState<string | null>(null)
 
   const [metric, setMetric] = useState<Metric>("impressions")
-  const [gran, setGran] = useState<Gran>("semana")
+  const [gran, setGran] = useState<Gran>("dia")
 
   const [creativeSort, setCreativeSort] = useState<CreativeSort>("impressions")
   const [search, setSearch] = useState("")
@@ -212,6 +220,7 @@ const CentroCultural: React.FC = () => {
           .map((r) => ({
             date: parseDate(r[iDate] ?? ""),
             campaignName: r[idx("Campaign name")] ?? "",
+            adSetName: (r[idx("Ad Set Name")] ?? "").trim(),
             creativeTitle: (r[idx("Creative title")] ?? "").trim(),
             spent: parseNumber(r[idx("Total spent")]),
             impressions: parseInteger(r[idx("Impressions")]),
@@ -283,7 +292,6 @@ const CentroCultural: React.FC = () => {
       cpc: t.clicks > 0 ? t.spent / t.clicks : 0,
       vtr: t.videoViews > 0 ? (t.videoCompletions / t.videoViews) * 100 : 0,
       engRate: t.impressions > 0 ? (t.engagements / t.impressions) * 100 : 0,
-      frequencia: t.reach > 0 ? t.impressions / t.reach : 0,
     }
   }, [filtered])
 
@@ -339,6 +347,28 @@ const CentroCultural: React.FC = () => {
   }, [porData, gran, metric])
 
   const chartColors = useMemo(() => chartData.map((s) => s.color), [chartData])
+
+  // Rótulos do eixo X, na ordem cronológica das séries
+  const chartXs = useMemo(
+    () => Array.from(new Set(chartData.flatMap((s) => s.data.map((d) => String(d.x))))),
+    [chartData]
+  )
+
+  // Mostra no máx. ~14 rótulos, mas SEMPRE inclui o último — sem isso o filtro por
+  // módulo descarta o rótulo final (ex.: em diário, step=20 e o índice final não é múltiplo)
+  // e o gráfico parece terminar antes do último dia com dado.
+  const chartTicks = useMemo(() => {
+    if (chartXs.length === 0) return []
+    const step = Math.max(1, Math.ceil(chartXs.length / 14))
+    const ticks = chartXs.filter((_, i) => i % step === 0)
+    const ultimo = chartXs[chartXs.length - 1]
+    if (!ticks.includes(ultimo)) {
+      // Evita colar no penúltimo rótulo: se ficou perto demais, troca em vez de somar
+      if ((chartXs.length - 1) % step < step / 2 && ticks.length > 1) ticks.pop()
+      ticks.push(ultimo)
+    }
+    return ticks
+  }, [chartXs])
 
   // ─── Criativos ──────────────────────────────────────────────────────────────
   const criativos = useMemo(() => {
@@ -401,14 +431,59 @@ const CentroCultural: React.FC = () => {
 
   const criativosVisiveis = showAll ? criativos : criativos.slice(0, 9)
 
+  // ─── Planilha (.xlsx) — 1 linha por conjunto de anúncios, agregado no período ──
+  // Respeita os filtros de data e de veículo ("dos dados apresentados").
+  // "Início/Encerramento dos relatórios" = 1ª e última data COM DADO DAQUELE conjunto
+  // (a janela de veiculação de cada um), não o período geral da campanha.
+  const exportRows = useMemo<XLSXRow[]>(() => {
+    if (filtered.length === 0) return []
+
+    const map = new Map<
+      string,
+      {
+        impressions: number
+        spent: number
+        reach: number
+        clicks: number
+        engagements: number
+        inicio: string
+        fim: string
+      }
+    >()
+
+    filtered.forEach((r) => {
+      const key = r.adSetName || "(sem conjunto)"
+      const cur =
+        map.get(key) ?? { impressions: 0, spent: 0, reach: 0, clicks: 0, engagements: 0, inicio: r.date, fim: r.date }
+      cur.impressions += r.impressions
+      cur.spent += r.spent
+      cur.reach += r.reach
+      cur.clicks += r.clicks
+      cur.engagements += r.engagements
+      if (r.date < cur.inicio) cur.inicio = r.date
+      if (r.date > cur.fim) cur.fim = r.date
+      map.set(key, cur)
+    })
+
+    return Array.from(map.entries())
+      .sort((a, b) => b[1].impressions - a[1].impressions)
+      .map(([adSet, v]) => ({
+        "Nome do conjunto de anúncios": adSet,
+        Impressões: v.impressions,
+        "Valor usado (BRL)": Number(v.spent.toFixed(2)),
+        Alcance: v.reach,
+        "Cliques no link": v.clicks,
+        "Engajamentos com o post": v.engagements,
+        "Início dos relatórios": brDate(v.inicio),
+        "Encerramento dos relatórios": brDate(v.fim),
+      }))
+  }, [filtered])
+
   if (loading) return <Loading message="Carregando dados do Centro Cultural..." />
 
-  const periodoLabel =
-    porData.length > 0
-      ? `${brDate(porData.reduce((a, r) => (r.date < a ? r.date : a), porData[0].date))} → ${brDate(
-          porData.reduce((a, r) => (r.date > a ? r.date : a), porData[0].date)
-        )}`
-      : "—"
+  const dataMin = porData.length > 0 ? porData.reduce((a, r) => (r.date < a ? r.date : a), porData[0].date) : ""
+  const dataMax = porData.length > 0 ? porData.reduce((a, r) => (r.date > a ? r.date : a), porData[0].date) : ""
+  const periodoLabel = porData.length > 0 ? `${brDate(dataMin)} → ${brDate(dataMax)}` : "—"
 
   return (
     <div ref={contentRef} className="h-full flex flex-col space-y-3 overflow-auto">
@@ -421,7 +496,8 @@ const CentroCultural: React.FC = () => {
             className="w-full h-full object-cover mix-blend-overlay opacity-30"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-amber-900/60 to-rose-800/40" />
-          <div className="absolute top-3 right-3 z-10">
+          <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
+            <XLSXDownloadButton rows={exportRows} fileName="centro-cultural" sheetName="Conjuntos" />
             <PDFDownloadButton contentRef={contentRef} fileName="centro-cultural" />
           </div>
           <div className="absolute bottom-0 left-0 right-0 p-4 flex items-end justify-between">
@@ -439,8 +515,8 @@ const CentroCultural: React.FC = () => {
                 <p className="text-amber-100 text-[10px]">líquido {formatCurrency(totals.spent)}</p>
               </div>
               <div>
-                <p className="text-amber-100 text-xs">Alcance</p>
-                <p className="text-2xl font-bold text-white">{formatNum(totals.reach)}</p>
+                <p className="text-amber-100 text-xs">Impressões</p>
+                <p className="text-2xl font-bold text-white">{formatNum(totals.impressions)}</p>
               </div>
               <div>
                 <p className="text-amber-100 text-xs">Criativos</p>
@@ -522,7 +598,7 @@ const CentroCultural: React.FC = () => {
       )}
 
       {/* ── Big numbers ── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
         <KpiCard
           label="Investimento Bruto"
           value={formatCurrency(totals.spentBruto)}
@@ -542,18 +618,9 @@ const CentroCultural: React.FC = () => {
         <KpiCard
           label="Impressões"
           value={formatNum(totals.impressions)}
-          sub={`Freq.: ${totals.frequencia.toFixed(1)}x`}
           icon={<Eye className="w-4 h-4 text-white" />}
           color="bg-orange-500"
-          tooltip="Número de vezes que os anúncios foram exibidos. Frequência = impressões ÷ alcance (quantas vezes, em média, cada pessoa viu)."
-        />
-        <KpiCard
-          label="Alcance"
-          value={formatNum(totals.reach)}
-          sub="Pessoas únicas"
-          icon={<Users className="w-4 h-4 text-white" />}
-          color="bg-rose-500"
-          tooltip="Número de pessoas únicas alcançadas pela campanha."
+          tooltip="Número de vezes que os anúncios foram exibidos."
         />
         <KpiCard
           label="Cliques"
@@ -587,7 +654,7 @@ const CentroCultural: React.FC = () => {
           <div>
             <h3 className="text-sm font-bold text-gray-900">Linha do Tempo · Entrada de cada Veículo</h3>
             <p className="text-[10px] text-gray-400">
-              Cada linha começa quando o veículo entrou na campanha
+              Cada linha começa quando o veículo entrou na campanha · Dados até {brDate(dataMax)}
             </p>
           </div>
           <div className="flex gap-2 flex-wrap">
@@ -649,12 +716,7 @@ const CentroCultural: React.FC = () => {
                 tickSize: 5,
                 tickPadding: 8,
                 tickRotation: -45,
-                // Evita eixo poluído: mostra no máx. ~14 rótulos
-                tickValues: (() => {
-                  const xs = Array.from(new Set(chartData.flatMap((s) => s.data.map((d) => String(d.x)))))
-                  const step = Math.max(1, Math.ceil(xs.length / 14))
-                  return xs.filter((_, i) => i % step === 0)
-                })(),
+                tickValues: chartTicks,
               }}
               axisLeft={{
                 tickSize: 5,
@@ -662,6 +724,8 @@ const CentroCultural: React.FC = () => {
                 format: (v) => (metric === "spent" ? `R$ ${formatCompact(Number(v))}` : formatCompact(Number(v))),
               }}
               enableGridX={false}
+              // Em diário são centenas de pontos por série: os marcadores poluem e pesam
+              enablePoints={chartXs.length <= 60}
               pointSize={4}
               pointBorderWidth={1}
               pointBorderColor={{ from: "seriesColor" }}

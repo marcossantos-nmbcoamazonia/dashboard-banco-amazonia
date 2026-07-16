@@ -84,7 +84,13 @@
       "Bash(grep -iB1 -A3 -E \"CapitalDeGiro|CusteioAgricola|services\\\\\\\\\\\\\\\\gemini\")",
       "Bash(grep -A3 -iE \"CusteioAgricola|services\\\\\\\\\\\\\\\\gemini\")",
       "Bash(node -p \"require\\('tailwindcss/package.json'\\).version\")",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(npm i *)",
+      "Bash(node -p \"JSON.stringify\\(require\\('./package.json'\\).dependencies.xlsx\\)\")",
+      "Bash(node -p \"require\\('xlsx/package.json'\\).version\")",
+      "Bash(node -e \"console.log\\(JSON.parse\\(require\\('fs'\\).readFileSync\\('node_modules/xlsx/package.json','utf8'\\)\\).version\\)\")",
+      "Bash(node -e \"const X=require\\('xlsx'\\); console.log\\('XLSX ok, version:', X.version, '| json_to_sheet:', typeof X.utils.json_to_sheet\\)\")",
+      "Bash(npm audit *)"
     ],
     "deny": [],
     "ask": []
