@@ -283,6 +283,17 @@ interface CusteioAgricolaData {
   lpSummary: { visits_count: number; conversion_count: number; conversion_rate: number } | null
   byVeiculo: { name: string; impressions: number; clicks: number; leads: number; cost: number; ctr: number; cpl: number }[]
   adServerByPublisher: { name: string; impressions: number; clicks: number; ctr: number; va: number }[]
+  // ── Site (GA4) e leads (RD) — opcionais para retrocompatibilidade ──
+  ga4?: {
+    sessions: number
+    newUsers: number
+    avgEngagementSec: number
+    bounceRate: number
+    topSources: { name: string; sessions: number }[]
+    topRegions: { name: string; sessions: number }[]
+    events: { name: string; count: number }[]
+  }
+  leadsTotal?: number
 }
 
 export const analyzeCusteioAgricola = async (data: CusteioAgricolaData): Promise<string> => {
@@ -293,8 +304,8 @@ export const analyzeCusteioAgricola = async (data: CusteioAgricolaData): Promise
 
   const totalImpressions = data.totals.impressions + data.adServerTotals.impressions
   const totalClicks = data.totals.clicks + data.adServerTotals.clicks
-  // Desconta os leads do Google Ads (já contabilizados nas conversões da LP) para não duplicar
-  const totalLeads = data.totals.leads - (data.googleAdsLeads ?? 0) + (data.lpSummary?.conversion_count ?? 0)
+  // Leads da campanha = conversões da LP (RD Station). Fonte única de leads do site.
+  const totalLeads = data.leadsTotal ?? data.lpSummary?.conversion_count ?? 0
   const entregaPct = data.adServerTotals.quantidade_contratada > 0
     ? ((data.adServerTotals.impressions / data.adServerTotals.quantidade_contratada) * 100).toFixed(1)
     : "—"
@@ -306,6 +317,22 @@ export const analyzeCusteioAgricola = async (data: CusteioAgricolaData): Promise
   const publishersTexto = data.adServerByPublisher.slice(0, 8).map(p =>
     `  • ${p.name}: ${fmt(p.impressions)} imp, CTR ${p.ctr.toFixed(2)}%, Viewability ${p.va.toFixed(1)}%`
   ).join("\n")
+
+  // ── Site (GA4) ──
+  const ga4Texto = data.ga4 && data.ga4.sessions > 0
+    ? `📊 SITE / LANDING PAGE (Google Analytics 4):
+  Sessões: ${fmt(data.ga4.sessions)}
+  Novos usuários: ${fmt(data.ga4.newUsers)}
+  Tempo médio de engajamento: ${Math.round(data.ga4.avgEngagementSec)}s
+  Taxa de rejeição: ${(data.ga4.bounceRate * 100).toFixed(1)}%
+  Veículos que mais trouxeram acessos:
+${data.ga4.topSources.slice(0, 6).map(s => `    • ${s.name}: ${fmt(s.sessions)} sessões`).join("\n")}
+  Regiões com mais acessos:
+${data.ga4.topRegions.slice(0, 6).map(r => `    • ${r.name}: ${fmt(r.sessions)} sessões`).join("\n")}
+  Principais eventos na página:
+${data.ga4.events.slice(0, 6).map(e => `    • ${e.name}: ${fmt(e.count)}`).join("\n")}
+`
+    : ""
 
   const prompt = `Você é um analista de performance de mídia digital especializado em campanhas de crédito rural e agronegócio.
 Analise a campanha "Custeio Agrícola" do Banco da Amazônia, gerenciada pela agência Escala, com base nos dados abaixo.
@@ -338,9 +365,9 @@ ${veiculosTexto}
 📊 TOP PUBLISHERS (Display/Áudio):
 ${publishersTexto}
 
-📊 LANDING PAGE (RD Station):
-  Visitantes: ${fmt(data.lpSummary?.visits_count ?? 0)}
-  Conversões LP: ${fmt(data.lpSummary?.conversion_count ?? 0)}
+${ga4Texto}
+📊 LEADS (RD Station — Landing Page):
+  Total de leads (conversões): ${fmt(totalLeads)}
   Taxa de Conversão LP: ${data.lpSummary?.conversion_rate.toFixed(1) ?? "—"}%
 
 📊 LEADS META (Formulário): ${fmt(data.metaLeadsTotal)}
@@ -348,25 +375,27 @@ ${publishersTexto}
 📊 TOTAIS COMBINADOS:
   Total Impressões (Social + Display): ${fmt(totalImpressions)}
   Total Cliques: ${fmt(totalClicks)}
-  Total Leads: ${fmt(totalLeads)}
+  Sessões no site (GA4): ${fmt(data.ga4?.sessions ?? 0)}
+  Total Leads (RD): ${fmt(totalLeads)}
 
 ═══════════════════════════════════════
 REGRAS PARA ANÁLISE
 ═══════════════════════════════════════
-- Compare a performance entre os canais (Social vs Display/Áudio vs LP)
+- Compare a performance entre os canais (Social vs Display/Áudio vs Site/GA4 vs Leads)
 - Identifique quais veículos e publishers estão performando melhor/pior
-- Avalie a eficiência de conversão (Lead → LP)
+- Comente a origem dos acessos ao site (GA4) e as regiões de maior audiência
+- Avalie a eficiência do funil: impressões → cliques → sessões no site → leads
 - Comente sobre a entrega do Display vs meta contratada
 - Identifique pontos de atenção e destaques positivos
-- Use benchmarks típicos do mercado financeiro/agronegócio: CTR Social ~1-2%, CTR Display ~0.1-0.3%, Viewability Display >50%, Taxa Conversão LP ~10-20%
+- Use benchmarks típicos do mercado financeiro/agronegócio: CTR Social ~1-2%, CTR Display ~0.1-0.3%, Viewability Display >50%, Taxa de rejeição site <60%
 - Seja direto e factual, foque na leitura dos dados
 - NÃO dê sugestões ou recomendações
 - Use português profissional
 - Cite números específicos
 
 FORMATO: Exatamente 3 parágrafos curtos:
-1. Performance geral e investimento
-2. Análise por canal (Social vs Display/Áudio vs LP)
+1. Performance geral, investimento e funil (mídia → site → leads)
+2. Análise por canal (Social vs Display/Áudio) e do site/GA4 (sessões, origem, regiões)
 3. Destaques positivos e pontos de atenção`
 
   return callGemini(prompt)
