@@ -20,6 +20,7 @@ import {
 import axios from "axios"
 import Loading from "../../components/Loading/Loading"
 import PDFDownloadButton from "../../components/PDFDownloadButton/PDFDownloadButton"
+import XLSXDownloadButton, { type XLSXRow } from "../../components/XLSXDownloadButton/XLSXDownloadButton"
 import { analyzePortais } from "../../services/gemini"
 import { getCachedAnalysis, setCachedAnalysis } from "../../services/analysisCache"
 import {
@@ -790,6 +791,45 @@ const Portais2026: React.FC = () => {
     return { nacional: fin(g.nacional), regional: fin(g.regional), outros: fin(g.outros) }
   }, [allAdServer, classify, adServerByPublisher])
 
+  // ─── Planilha (.xlsx) — conteúdo dos 3 cards: 1 linha por veículo ──────────────
+  // Respeita o filtro de data e a ordenação ativa dos cards. Percorre as categorias
+  // na mesma ordem exibida (Nacional → Regional → Outros). O "Contratado" resume as
+  // metas por tipo (um veículo pode ter CPM + DIÁRIA), cada uma com seu pacing.
+  const exportRows = useMemo<XLSXRow[]>(() => {
+    const order: Categoria[] = ["nacional", "regional", "outros"]
+    const catLabel: Record<Categoria, string> = { nacional: "Nacional", regional: "Regional", outros: "Outros" }
+    const out: XLSXRow[] = []
+    order.forEach((cat) => {
+      byCategoria[cat]
+        .filter((r) => !r.isSubrow)
+        .forEach((main) => {
+          const linhas = adServerByPublisher.filter((r) => r.groupKey === main.groupKey && r.tipo)
+          const contratado = linhas.length
+            ? linhas
+                .map((l) => {
+                  const q = l.contrato?.quantidade ?? 0
+                  if (l.tipo === "CPM" || l.tipo === "CPV") return `${l.tipo}: ${formatNum(q)} (${l.pacingPct.toFixed(0)}%)`
+                  if (l.tipo === "CPC") return `CPC: ${formatNum(q)} cliques (${l.pacingPct.toFixed(0)}%)`
+                  return `DIÁRIA: ${l.diasValidos}/${l.metaDias} dias (${l.pacingPct.toFixed(0)}%)`
+                })
+                .join(" · ")
+            : "—"
+          out.push({
+            Categoria: catLabel[cat],
+            Veículo: main.name,
+            "Investimento (BRL)": Number(main.investimento.toFixed(2)),
+            Impressões: main.impressions,
+            Cliques: main.clicks,
+            "CTR (%)": /zap/i.test(main.name) ? "" : Number(main.ctr.toFixed(2)),
+            "VTR (%)": main.vtr !== null ? Number(main.vtr.toFixed(1)) : "",
+            "Viewability (%)": Number(main.va.toFixed(1)),
+            Contratado: contratado,
+          })
+        })
+    })
+    return out
+  }, [byCategoria, adServerByPublisher])
+
   const totalVeiculos = useMemo(
     () => new Set(adServerByPublisher.filter((r) => !r.isSubrow).map((r) => r.groupKey)).size,
     [adServerByPublisher]
@@ -897,7 +937,8 @@ const Portais2026: React.FC = () => {
             className="w-full h-full object-cover mix-blend-overlay opacity-30"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-emerald-900/60 to-teal-800/40" />
-          <div className="absolute top-3 right-3 z-10">
+          <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
+            <XLSXDownloadButton rows={exportRows} fileName="portais-2026" sheetName="Portais" />
             <PDFDownloadButton contentRef={contentRef} fileName="portais-2026" />
           </div>
           <div className="absolute bottom-0 left-0 right-0 p-4 flex items-end justify-between">
