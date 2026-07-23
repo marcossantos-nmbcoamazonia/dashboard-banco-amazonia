@@ -1226,6 +1226,58 @@ const CapitalDeGiro: React.FC = () => {
         </div>
       )}
 
+      {/* ── Criativos (Meta) ── */}
+      {creatives.length > 0 && (
+        <div className="card-overlay rounded-xl shadow-lg p-4">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-gradient-to-br from-purple-500 to-indigo-600">
+                <ImageIcon className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Criativos · Redes Sociais</h3>
+                <p className="text-[10px] text-gray-400">Performance por peça (Facebook + Instagram) · clique para detalhes</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {(["Todos", "Facebook", "Instagram"] as const).map((v) => (
+                <button key={v} onClick={() => setCreativeVeiculo(v)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all ${creativeVeiculo === v ? "bg-purple-600 text-white shadow" : "bg-white text-gray-600 border border-gray-200 hover:border-purple-400"}`}>{v}</button>
+              ))}
+              <select value={creativeSort} onChange={(e) => setCreativeSort(e.target.value as any)}
+                className="text-[11px] border border-gray-200 rounded-md px-2 py-1 text-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                <option value="impressions">Ordenar: Impressões</option>
+                <option value="leads">Ordenar: Leads</option>
+                <option value="ctr">Ordenar: CTR</option>
+                <option value="cost">Ordenar: Investimento</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+            {creatives.slice(0, 12).map((c, i) => (
+              <button key={i} type="button" onClick={() => { setSelectedCreative(c.image); setModalMetric("impressions") }}
+                className="text-left border border-gray-100 rounded-lg p-2 hover:shadow-md hover:border-purple-300 transition-all cursor-pointer">
+                <CreativeThumb src={c.image} alt={c.name} />
+                <div className="mt-2 space-y-1">
+                  <p className="text-[11px] font-bold text-gray-800 leading-tight line-clamp-2 min-h-[28px]" title={c.name}>{c.name.replace(/_/g, " ")}</p>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {c.veiculos.map((v) => (
+                      <span key={v} className="text-[8px] px-1 py-0.5 rounded bg-purple-50 text-purple-600 font-medium">{v}</span>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] pt-1">
+                    <span className="text-gray-400">Impr.</span><span className="text-right font-semibold text-gray-700">{formatCompact(c.impressions)}</span>
+                    <span className="text-gray-400">CTR</span><span className="text-right font-semibold text-purple-600">{formatPct(c.ctr)}</span>
+                    <span className="text-gray-400">Leads</span><span className="text-right font-semibold text-indigo-600">{formatNum(c.leads)}</span>
+                    <span className="text-gray-400">Invest.</span><span className="text-right font-semibold text-gray-700">{formatCompact(c.cost)}</span>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── Análise IA ── */}
       <div className="card-overlay rounded-xl shadow-lg p-4">
         <div className="flex items-center justify-between mb-3">
@@ -1578,58 +1630,6 @@ const CapitalDeGiro: React.FC = () => {
                   </div>
                 )}
               </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Criativos (Meta) ── */}
-      {creatives.length > 0 && (
-        <div className="card-overlay rounded-xl shadow-lg p-4">
-          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-gradient-to-br from-purple-500 to-indigo-600">
-                <ImageIcon className="w-4 h-4 text-white" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-gray-900">Criativos · Redes Sociais</h3>
-                <p className="text-[10px] text-gray-400">Performance por peça (Facebook + Instagram) · clique para detalhes</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              {(["Todos", "Facebook", "Instagram"] as const).map((v) => (
-                <button key={v} onClick={() => setCreativeVeiculo(v)}
-                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all ${creativeVeiculo === v ? "bg-purple-600 text-white shadow" : "bg-white text-gray-600 border border-gray-200 hover:border-purple-400"}`}>{v}</button>
-              ))}
-              <select value={creativeSort} onChange={(e) => setCreativeSort(e.target.value as any)}
-                className="text-[11px] border border-gray-200 rounded-md px-2 py-1 text-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500">
-                <option value="impressions">Ordenar: Impressões</option>
-                <option value="leads">Ordenar: Leads</option>
-                <option value="ctr">Ordenar: CTR</option>
-                <option value="cost">Ordenar: Investimento</option>
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-            {creatives.slice(0, 12).map((c, i) => (
-              <button key={i} type="button" onClick={() => { setSelectedCreative(c.image); setModalMetric("impressions") }}
-                className="text-left border border-gray-100 rounded-lg p-2 hover:shadow-md hover:border-purple-300 transition-all cursor-pointer">
-                <CreativeThumb src={c.image} alt={c.name} />
-                <div className="mt-2 space-y-1">
-                  <p className="text-[11px] font-bold text-gray-800 leading-tight line-clamp-2 min-h-[28px]" title={c.name}>{c.name.replace(/_/g, " ")}</p>
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {c.veiculos.map((v) => (
-                      <span key={v} className="text-[8px] px-1 py-0.5 rounded bg-purple-50 text-purple-600 font-medium">{v}</span>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] pt-1">
-                    <span className="text-gray-400">Impr.</span><span className="text-right font-semibold text-gray-700">{formatCompact(c.impressions)}</span>
-                    <span className="text-gray-400">CTR</span><span className="text-right font-semibold text-purple-600">{formatPct(c.ctr)}</span>
-                    <span className="text-gray-400">Leads</span><span className="text-right font-semibold text-indigo-600">{formatNum(c.leads)}</span>
-                    <span className="text-gray-400">Invest.</span><span className="text-right font-semibold text-gray-700">{formatCompact(c.cost)}</span>
-                  </div>
-                </div>
-              </button>
             ))}
           </div>
         </div>
