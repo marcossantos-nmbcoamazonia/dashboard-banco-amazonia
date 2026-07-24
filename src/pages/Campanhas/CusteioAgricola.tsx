@@ -456,6 +456,14 @@ const CusteioAgricola: React.FC = () => {
 
   const metaLeadsTotal = useMemo(() => consolidadoPorData.reduce((a, r) => a + r.leads, 0), [consolidadoPorData])
 
+  // Leads do Google Ads (PMAX / Demand Gen) — já contabilizados nas conversões do RD.
+  // São descontados dos leads de redes sociais no total para evitar dupla contagem;
+  // YouTube (veículo à parte) NÃO é Google Ads e permanece somando.
+  const googleAdsLeads = useMemo(
+    () => consolidadoPorData.filter((r) => /google/i.test(r.veiculo)).reduce((a, r) => a + r.leads, 0),
+    [consolidadoPorData]
+  )
+
   // ─── Criativos (Meta) ────────────────────────────────────────────────────────
   // O identificador distintivo do criativo é o Ad Set Name (ex.: "PECUÁRIA_1080X1350_SP...").
   // O Ad Name é apenas o placement ("Feed: News Feed", "Instagram Stories").
@@ -791,13 +799,16 @@ const CusteioAgricola: React.FC = () => {
     const visualizacoes = totals.videoViews
     const cliques = totals.clicks + adServerTotals.clicks
     const sessoes = ga4Totals.sessions
-    const leads = lpSummary?.conversion_count ?? rdLeadsPorData.length
+    // Leads totais = RD (conversões da LP) + leads de redes sociais (Meta + YouTube),
+    // descontando os leads do Google Ads (PMAX/Demand Gen), que já entram no RD.
+    const rdLeads = lpSummary?.conversion_count ?? rdLeadsPorData.length
+    const leads = rdLeads + Math.max(metaLeadsTotal - googleAdsLeads, 0)
     return {
-      investimento, impressoes, visualizacoes, cliques, sessoes, leads,
+      investimento, impressoes, visualizacoes, cliques, sessoes, leads, rdLeads,
       ctr: impressoes > 0 ? cliques / impressoes : 0,
       cpl: leads > 0 ? investimento / leads : 0,
     }
-  }, [totals, adServerTotals, ga4Totals, lpSummary, rdLeadsPorData])
+  }, [totals, adServerTotals, ga4Totals, lpSummary, rdLeadsPorData, metaLeadsTotal, googleAdsLeads])
 
   // ─── Análise IA ──────────────────────────────────────────────────────────────
   const DATA_KEY = "custeio-agricola"
@@ -810,7 +821,7 @@ const CusteioAgricola: React.FC = () => {
     return {
       totals: { cost: totals.cost, leads: totals.leads, impressions: totals.impressions, clicks: totals.clicks, videoViews: totals.videoViews, ctr: totals.ctr, cpl: totals.leads > 0 ? totals.cost / totals.leads : 0, vtr: totals.vtr },
       adServerTotals: { impressions: adServerTotals.impressions, clicks: adServerTotals.clicks, vieweables: adServerTotals.vieweables, ctr: adServerTotals.ctr, va: adServerTotals.va, quantidade_contratada: adServerTotals.quantidade_contratada },
-      metaLeadsTotal, googleAdsLeads: 0, lpSummary, byVeiculo: byVeiculoArr,
+      metaLeadsTotal, googleAdsLeads, lpSummary, byVeiculo: byVeiculoArr,
       adServerByPublisher: adServerByPublisher.filter((r) => !r.isSubrow).map((p) => ({ name: p.name, impressions: p.impressions, clicks: p.clicks, ctr: p.ctr, va: p.va })),
       ga4: {
         sessions: ga4Totals.sessions, newUsers: ga4Totals.newUsers, avgEngagementSec: ga4Totals.avgEngagement, bounceRate: ga4Totals.bounceRate,
@@ -923,7 +934,7 @@ const CusteioAgricola: React.FC = () => {
             { el: <FunnelStep key="vv" label="Visualizações" value={formatCompact(funnel.visualizacoes)} sub={`VTR ${formatPct(totals.vtr)}`} icon={<Play className="w-3.5 h-3.5" />} tooltip="Vídeos iniciados nas Redes Sociais. VTR = conclusões ÷ inícios." /> },
             { el: <FunnelStep key="clk" label="Cliques" value={formatCompact(funnel.cliques)} sub={`CTR ${formatPct(funnel.ctr)}`} icon={<MousePointerClick className="w-3.5 h-3.5" />} tooltip="Cliques somando Redes Sociais e Display. CTR = cliques ÷ impressões." /> },
             { el: <FunnelStep key="ses" label="Sessões" value={hasGa4 ? formatCompact(funnel.sessoes) : "—"} sub={hasGa4 ? `${formatCompact(ga4Totals.newUsers)} novos` : "GA4"} icon={<Globe2 className="w-3.5 h-3.5" />} tooltip="Sessões na Landing Page medidas pelo Google Analytics 4 (GA4)." /> },
-            { el: <FunnelStep key="lead" label="Leads" value={lpSummary ? formatNum(funnel.leads) : "—"} sub={funnel.cpl > 0 ? `CPL ${formatCurrency(funnel.cpl)}` : "RD Station"} icon={<Users className="w-3.5 h-3.5" />} tooltip="Leads (conversões) captados na LP, medidos pelo RD Station. CPL = investimento ÷ leads." /> },
+            { el: <FunnelStep key="lead" label="Leads" value={lpSummary ? formatNum(funnel.leads) : "—"} sub={funnel.cpl > 0 ? `CPL ${formatCurrency(funnel.cpl)}` : "RD Station"} icon={<Users className="w-3.5 h-3.5" />} tooltip="Leads totais = conversões da LP (RD Station) + leads de redes sociais (Meta e YouTube). Os leads do Google Ads (PMAX/Demand Gen) são descontados por já entrarem no RD. CPL = investimento ÷ leads." /> },
           ].map((s, i, arr) => (
             <div key={i} className="flex items-stretch gap-2 flex-1 min-w-[140px]">
               {s.el}
