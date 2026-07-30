@@ -5,7 +5,7 @@ import { useRef, useState, useEffect, useMemo, useCallback } from "react"
 import {
   DollarSign, Users, MousePointerClick, Eye, Play, Sparkles, RefreshCw,
   ArrowUpDown, Radio, ChevronRight, ChevronDown, Calendar, X, ArrowRight, Globe2,
-  MapPin, Activity, Image as ImageIcon, MonitorPlay, Target,
+  MapPin, Activity, Image as ImageIcon, MonitorPlay, Target, TrendingUp,
 } from "lucide-react"
 import axios from "axios"
 import { ResponsiveLine } from "@nivo/line"
@@ -16,7 +16,7 @@ import { analyzeCusteioAgricola } from "../../services/gemini"
 import { getCachedAnalysis, setCachedAnalysis } from "../../services/analysisCache"
 import { CONTRATOS_CUSTEIO_AGRICOLA, DIARIA_MIN_IMPRESSOES, diasRestantesNoMes, type TipoCompra, type ContratoVeiculo } from "../../data/adserverContratos"
 import {
-  parseGA4Int, parseGA4Rate, prettySource, normalizeRegionToPT, ufSigla, EVENT_LABELS, blueRamp,
+  parseGA4Int, parseGA4Rate, prettySource, normalizeRegionToPT, ufSigla, blueRamp,
 } from "./custeioGa4"
 
 // ─── Constantes ─────────────────────────────────────────────────────────────
@@ -29,6 +29,17 @@ const RD_LEADS_PAGES = 20 // páginas de 100 leads paginadas do RD para o gráfi
 const BLUE_DARK = "#2d6fa3"
 const BLUE = "#3b7fb8"
 const BLUE_LIGHT = "#4a9ece"
+
+// Cores por veículo (para o gráfico de evolução no tempo)
+const VEICULO_COLOR: Record<string, string> = {
+  Facebook: "#1877F2",
+  Instagram: "#C13584",
+  YouTube: "#FF0000",
+  "Google Ads - PMAX": "#34A853",
+  "Google Ads - Demand Gen": "#4285F4",
+  "Google Ads": "#4285F4",
+}
+const colorForVeiculo = (v: string, i: number) => VEICULO_COLOR[v] ?? ["#2d6fa3", "#3b7fb8", "#4a9ece", "#6bb5e0", "#7c3aed"][i % 5]
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -73,8 +84,7 @@ interface AdServerRow {
 }
 
 interface GA4Row { date: string; newUsers: number; sessions: number; engagement: number; source: string; bounce: number }
-interface GA4EventRow { date: string; event: string; count: number }
-interface GA4RegionRow { date: string; region: string; sessions: number }
+interface GA4RegionRow { date: string; region: string; sessions: number; city: string }
 interface RdLead { uuid: string; created_at: string }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -208,7 +218,6 @@ const CusteioAgricola: React.FC = () => {
   const [adServer4, setAdServer4] = useState<AdServerRow[]>([])
   const [offlineRaw, setOfflineRaw] = useState<string[][]>([])
   const [ga4, setGa4] = useState<GA4Row[]>([])
-  const [ga4Events, setGa4Events] = useState<GA4EventRow[]>([])
   const [ga4Region, setGa4Region] = useState<GA4RegionRow[]>([])
   const [rdLeads, setRdLeads] = useState<RdLead[]>([])
   const [rdLeadsLoading, setRdLeadsLoading] = useState(true)
@@ -221,6 +230,9 @@ const CusteioAgricola: React.FC = () => {
   const [creativeVeiculo, setCreativeVeiculo] = useState<"Todos" | "Facebook" | "Instagram">("Todos")
   const [selectedCreative, setSelectedCreative] = useState<string | null>(null) // image URL do criativo aberto no modal
   const [modalMetric, setModalMetric] = useState<"impressions" | "clicks" | "leads" | "cost">("impressions")
+  // Gráfico de evolução (redes sociais)
+  type ChartMetric = "impressions" | "clicks" | "cost" | "leads" | "videoViews" | "ctr" | "vtr"
+  const [chartMetric, setChartMetric] = useState<ChartMetric>("impressions")
   type SortCol = "publisher" | "contratado" | "impressions" | "pacingPct" | "clicks" | "ctr" | "va"
   const [sortCol, setSortCol] = useState<SortCol>("impressions")
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc")
@@ -230,12 +242,12 @@ const CusteioAgricola: React.FC = () => {
     else { setSortCol(col); setSortDir("desc") }
   }
 
-  // ─── Fetch principal (Consolidado + AdServer + Off-line + GA4 x3) ────────────
+  // ─── Fetch principal (Consolidado + AdServer + Off-line + GA4 x2) ────────────
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const [consRes, ad1, ad2, ad3, ad4, offRes, ga4Res, ga4EvRes, ga4RgRes] = await Promise.all([
+        const [consRes, ad1, ad2, ad3, ad4, offRes, ga4Res, ga4RgRes] = await Promise.all([
           axios.get(`${SHEET_BASE}?range=consolidado`),
           axios.get("https://dashbrasiladserver.com.br/api/templates/310/bi?token=NOP2VowjgW").catch(() => ({ data: [] })),
           axios.get("https://dashbrasiladserver.com.br/api/templates/315/bi?token=EJb3iiYWom").catch(() => ({ data: [] })),
@@ -243,7 +255,6 @@ const CusteioAgricola: React.FC = () => {
           axios.get("https://dashbrasiladserver.com.br/api/templates/342/bi?token=sw2qFEMv17").catch(() => ({ data: [] })),
           axios.get("https://nmbcoamazonia-api.vercel.app/google/sheets/1gyIm-B64gY7nEuJ_VGchcEzAvINEHgFSmoAbL5RYMLo/data?range=Offline%20-%20Consolidado").catch(() => ({ data: { success: false } })),
           axios.get(`${SHEET_BASE}?range=GA4`).catch(() => ({ data: { success: false } })),
-          axios.get(`${SHEET_BASE}?range=GA4%20-%20Events`).catch(() => ({ data: { success: false } })),
           axios.get(`${SHEET_BASE}?range=GA4%20-%20Region`).catch(() => ({ data: { success: false } })),
         ])
 
@@ -295,26 +306,16 @@ const CusteioAgricola: React.FC = () => {
             bounce: parseGA4Rate(r[iBounce]),
           })))
         }
-        // GA4 — eventos
-        if (ga4EvRes.data?.success && ga4EvRes.data?.data?.values) {
-          const rows: string[][] = ga4EvRes.data.data.values
-          const h = rows[0]
-          const iEv = h.indexOf("Event name"), iCt = h.indexOf("Event count")
-          setGa4Events(rows.slice(1).map((r) => ({
-            date: (r[0] || "").slice(0, 10),
-            event: r[iEv] || "",
-            count: parseGA4Int(r[iCt]),
-          })))
-        }
-        // GA4 — regiões
+        // GA4 — regiões (agora com City)
         if (ga4RgRes.data?.success && ga4RgRes.data?.data?.values) {
           const rows: string[][] = ga4RgRes.data.data.values
           const h = rows[0]
-          const iRg = h.indexOf("Region"), iSs = h.indexOf("Sessions")
+          const iRg = h.indexOf("Region"), iSs = h.indexOf("Sessions"), iCity = h.indexOf("City")
           setGa4Region(rows.slice(1).map((r) => ({
             date: (r[0] || "").slice(0, 10),
             region: r[iRg] || "",
             sessions: parseGA4Int(r[iSs]),
+            city: iCity >= 0 ? (r[iCity] || "") : "",
           })))
         }
       } catch (err) {
@@ -548,7 +549,6 @@ const CusteioAgricola: React.FC = () => {
 
   // ─── GA4 ─────────────────────────────────────────────────────────────────────
   const ga4PorData = useMemo(() => ga4.filter((r) => inDateRange(r.date)), [ga4, inDateRange])
-  const ga4EventsPorData = useMemo(() => ga4Events.filter((r) => inDateRange(r.date)), [ga4Events, inDateRange])
   const ga4RegionPorData = useMemo(() => ga4Region.filter((r) => inDateRange(r.date)), [ga4Region, inDateRange])
 
   const ga4Totals = useMemo(() => {
@@ -585,22 +585,30 @@ const CusteioAgricola: React.FC = () => {
     return xs.filter((_, i) => i % step === 0)
   }, [sessionsByDay])
 
-  const sessionsBySource = useMemo(() => {
-    const map = new Map<string, number>()
+  // Desempenho por canal (origem da sessão): sessões, novos usuários, engajamento
+  // médio (engagement/sessões) e taxa de rejeição (ponderada por sessões).
+  const channelStats = useMemo(() => {
+    const map = new Map<string, { sessions: number; newUsers: number; engagement: number; bounceW: number }>()
     ga4PorData.forEach((r) => {
       const name = prettySource(r.source)
-      map.set(name, (map.get(name) || 0) + r.sessions)
+      const cur = map.get(name) ?? { sessions: 0, newUsers: 0, engagement: 0, bounceW: 0 }
+      cur.sessions += r.sessions
+      cur.newUsers += r.newUsers
+      cur.engagement += r.engagement
+      cur.bounceW += r.bounce * r.sessions
+      map.set(name, cur)
     })
-    return Array.from(map.entries()).map(([name, sessions]) => ({ name, sessions })).sort((a, b) => b.sessions - a.sessions)
-  }, [ga4PorData])
-
-  const eventsByName = useMemo(() => {
-    const map = new Map<string, number>()
-    ga4EventsPorData.forEach((r) => { if (r.event) map.set(r.event, (map.get(r.event) || 0) + r.count) })
     return Array.from(map.entries())
-      .map(([event, count]) => ({ event, label: EVENT_LABELS[event] ?? event, count }))
-      .sort((a, b) => b.count - a.count)
-  }, [ga4EventsPorData])
+      .map(([name, v]) => ({
+        name,
+        sessions: v.sessions,
+        newUsers: v.newUsers,
+        avgEngagement: v.sessions > 0 ? v.engagement / v.sessions : 0,
+        bounceRate: v.sessions > 0 ? v.bounceW / v.sessions : 0,
+      }))
+      .sort((a, b) => b.sessions - a.sessions)
+  }, [ga4PorData])
+  const channelMax = useMemo(() => Math.max(...channelStats.map((c) => c.sessions), 1), [channelStats])
 
   const sessionsByRegion = useMemo(() => {
     const map = new Map<string, number>()
@@ -620,6 +628,73 @@ const CusteioAgricola: React.FC = () => {
   const regionTotal = useMemo(() => regionRanking.reduce((a, r) => a + r.sessions, 0), [regionRanking])
 
   const getRegionColor = useCallback((s: number) => (s <= 0 ? "#e5e7eb" : blueRamp(regionMax > 0 ? s / regionMax : 0)), [regionMax])
+
+  // Top cidades (novo campo City da API de region) — exclui "(not set)"/vazio
+  const topCities = useMemo(() => {
+    const map = new Map<string, number>()
+    ga4RegionPorData.forEach((r) => {
+      const c = (r.city || "").trim()
+      if (!c || /^\(.*\)$/.test(c)) return
+      map.set(c, (map.get(c) || 0) + r.sessions)
+    })
+    return Array.from(map.entries()).map(([name, sessions]) => ({ name, sessions })).sort((a, b) => b.sessions - a.sessions)
+  }, [ga4RegionPorData])
+  const cityMax = useMemo(() => Math.max(...topCities.map((c) => c.sessions), 1), [topCities])
+  const cityTotal = useMemo(() => topCities.reduce((a, c) => a + c.sessions, 0), [topCities])
+
+  // ─── Gráfico de evolução no tempo (redes sociais) ────────────────────────────
+  const chartMetricLabel: Record<ChartMetric, string> = {
+    impressions: "Impressões", clicks: "Cliques", cost: "Investimento",
+    leads: "Leads", videoViews: "Visualizações", ctr: "CTR", vtr: "VTR",
+  }
+  const chartIsPct = chartMetric === "ctr" || chartMetric === "vtr"
+  const chartIsCurrency = chartMetric === "cost"
+
+  const chartData = useMemo(() => {
+    type DaySum = { cost: number; impressions: number; clicks: number; leads: number; videoViews: number; videoCompletions: number }
+    const perVeic = new Map<string, Map<string, DaySum>>()
+    consolidadoPorData.forEach((r) => {
+      const iso = toISODate(r.date)
+      if (!iso || !r.veiculo) return
+      if (!perVeic.has(r.veiculo)) perVeic.set(r.veiculo, new Map())
+      const days = perVeic.get(r.veiculo)!
+      const cur = days.get(iso) ?? { cost: 0, impressions: 0, clicks: 0, leads: 0, videoViews: 0, videoCompletions: 0 }
+      cur.cost += r.cost; cur.impressions += r.impressions; cur.clicks += r.clicks
+      cur.leads += r.leads; cur.videoViews += r.videoViews; cur.videoCompletions += r.videoCompletions
+      days.set(iso, cur)
+    })
+    const value = (s: DaySum): number => {
+      switch (chartMetric) {
+        case "impressions": return s.impressions
+        case "clicks": return s.clicks
+        case "cost": return s.cost
+        case "leads": return s.leads
+        case "videoViews": return s.videoViews
+        case "ctr": return s.impressions > 0 ? (s.clicks / s.impressions) * 100 : 0
+        case "vtr": return s.videoViews > 0 ? (s.videoCompletions / s.videoViews) * 100 : 0
+        default: return 0
+      }
+    }
+    return Array.from(perVeic.entries())
+      .map(([veic, days], i) => ({
+        id: veic,
+        color: colorForVeiculo(veic, i),
+        data: Array.from(days.entries())
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([iso, s]) => ({ x: iso, y: Number(value(s).toFixed(chartIsPct || chartIsCurrency ? 2 : 0)) })),
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id))
+  }, [consolidadoPorData, chartMetric, chartIsPct, chartIsCurrency])
+
+  const chartColors = useMemo(() => chartData.map((s) => s.color), [chartData])
+  const chartHasData = chartData.some((s) => s.data.length > 0)
+  const chartTicks = useMemo(() => {
+    const set = new Set<string>()
+    consolidadoPorData.forEach((r) => { const iso = toISODate(r.date); if (iso) set.add(iso) })
+    const xs = Array.from(set).sort((a, b) => a.localeCompare(b))
+    const step = Math.ceil(xs.length / 8) || 1
+    return xs.filter((_, i) => i % step === 0)
+  }, [consolidadoPorData])
 
   // ─── Leads por dia (RD, agregando created_at) ────────────────────────────────
   const rdLeadsPorData = useMemo(() => rdLeads.filter((l) => inDateRange(l.created_at)), [rdLeads, inDateRange])
@@ -825,7 +900,7 @@ const CusteioAgricola: React.FC = () => {
       adServerByPublisher: adServerByPublisher.filter((r) => !r.isSubrow).map((p) => ({ name: p.name, impressions: p.impressions, clicks: p.clicks, ctr: p.ctr, va: p.va })),
       ga4: {
         sessions: ga4Totals.sessions, newUsers: ga4Totals.newUsers, avgEngagementSec: ga4Totals.avgEngagement, bounceRate: ga4Totals.bounceRate,
-        topSources: sessionsBySource.slice(0, 8), topRegions: regionRanking.slice(0, 8), events: eventsByName.map((e) => ({ name: e.label, count: e.count })),
+        topSources: channelStats.slice(0, 8).map((c) => ({ name: c.name, sessions: c.sessions })), topRegions: regionRanking.slice(0, 8),
       },
       leadsTotal: funnel.leads,
     }
@@ -855,8 +930,6 @@ const CusteioAgricola: React.FC = () => {
 
   if (loading) return <Loading message="Carregando dados da campanha..." />
 
-  const sourceMax = Math.max(...sessionsBySource.map((s) => s.sessions), 1)
-  const eventsMax = Math.max(...eventsByName.map((e) => e.count), 1)
   const hasGa4 = ga4Totals.sessions > 0
 
   return (
@@ -994,6 +1067,72 @@ const CusteioAgricola: React.FC = () => {
         </div>
       )}
 
+      {/* ── Evolução no tempo (redes sociais) ── */}
+      {chartHasData && (
+        <div className="card-overlay rounded-xl shadow-lg p-4">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${BLUE}, ${BLUE_LIGHT})` }}>
+                <TrendingUp className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Evolução no Tempo · Redes Sociais</h3>
+                <p className="text-[10px] text-gray-400">{chartMetricLabel[chartMetric]} por dia, por veículo (consolidado)</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {(["impressions", "clicks", "cost", "leads", "videoViews", "ctr", "vtr"] as const).map((m) => (
+                <button key={m} onClick={() => setChartMetric(m)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all ${chartMetric === m ? "text-white shadow" : "bg-white text-gray-600 border border-gray-200 hover:border-blue-400"}`}
+                  style={chartMetric === m ? { backgroundColor: BLUE } : {}}>
+                  {chartMetricLabel[m]}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ height: 300 }}>
+            <ResponsiveLine
+              data={chartData}
+              colors={chartColors}
+              margin={{ top: 16, right: 24, bottom: 68, left: 60 }}
+              xScale={{ type: "point" }}
+              yScale={{ type: "linear", min: 0, max: "auto" }}
+              curve="monotoneX"
+              axisTop={null}
+              axisRight={null}
+              axisBottom={{ tickSize: 5, tickPadding: 8, tickRotation: -45, tickValues: chartTicks, format: (v) => shortBR(String(v)) }}
+              axisLeft={{ tickSize: 5, tickPadding: 8, format: (v) => (chartIsCurrency ? `R$ ${formatCompact(Number(v))}` : chartIsPct ? `${Number(v).toFixed(0)}%` : formatCompact(Number(v))) }}
+              enableGridX={false}
+              enablePoints={chartTicks.length <= 40}
+              pointSize={5}
+              pointBorderWidth={1}
+              pointBorderColor={{ from: "seriesColor" }}
+              pointColor="#ffffff"
+              useMesh
+              enableSlices="x"
+              sliceTooltip={({ slice }) => (
+                <div className="bg-white rounded-lg shadow-xl border border-gray-100 px-3 py-2">
+                  <p className="text-[11px] font-bold text-gray-900 mb-1">{shortBR(String(slice.points[0]?.data.x))}</p>
+                  {slice.points.map((p) => (
+                    <div key={p.id} className="flex items-center gap-2 text-[11px]">
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.seriesColor }} />
+                      <span className="text-gray-600">{String(p.seriesId)}:</span>
+                      <span className="font-semibold text-gray-900">
+                        {chartIsCurrency ? formatCurrency(Number(p.data.y)) : chartIsPct ? `${Number(p.data.y).toFixed(2)}%` : formatNum(Number(p.data.y))}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              legends={[{
+                anchor: "bottom", direction: "row", translateY: 60, itemsSpacing: 12,
+                itemWidth: 110, itemHeight: 16, symbolSize: 10, symbolShape: "circle", itemTextColor: "#6b7280",
+              }]}
+            />
+          </div>
+        </div>
+      )}
+
       {/* ── Análise IA ── */}
       <div className="card-overlay rounded-xl shadow-lg p-4">
         <div className="flex items-center justify-between mb-3">
@@ -1031,6 +1170,303 @@ const CusteioAgricola: React.FC = () => {
         {aiAnalysis && !aiLoading && (
           <div className="rounded-lg p-4" style={{ background: "linear-gradient(135deg, #eff6ff, #e0f2fe)", border: "1px solid #bfdbfe" }}>
             <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">{aiAnalysis}</p>
+          </div>
+        )}
+      </div>
+
+      {/* ── Criativos (Meta) ── */}
+      {creatives.length > 0 && (
+        <div className="card-overlay rounded-xl shadow-lg p-4">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${BLUE}, ${BLUE_LIGHT})` }}>
+                <ImageIcon className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Criativos · Redes Sociais</h3>
+                <p className="text-[10px] text-gray-400">Performance por peça (Facebook + Instagram) · clique para detalhes</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {(["Todos", "Facebook", "Instagram"] as const).map((v) => (
+                <button key={v} onClick={() => setCreativeVeiculo(v)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all ${creativeVeiculo === v ? "text-white shadow" : "bg-white text-gray-600 border border-gray-200 hover:border-blue-400"}`}
+                  style={creativeVeiculo === v ? { backgroundColor: BLUE } : {}}>{v}</button>
+              ))}
+              <select value={creativeSort} onChange={(e) => setCreativeSort(e.target.value as any)}
+                className="text-[11px] border border-gray-200 rounded-md px-2 py-1 text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="impressions">Ordenar: Impressões</option>
+                <option value="leads">Ordenar: Leads</option>
+                <option value="ctr">Ordenar: CTR</option>
+                <option value="cost">Ordenar: Investimento</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+            {creatives.slice(0, 12).map((c, i) => (
+              <button key={i} type="button" onClick={() => { setSelectedCreative(c.image); setModalMetric("impressions") }}
+                className="text-left border border-gray-100 rounded-lg p-2 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer">
+                <CreativeThumb src={c.image} alt={c.name} />
+                <div className="mt-2 space-y-1">
+                  <p className="text-[11px] font-bold text-gray-800 leading-tight line-clamp-2 min-h-[28px]" title={c.name}>{c.name.replace(/_/g, " ")}</p>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {c.veiculos.map((v) => (
+                      <span key={v} className="text-[8px] px-1 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">{v}</span>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] pt-1">
+                    <span className="text-gray-400">Impr.</span><span className="text-right font-semibold text-gray-700">{formatCompact(c.impressions)}</span>
+                    <span className="text-gray-400">CTR</span><span className="text-right font-semibold text-blue-600">{formatPct(c.ctr)}</span>
+                    <span className="text-gray-400">Leads</span><span className="text-right font-semibold text-indigo-600">{formatNum(c.leads)}</span>
+                    <span className="text-gray-400">Invest.</span><span className="text-right font-semibold text-gray-700">{formatCompact(c.cost)}</span>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Site / GA4 ── */}
+      {hasGa4 && (
+        <div className="card-overlay rounded-xl shadow-lg p-4 space-y-4">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${BLUE}, ${BLUE_LIGHT})` }}>
+              <Globe2 className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Site · Google Analytics 4</h3>
+              <p className="text-[10px] text-gray-400">Sessões, engajamento, origem e regiões da Landing Page</p>
+            </div>
+          </div>
+
+          {/* Big numbers GA4 */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-blue-50 rounded-lg p-3 text-center">
+              <p className="text-xl font-bold text-blue-700">{formatNum(ga4Totals.sessions)}</p>
+              <p className="text-[10px] text-gray-500">Sessões</p>
+            </div>
+            <div className="bg-indigo-50 rounded-lg p-3 text-center">
+              <p className="text-xl font-bold text-indigo-700">{formatNum(ga4Totals.newUsers)}</p>
+              <p className="text-[10px] text-gray-500">Novos usuários</p>
+            </div>
+            <div className="bg-cyan-50 rounded-lg p-3 text-center">
+              <p className="text-xl font-bold text-cyan-700">{formatDuration(ga4Totals.avgEngagement)}</p>
+              <p className="text-[10px] text-gray-500">Engajamento médio</p>
+            </div>
+            <div className="bg-emerald-50 rounded-lg p-3 text-center">
+              <p className="text-xl font-bold text-emerald-700">{(ga4Totals.bounceRate * 100).toFixed(1)}%</p>
+              <p className="text-[10px] text-gray-500">Taxa de rejeição</p>
+            </div>
+          </div>
+
+          {/* Sessões por dia */}
+          {sessionsByDay.length > 1 && (
+            <div>
+              <div className="flex items-center gap-1.5 mb-2">
+                <Activity className="w-3.5 h-3.5" style={{ color: BLUE }} />
+                <h4 className="text-xs font-bold text-gray-700">Sessões por dia</h4>
+              </div>
+              <div style={{ height: 240 }}>
+                <ResponsiveLine
+                  data={sessionsLineData}
+                  colors={[BLUE]}
+                  margin={{ top: 12, right: 20, bottom: 44, left: 52 }}
+                  xScale={{ type: "point" }}
+                  yScale={{ type: "linear", min: 0, max: "auto" }}
+                  curve="monotoneX"
+                  axisTop={null}
+                  axisRight={null}
+                  axisBottom={{ tickSize: 5, tickPadding: 8, tickRotation: -40, tickValues: sessionsTicks }}
+                  axisLeft={{ tickSize: 5, tickPadding: 8, format: (v) => formatCompact(Number(v)) }}
+                  enableGridX={false}
+                  enableArea
+                  areaOpacity={0.12}
+                  pointSize={6}
+                  pointBorderWidth={2}
+                  pointBorderColor={{ from: "seriesColor" }}
+                  pointColor="#ffffff"
+                  useMesh
+                  enableSlices="x"
+                  sliceTooltip={({ slice }) => (
+                    <div className="bg-white rounded-lg shadow-xl border border-gray-100 px-3 py-2">
+                      <p className="text-[11px] font-bold text-gray-900 mb-1">{String(slice.points[0]?.data.x)}</p>
+                      <div className="flex items-center gap-2 text-[11px]">
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: BLUE }} />
+                        <span className="text-gray-600">Sessões:</span>
+                        <span className="font-semibold text-gray-900">{formatNum(Number(slice.points[0]?.data.y))}</span>
+                      </div>
+                    </div>
+                  )}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Desempenho por Canal */}
+          {channelStats.length > 0 && (
+            <div>
+              <div className="flex items-center gap-1.5 mb-3">
+                <MonitorPlay className="w-3.5 h-3.5" style={{ color: BLUE }} />
+                <h4 className="text-xs font-bold text-gray-700">Desempenho por Canal</h4>
+                <span className="text-[10px] text-gray-400">origem das sessões na Landing Page</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-2 text-gray-500 font-medium">Canal</th>
+                      <th className="text-left py-2 text-gray-500 font-medium w-2/5">Sessões</th>
+                      <th className="text-right py-2 text-gray-500 font-medium">Usuários</th>
+                      <th className="text-right py-2 text-gray-500 font-medium">Engaj. médio</th>
+                      <th className="text-right py-2 text-gray-500 font-medium">Tx. rejeição</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {channelStats.slice(0, 10).map((c) => (
+                      <tr key={c.name} className="border-b border-gray-50 hover:bg-gray-50">
+                        <td className="py-2 font-semibold text-gray-800">{c.name}</td>
+                        <td className="py-2 pr-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${Math.max((c.sessions / channelMax) * 100, 2)}%`, background: `linear-gradient(to right, ${BLUE}, ${BLUE_LIGHT})` }} />
+                            </div>
+                            <span className="text-gray-800 font-semibold tabular-nums w-14 text-right">{formatNum(c.sessions)}</span>
+                          </div>
+                        </td>
+                        <td className="py-2 text-right text-gray-700">{formatNum(c.newUsers)}</td>
+                        <td className="py-2 text-right text-gray-700">{formatDuration(c.avgEngagement)}</td>
+                        <td className="py-2 text-right text-gray-700">{(c.bounceRate * 100).toFixed(1)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1.5">"Usuários" = novos usuários (métrica disponível no GA4). Engaj. médio = tempo de engajamento ÷ sessões.</p>
+            </div>
+          )}
+
+          {/* Distribuição geográfica: mapa + estados + cidades */}
+          {regionRanking.length > 0 && (
+            <div>
+              <div className="flex items-center gap-1.5 mb-2">
+                <MapPin className="w-3.5 h-3.5" style={{ color: BLUE }} />
+                <h4 className="text-xs font-bold text-gray-700">Distribuição geográfica</h4>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2 items-start">
+                <div className="-mt-2">
+                  <BrazilMap regionData={regionData} getIntensityColor={getRegionColor} />
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-[11px] font-bold text-gray-600 mb-2">Sessões por estado</p>
+                    <div className="space-y-2.5">
+                      {regionRanking.slice(0, 8).map((r, i) => (
+                        <RankBar key={r.name} label={`${r.name} (${ufSigla(r.name)})`} value={r.sessions} max={regionMax} total={regionTotal}
+                          t={1 - i / Math.max(Math.min(regionRanking.length, 8) - 1, 1)} />
+                      ))}
+                    </div>
+                  </div>
+                  {topCities.length > 0 && (
+                    <div>
+                      <p className="text-[11px] font-bold text-gray-600 mb-2">Top cidades</p>
+                      <div className="space-y-2.5">
+                        {topCities.slice(0, 8).map((c, i) => (
+                          <RankBar key={c.name} label={c.name} value={c.sessions} max={cityMax} total={cityTotal}
+                            t={1 - i / Math.max(Math.min(topCities.length, 8) - 1, 1)} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Leads (RD Station) ── */}
+      <div className="card-overlay rounded-xl shadow-lg p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${BLUE_DARK}, ${BLUE})` }}>
+              <Users className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Leads · RD Station</h3>
+              <p className="text-[10px] text-gray-400">Conversões da Landing Page</p>
+            </div>
+          </div>
+          {lpLoading && (
+            <span className="flex items-center gap-1 text-[10px]" style={{ color: BLUE }}>
+              <RefreshCw className="w-3 h-3 animate-spin" /> atualizando…
+            </span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="bg-blue-50 rounded-lg p-3 text-center">
+            <p className="text-xl font-bold text-blue-700">{lpSummary ? formatNum(lpSummary.conversion_count) : "—"}</p>
+            <p className="text-[10px] text-gray-500">Total de leads</p>
+          </div>
+          <div className="bg-indigo-50 rounded-lg p-3 text-center">
+            <p className="text-xl font-bold text-indigo-700">{lpSummary && lpSummary.conversion_rate <= 100 ? `${lpSummary.conversion_rate.toFixed(1)}%` : "—"}</p>
+            <p className="text-[10px] text-gray-500">Taxa de conversão</p>
+          </div>
+          <div className="bg-emerald-50 rounded-lg p-3 text-center">
+            <p className="text-xl font-bold text-emerald-700">{funnel.cpl > 0 ? formatCurrency(funnel.cpl) : "—"}</p>
+            <p className="text-[10px] text-gray-500">CPL</p>
+          </div>
+        </div>
+
+        {/* Leads por dia (amostra RD) */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-xs font-bold text-gray-700">Leads por dia</h4>
+            <span className="text-[10px] text-gray-400">
+              {rdLeadsLoading ? "carregando amostra…" : `amostra de ${formatNum(rdLeads.length)} leads recentes do RD`}
+            </span>
+          </div>
+          {leadsByDay.length > 0 ? (
+            <>
+              <div className="flex items-end gap-1" style={{ height: 96 }}>
+                {leadsByDay.map(([day, count]) => (
+                  <div key={day} className="flex-1 rounded-t-sm transition-all cursor-default hover:opacity-80"
+                    style={{ height: `${(count / maxLeadsDay) * 100}%`, minHeight: 3, background: `linear-gradient(to top, ${BLUE_DARK}, ${BLUE_LIGHT})` }}
+                    title={`${shortBR(day)}: ${count} leads`} />
+                ))}
+              </div>
+              <div className="flex gap-1 mt-1">
+                {leadsByDay.map(([day], i) => {
+                  const step = Math.ceil(leadsByDay.length / 12) || 1
+                  return (
+                    <div key={day} className="flex-1 text-center">
+                      <span className="text-[8px] text-gray-400">{i % step === 0 ? shortBR(day) : ""}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          ) : (
+            <p className="text-xs text-gray-400 py-4 text-center">{rdLeadsLoading ? "Carregando leads…" : "Sem leads no período."}</p>
+          )}
+          <p className="text-[10px] text-gray-400 italic mt-2 leading-snug">
+            O RD não expõe leads agregados por dia nem a origem por lead — o gráfico usa a data de criação dos leads mais recentes; o total acima vem do resumo oficial da LP.
+          </p>
+        </div>
+
+        {/* Leads de formulário Meta (complementar) */}
+        {metaLeadsByPlatform.length > 0 && (
+          <div className="pt-3 border-t border-gray-100">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-xs font-bold text-gray-700">Leads de formulário (Meta) · por veículo</h4>
+              <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded-full">{formatNum(metaLeadsTotal)} leads</span>
+            </div>
+            <div className="space-y-2">
+              {metaLeadsByPlatform.map(([platform, count]) => (
+                <RankBar key={platform} label={platform} value={count} max={metaLeadsByPlatform[0][1]} total={metaLeadsTotal} t={0.7} />
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -1211,272 +1647,6 @@ const CusteioAgricola: React.FC = () => {
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* ── Criativos (Meta) ── */}
-      {creatives.length > 0 && (
-        <div className="card-overlay rounded-xl shadow-lg p-4">
-          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${BLUE}, ${BLUE_LIGHT})` }}>
-                <ImageIcon className="w-4 h-4 text-white" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-gray-900">Criativos · Redes Sociais</h3>
-                <p className="text-[10px] text-gray-400">Performance por peça (Facebook + Instagram) · clique para detalhes</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              {(["Todos", "Facebook", "Instagram"] as const).map((v) => (
-                <button key={v} onClick={() => setCreativeVeiculo(v)}
-                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all ${creativeVeiculo === v ? "text-white shadow" : "bg-white text-gray-600 border border-gray-200 hover:border-blue-400"}`}
-                  style={creativeVeiculo === v ? { backgroundColor: BLUE } : {}}>{v}</button>
-              ))}
-              <select value={creativeSort} onChange={(e) => setCreativeSort(e.target.value as any)}
-                className="text-[11px] border border-gray-200 rounded-md px-2 py-1 text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="impressions">Ordenar: Impressões</option>
-                <option value="leads">Ordenar: Leads</option>
-                <option value="ctr">Ordenar: CTR</option>
-                <option value="cost">Ordenar: Investimento</option>
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-            {creatives.slice(0, 12).map((c, i) => (
-              <button key={i} type="button" onClick={() => { setSelectedCreative(c.image); setModalMetric("impressions") }}
-                className="text-left border border-gray-100 rounded-lg p-2 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer">
-                <CreativeThumb src={c.image} alt={c.name} />
-                <div className="mt-2 space-y-1">
-                  <p className="text-[11px] font-bold text-gray-800 leading-tight line-clamp-2 min-h-[28px]" title={c.name}>{c.name.replace(/_/g, " ")}</p>
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {c.veiculos.map((v) => (
-                      <span key={v} className="text-[8px] px-1 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">{v}</span>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] pt-1">
-                    <span className="text-gray-400">Impr.</span><span className="text-right font-semibold text-gray-700">{formatCompact(c.impressions)}</span>
-                    <span className="text-gray-400">CTR</span><span className="text-right font-semibold text-blue-600">{formatPct(c.ctr)}</span>
-                    <span className="text-gray-400">Leads</span><span className="text-right font-semibold text-indigo-600">{formatNum(c.leads)}</span>
-                    <span className="text-gray-400">Invest.</span><span className="text-right font-semibold text-gray-700">{formatCompact(c.cost)}</span>
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Leads (RD Station) ── */}
-      <div className="card-overlay rounded-xl shadow-lg p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${BLUE_DARK}, ${BLUE})` }}>
-              <Users className="w-4 h-4 text-white" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-gray-900">Leads · RD Station</h3>
-              <p className="text-[10px] text-gray-400">Conversões da Landing Page</p>
-            </div>
-          </div>
-          {lpLoading && (
-            <span className="flex items-center gap-1 text-[10px]" style={{ color: BLUE }}>
-              <RefreshCw className="w-3 h-3 animate-spin" /> atualizando…
-            </span>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          <div className="bg-blue-50 rounded-lg p-3 text-center">
-            <p className="text-xl font-bold text-blue-700">{lpSummary ? formatNum(lpSummary.conversion_count) : "—"}</p>
-            <p className="text-[10px] text-gray-500">Total de leads</p>
-          </div>
-          <div className="bg-indigo-50 rounded-lg p-3 text-center">
-            <p className="text-xl font-bold text-indigo-700">{lpSummary && lpSummary.conversion_rate <= 100 ? `${lpSummary.conversion_rate.toFixed(1)}%` : "—"}</p>
-            <p className="text-[10px] text-gray-500">Taxa de conversão</p>
-          </div>
-          <div className="bg-emerald-50 rounded-lg p-3 text-center">
-            <p className="text-xl font-bold text-emerald-700">{funnel.cpl > 0 ? formatCurrency(funnel.cpl) : "—"}</p>
-            <p className="text-[10px] text-gray-500">CPL</p>
-          </div>
-        </div>
-
-        {/* Leads por dia (amostra RD) */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-xs font-bold text-gray-700">Leads por dia</h4>
-            <span className="text-[10px] text-gray-400">
-              {rdLeadsLoading ? "carregando amostra…" : `amostra de ${formatNum(rdLeads.length)} leads recentes do RD`}
-            </span>
-          </div>
-          {leadsByDay.length > 0 ? (
-            <>
-              <div className="flex items-end gap-1" style={{ height: 96 }}>
-                {leadsByDay.map(([day, count]) => (
-                  <div key={day} className="flex-1 rounded-t-sm transition-all cursor-default hover:opacity-80"
-                    style={{ height: `${(count / maxLeadsDay) * 100}%`, minHeight: 3, background: `linear-gradient(to top, ${BLUE_DARK}, ${BLUE_LIGHT})` }}
-                    title={`${shortBR(day)}: ${count} leads`} />
-                ))}
-              </div>
-              <div className="flex gap-1 mt-1">
-                {leadsByDay.map(([day], i) => {
-                  const step = Math.ceil(leadsByDay.length / 12) || 1
-                  return (
-                    <div key={day} className="flex-1 text-center">
-                      <span className="text-[8px] text-gray-400">{i % step === 0 ? shortBR(day) : ""}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            </>
-          ) : (
-            <p className="text-xs text-gray-400 py-4 text-center">{rdLeadsLoading ? "Carregando leads…" : "Sem leads no período."}</p>
-          )}
-          <p className="text-[10px] text-gray-400 italic mt-2 leading-snug">
-            O RD não expõe leads agregados por dia nem a origem por lead — o gráfico usa a data de criação dos leads mais recentes; o total acima vem do resumo oficial da LP.
-          </p>
-        </div>
-
-        {/* Leads de formulário Meta (complementar) */}
-        {metaLeadsByPlatform.length > 0 && (
-          <div className="pt-3 border-t border-gray-100">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-xs font-bold text-gray-700">Leads de formulário (Meta) · por veículo</h4>
-              <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded-full">{formatNum(metaLeadsTotal)} leads</span>
-            </div>
-            <div className="space-y-2">
-              {metaLeadsByPlatform.map(([platform, count]) => (
-                <RankBar key={platform} label={platform} value={count} max={metaLeadsByPlatform[0][1]} total={metaLeadsTotal} t={0.7} />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Site / GA4 ── */}
-      {hasGa4 && (
-        <div className="card-overlay rounded-xl shadow-lg p-4 space-y-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${BLUE}, ${BLUE_LIGHT})` }}>
-              <Globe2 className="w-4 h-4 text-white" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-gray-900">Site · Google Analytics 4</h3>
-              <p className="text-[10px] text-gray-400">Sessões, engajamento, origem e regiões da Landing Page</p>
-            </div>
-          </div>
-
-          {/* Big numbers GA4 */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-blue-50 rounded-lg p-3 text-center">
-              <p className="text-xl font-bold text-blue-700">{formatNum(ga4Totals.sessions)}</p>
-              <p className="text-[10px] text-gray-500">Sessões</p>
-            </div>
-            <div className="bg-indigo-50 rounded-lg p-3 text-center">
-              <p className="text-xl font-bold text-indigo-700">{formatNum(ga4Totals.newUsers)}</p>
-              <p className="text-[10px] text-gray-500">Novos usuários</p>
-            </div>
-            <div className="bg-cyan-50 rounded-lg p-3 text-center">
-              <p className="text-xl font-bold text-cyan-700">{formatDuration(ga4Totals.avgEngagement)}</p>
-              <p className="text-[10px] text-gray-500">Engajamento médio</p>
-            </div>
-            <div className="bg-emerald-50 rounded-lg p-3 text-center">
-              <p className="text-xl font-bold text-emerald-700">{(ga4Totals.bounceRate * 100).toFixed(1)}%</p>
-              <p className="text-[10px] text-gray-500">Taxa de rejeição</p>
-            </div>
-          </div>
-
-          {/* Sessões por dia */}
-          {sessionsByDay.length > 1 && (
-            <div>
-              <div className="flex items-center gap-1.5 mb-2">
-                <Activity className="w-3.5 h-3.5" style={{ color: BLUE }} />
-                <h4 className="text-xs font-bold text-gray-700">Sessões por dia</h4>
-              </div>
-              <div style={{ height: 240 }}>
-                <ResponsiveLine
-                  data={sessionsLineData}
-                  colors={[BLUE]}
-                  margin={{ top: 12, right: 20, bottom: 44, left: 52 }}
-                  xScale={{ type: "point" }}
-                  yScale={{ type: "linear", min: 0, max: "auto" }}
-                  curve="monotoneX"
-                  axisTop={null}
-                  axisRight={null}
-                  axisBottom={{ tickSize: 5, tickPadding: 8, tickRotation: -40, tickValues: sessionsTicks }}
-                  axisLeft={{ tickSize: 5, tickPadding: 8, format: (v) => formatCompact(Number(v)) }}
-                  enableGridX={false}
-                  enableArea
-                  areaOpacity={0.12}
-                  pointSize={6}
-                  pointBorderWidth={2}
-                  pointBorderColor={{ from: "seriesColor" }}
-                  pointColor="#ffffff"
-                  useMesh
-                  enableSlices="x"
-                  sliceTooltip={({ slice }) => (
-                    <div className="bg-white rounded-lg shadow-xl border border-gray-100 px-3 py-2">
-                      <p className="text-[11px] font-bold text-gray-900 mb-1">{String(slice.points[0]?.data.x)}</p>
-                      <div className="flex items-center gap-2 text-[11px]">
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: BLUE }} />
-                        <span className="text-gray-600">Sessões:</span>
-                        <span className="font-semibold text-gray-900">{formatNum(Number(slice.points[0]?.data.y))}</span>
-                      </div>
-                    </div>
-                  )}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Origem + Eventos */}
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <div className="flex items-center gap-1.5 mb-3">
-                <MonitorPlay className="w-3.5 h-3.5" style={{ color: BLUE }} />
-                <h4 className="text-xs font-bold text-gray-700">Veículos que mais trouxeram acessos</h4>
-              </div>
-              <div className="space-y-2.5">
-                {sessionsBySource.slice(0, 8).map((s, i) => (
-                  <RankBar key={s.name} label={s.name} value={s.sessions} max={sourceMax} total={ga4Totals.sessions}
-                    t={1 - i / Math.max(sessionsBySource.slice(0, 8).length - 1, 1)} />
-                ))}
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5 mb-3">
-                <Activity className="w-3.5 h-3.5" style={{ color: BLUE }} />
-                <h4 className="text-xs font-bold text-gray-700">Eventos na página</h4>
-              </div>
-              <div className="space-y-2.5">
-                {eventsByName.slice(0, 7).map((e, i) => (
-                  <RankBar key={e.event} label={e.label} value={e.count} max={eventsMax} total={eventsMax}
-                    t={1 - i / Math.max(eventsByName.slice(0, 7).length - 1, 1)} />
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Regiões */}
-          {regionRanking.length > 0 && (
-            <div>
-              <div className="flex items-center gap-1.5 mb-2">
-                <MapPin className="w-3.5 h-3.5" style={{ color: BLUE }} />
-                <h4 className="text-xs font-bold text-gray-700">Sessões por região</h4>
-              </div>
-              <div className="grid gap-3 md:grid-cols-2 items-start">
-                <div className="-mt-2">
-                  <BrazilMap regionData={regionData} getIntensityColor={getRegionColor} />
-                </div>
-                <div className="space-y-2.5">
-                  {regionRanking.slice(0, 12).map((r, i) => (
-                    <RankBar key={r.name} label={`${r.name} (${ufSigla(r.name)})`} value={r.sessions} max={regionMax} total={regionTotal}
-                      t={1 - i / Math.max(Math.min(regionRanking.length, 12) - 1, 1)} />
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
 

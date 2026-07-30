@@ -291,7 +291,7 @@ interface CusteioAgricolaData {
     bounceRate: number
     topSources: { name: string; sessions: number }[]
     topRegions: { name: string; sessions: number }[]
-    events: { name: string; count: number }[]
+    events?: { name: string; count: number }[]
   }
   leadsTotal?: number
 }
@@ -328,9 +328,9 @@ export const analyzeCusteioAgricola = async (data: CusteioAgricolaData): Promise
   Veículos que mais trouxeram acessos:
 ${data.ga4.topSources.slice(0, 6).map(s => `    • ${s.name}: ${fmt(s.sessions)} sessões`).join("\n")}
   Regiões com mais acessos:
-${data.ga4.topRegions.slice(0, 6).map(r => `    • ${r.name}: ${fmt(r.sessions)} sessões`).join("\n")}
+${data.ga4.topRegions.slice(0, 6).map(r => `    • ${r.name}: ${fmt(r.sessions)} sessões`).join("\n")}${data.ga4.events?.length ? `
   Principais eventos na página:
-${data.ga4.events.slice(0, 6).map(e => `    • ${e.name}: ${fmt(e.count)}`).join("\n")}
+${data.ga4.events.slice(0, 6).map(e => `    • ${e.name}: ${fmt(e.count)}`).join("\n")}` : ""}
 `
     : ""
 
