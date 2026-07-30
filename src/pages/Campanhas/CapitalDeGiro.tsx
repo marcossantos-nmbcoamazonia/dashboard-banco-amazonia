@@ -429,9 +429,11 @@ const CapitalDeGiro: React.FC = () => {
   const chartData = useMemo(() => {
     type DaySum = { cost: number; impressions: number; clicks: number; leads: number; videoViews: number; videoCompletions: number }
     const perVeic = new Map<string, Map<string, DaySum>>()
+    const allDates = new Set<string>()
     consolidadoPorData.forEach((r) => {
       const iso = toISODate(r.date)
       if (!iso || !r.veiculo) return
+      allDates.add(iso)
       if (!perVeic.has(r.veiculo)) perVeic.set(r.veiculo, new Map())
       const days = perVeic.get(r.veiculo)!
       const cur = days.get(iso) ?? { cost: 0, impressions: 0, clicks: 0, leads: 0, videoViews: 0, videoCompletions: 0 }
@@ -439,6 +441,9 @@ const CapitalDeGiro: React.FC = () => {
       cur.leads += r.leads; cur.videoViews += r.videoViews; cur.videoCompletions += r.videoCompletions
       days.set(iso, cur)
     })
+    // Domínio X global e ordenado: todas as séries compartilham a mesma lista de datas
+    // (dias sem dado do veículo viram null → lacuna), evitando eixo fora de ordem.
+    const sortedDates = Array.from(allDates).sort((a, b) => a.localeCompare(b))
     const value = (s: DaySum): number => {
       switch (chartMetric) {
         case "impressions": return s.impressions
@@ -455,9 +460,10 @@ const CapitalDeGiro: React.FC = () => {
       .map(([veic, days], i) => ({
         id: veic,
         color: colorForVeiculo(veic, i),
-        data: Array.from(days.entries())
-          .sort((a, b) => a[0].localeCompare(b[0]))
-          .map(([iso, s]) => ({ x: iso, y: Number(value(s).toFixed(chartIsPct || chartIsCurrency ? 2 : 0)) })),
+        data: sortedDates.map((iso) => {
+          const s = days.get(iso)
+          return { x: iso, y: s ? Number(value(s).toFixed(chartIsPct || chartIsCurrency ? 2 : 0)) : null }
+        }),
       }))
       .sort((a, b) => a.id.localeCompare(b.id))
   }, [consolidadoPorData, chartMetric, chartIsPct, chartIsCurrency])
