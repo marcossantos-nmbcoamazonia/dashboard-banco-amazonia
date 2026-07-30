@@ -16,6 +16,7 @@ import {
   Sparkles,
   RefreshCw,
   DollarSign,
+  Megaphone,
 } from "lucide-react"
 import axios from "axios"
 import Loading from "../../components/Loading/Loading"
@@ -37,6 +38,7 @@ import {
 interface AdServerRow {
   date: string
   publisher_name: string
+  campaign_name: string
   impressions: string
   clicks: string
   vieweables: string
@@ -517,6 +519,7 @@ const Portais2026: React.FC = () => {
   const [investFallback, setInvestFallback] = useState<Map<string, number>>(new Map())
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: "", end: "" })
+  const [selectedCampanha, setSelectedCampanha] = useState<string>("") // "" = todas
 
   const [aiAnalysis, setAiAnalysis] = useState<string>("")
   const [aiLoading, setAiLoading] = useState(false)
@@ -595,9 +598,28 @@ const Portais2026: React.FC = () => {
     [dateRange]
   )
 
+  // Campanhas disponíveis (campaign_name do AdServer), ordenadas por volume de linhas.
+  // Exclui os publishers que a página já remove (projetos especiais), para não listar
+  // campanhas que resultariam em tela vazia.
+  const campanhas = useMemo(() => {
+    const count = new Map<string, number>()
+    rows.forEach((r) => {
+      if (PROJETOS_ESPECIAIS.has(normKey(r.publisher_name))) return
+      const c = (r.campaign_name || "").trim()
+      if (c) count.set(c, (count.get(c) || 0) + 1)
+    })
+    return Array.from(count.entries()).sort((a, b) => b[1] - a[1]).map(([c]) => c)
+  }, [rows])
+
   const allAdServer = useMemo(
-    () => rows.filter((r) => inDateRange(r.date) && !PROJETOS_ESPECIAIS.has(normKey(r.publisher_name))),
-    [rows, inDateRange]
+    () =>
+      rows.filter(
+        (r) =>
+          inDateRange(r.date) &&
+          !PROJETOS_ESPECIAIS.has(normKey(r.publisher_name)) &&
+          (!selectedCampanha || (r.campaign_name || "").trim() === selectedCampanha)
+      ),
+    [rows, inDateRange, selectedCampanha]
   )
 
   // ─── Agregação por veículo (chave canônica) ──────────────────────────────────
@@ -997,6 +1019,28 @@ const Portais2026: React.FC = () => {
             Limpar
           </button>
         )}
+
+        {campanhas.length > 1 && (
+          <>
+            <span className="w-px h-5 bg-gray-200 hidden sm:block" />
+            <div className="flex items-center gap-2 text-gray-700">
+              <Megaphone className="w-4 h-4 text-emerald-600" />
+              <span className="text-sm font-semibold">Campanha</span>
+            </div>
+            <select
+              value={selectedCampanha}
+              onChange={(e) => setSelectedCampanha(e.target.value)}
+              className="px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm max-w-[280px] truncate"
+              title={selectedCampanha || "Todas as campanhas"}
+            >
+              <option value="">Todas as campanhas ({campanhas.length})</option>
+              {campanhas.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </>
+        )}
+
         <span className="text-[11px] text-gray-400 ml-auto">
           Entrega com dados de {dateSpan.min} a {dateSpan.max}
         </span>
@@ -1029,7 +1073,7 @@ const Portais2026: React.FC = () => {
 
       {allAdServer.length === 0 ? (
         <div className="card-overlay rounded-xl shadow-lg p-8 text-center text-gray-400 text-sm">
-          Nenhum dado de AdServer para o período selecionado.
+          Nenhum dado de AdServer para o período{selectedCampanha ? " e campanha" : ""} selecionado{selectedCampanha ? "s" : ""}.
         </div>
       ) : (
         <>
