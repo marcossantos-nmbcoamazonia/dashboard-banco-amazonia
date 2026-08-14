@@ -19,8 +19,10 @@ export const ADSERVER_CAMPAIGNS: { id: number; filterB64: string; categoria: AdC
   { id: 7239, filterB64: "eyJmaWx0ZXIiOiJ7XCJjYW1wYWlnbl9pZFwiOiA3MjM5fSJ9", categoria: "regional" },
 ]
 
+// A API 00px não envia CORS e exige User-Agent → passa pelo proxy próprio
+// (`api/adserver.js` na Vercel / `src/setupProxy.js` no dev). Host fica travado no proxy.
 export const buildAdServerUrl = (filterB64: string): string =>
-  `https://graphql.00px.com.br/bi/${QUERY_B64}/${filterB64}?s=${SIGNATURE}&`
+  `/api/adserver?path=${encodeURIComponent(`${QUERY_B64}/${filterB64}`)}&s=${SIGNATURE}`
 
 // ─── Tipos da resposta aninhada ─────────────────────────────────────────────────
 export interface AdDailyPoint {
