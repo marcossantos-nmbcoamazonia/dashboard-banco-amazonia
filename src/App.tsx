@@ -22,6 +22,7 @@ import Portais from "./pages/Portais/Portais" // Nova importação para Portais
 import CampanhasAtivas from "./pages/CampanhasAtivas/CampanhasAtivas" // Nova importação para Campanhas Ativas
 import AnaliseSemanal from "./pages/AnaliseSemanal/AnaliseSemanal" // Nova importação para Análise Semanal
 import CapitalDeGiro from "./pages/Campanhas/CapitalDeGiro"
+import CapitalDeGiroEtapa2 from "./pages/Campanhas/CapitalDeGiroEtapa2"
 import CusteioAgricola from "./pages/Campanhas/CusteioAgricola"
 import Portais2026 from "./pages/Campanhas/Portais2026"
 import CentroCultural from "./pages/Campanhas/CentroCultural"
@@ -57,6 +58,7 @@ function App() {
             <Route path="/campanhas-ativas" element={<CampanhasAtivas />} /> {/* Nova rota para Campanhas Ativas */}
             <Route path="/analise-semanal" element={<AnaliseSemanal />} /> {/* Nova rota para Análise Semanal */}
             <Route path="/campanhas/capital-de-giro" element={<CapitalDeGiro />} />
+            <Route path="/campanhas/capital-de-giro-etapa-2" element={<CapitalDeGiroEtapa2 />} />
             <Route path="/campanhas/custeio-agricola" element={<CusteioAgricola />} />
             <Route path="/campanhas/portais-2026" element={<Portais2026 />} />
             <Route path="/campanhas/centro-cultural" element={<CentroCultural />} />

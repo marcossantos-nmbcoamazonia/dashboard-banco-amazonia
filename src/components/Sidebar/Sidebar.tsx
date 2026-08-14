@@ -194,6 +194,12 @@ const menuStructure: MenuItemOrGroup[] = [
         icon: <TrendingUp className="w-5 h-5" />,
       },
       {
+        id: "capital-de-giro-etapa-2",
+        label: "Capital de Giro | Etapa 2",
+        path: "/campanhas/capital-de-giro-etapa-2",
+        icon: <TrendingUp className="w-5 h-5" />,
+      },
+      {
         id: "custeio-agricola",
         label: "Custeio Agrícola",
         path: "/campanhas/custeio-agricola",

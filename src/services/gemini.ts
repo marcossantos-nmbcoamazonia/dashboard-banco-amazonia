@@ -400,3 +400,93 @@ FORMATO: Exatamente 3 parágrafos curtos:
 
   return callGemini(prompt)
 }
+
+// ─── Capital de Giro | Etapa 2 (campanha em andamento: AdServer + Plano + GA4) ──
+
+interface CapitalGiroEtapa2Data {
+  adServer: {
+    impressions: number
+    clicks: number
+    ctr: number
+    viewability: number
+    contratado: number
+    pacing: number
+    topVeiculos: { name: string; categoria: string; contratado: number; impressions: number; clicks: number; ctr: number; viewability: number; pacingPct: number }[]
+  }
+  ga4: {
+    sessions: number
+    newUsers: number
+    avgEngagementSec: number
+    bounceRate: number
+    topSources: { name: string; sessions: number }[]
+    topRegions: { name: string; sessions: number }[]
+    topCities: { name: string; sessions: number }[]
+  } | null
+  plano: { investimento: number; execucao: number; total: number }
+}
+
+export const analyzeCapitalGiroEtapa2 = async (data: CapitalGiroEtapa2Data): Promise<string> => {
+  const fmt = (n: number) => new Intl.NumberFormat("pt-BR").format(Math.round(n))
+  const fmtCur = (n: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n)
+
+  const veiculosTexto = data.adServer.topVeiculos.map(v =>
+    `  • ${v.name} (${v.categoria}): ${fmt(v.impressions)} imp de ${fmt(v.contratado)} contratadas (pacing ${v.pacingPct.toFixed(0)}%), CTR ${(v.ctr * 100).toFixed(2)}%, Viewability ${(v.viewability * 100).toFixed(1)}%`
+  ).join("\n")
+
+  const ga4Texto = data.ga4 && data.ga4.sessions > 0
+    ? `📊 SITE / LANDING PAGE (Google Analytics 4):
+  Sessões: ${fmt(data.ga4.sessions)}
+  Novos usuários: ${fmt(data.ga4.newUsers)}
+  Tempo médio de engajamento: ${Math.round(data.ga4.avgEngagementSec)}s
+  Taxa de rejeição: ${(data.ga4.bounceRate * 100).toFixed(1)}%
+  Canais que mais trouxeram acessos:
+${data.ga4.topSources.slice(0, 6).map(s => `    • ${s.name}: ${fmt(s.sessions)} sessões`).join("\n")}
+  Regiões com mais acessos:
+${data.ga4.topRegions.slice(0, 6).map(r => `    • ${r.name}: ${fmt(r.sessions)} sessões`).join("\n")}
+  Cidades com mais acessos:
+${data.ga4.topCities.slice(0, 6).map(c => `    • ${c.name}: ${fmt(c.sessions)} sessões`).join("\n")}
+`
+    : "📊 SITE / GA4: sem dados de sessões no período.\n"
+
+  const prompt = `Você é um analista de performance de mídia digital especializado em campanhas de crédito e produtos financeiros (linha "Capital de Giro" do Banco da Amazônia, gerenciada pela agência Cálix).
+Esta é a "Etapa 2" da campanha, que AINDA ESTÁ EM ANDAMENTO — por enquanto só há dados de Display (AdServer), do Plano de Mídia (planejamento) e do site (GA4). NÃO há dados de redes sociais nem de leads ainda; NÃO invente esses números.
+
+═══════════════════════════════════════
+DADOS DISPONÍVEIS
+═══════════════════════════════════════
+
+📊 PLANO DE MÍDIA (planejado):
+  Investimento em mídia: ${fmtCur(data.plano.investimento)}
+  Execução de projetos: ${fmtCur(data.plano.execucao)}
+  Total planejado: ${fmtCur(data.plano.total)}
+
+📊 DISPLAY (AdServer):
+  Impressões entregues: ${fmt(data.adServer.impressions)}
+  Impressões contratadas: ${fmt(data.adServer.contratado)}
+  Pacing geral: ${data.adServer.pacing.toFixed(1)}%
+  Cliques: ${fmt(data.adServer.clicks)}
+  CTR: ${(data.adServer.ctr * 100).toFixed(2)}%
+  Viewability: ${(data.adServer.viewability * 100).toFixed(1)}%
+
+📊 VEÍCULOS (Display):
+${veiculosTexto}
+
+${ga4Texto}
+═══════════════════════════════════════
+REGRAS PARA ANÁLISE
+═══════════════════════════════════════
+- Deixe claro que a campanha está em andamento e os dados são parciais (só Display + site)
+- Avalie a entrega vs contratado (pacing) e a qualidade (CTR, Viewability) do Display
+- Destaque veículos adiantados/atrasados no pacing
+- Comente os acessos ao site (GA4): volume, canais de origem e regiões/cidades de maior audiência
+- Use benchmarks: CTR Display ~0.1-0.3%, Viewability Display >50%, Taxa de rejeição site <60%
+- Seja direto e factual; NÃO dê recomendações; use português profissional; cite números
+- NÃO mencione redes sociais nem leads (não há dados)
+
+FORMATO: Exatamente 3 parágrafos curtos:
+1. Visão geral (campanha em andamento), investimento planejado e entrega do Display (pacing)
+2. Qualidade do Display (CTR/Viewability) e destaques por veículo
+3. Acessos ao site (GA4): canais, regiões/cidades e pontos de atenção`
+
+  return callGemini(prompt)
+}
