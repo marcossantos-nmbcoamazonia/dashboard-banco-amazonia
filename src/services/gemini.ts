@@ -422,6 +422,10 @@ interface CapitalGiroEtapa2Data {
     topRegions: { name: string; sessions: number }[]
     topCities: { name: string; sessions: number }[]
   } | null
+  redes?: {
+    cost: number; impressions: number; clicks: number; ctr: number; leads: number; cpl: number
+    byVeiculo: { name: string; cost: number; impressions: number; clicks: number; ctr: number; leads: number; cpl: number }[]
+  } | null
   plano: { investimento: number; execucao: number; total: number }
 }
 
@@ -432,6 +436,18 @@ export const analyzeCapitalGiroEtapa2 = async (data: CapitalGiroEtapa2Data): Pro
   const veiculosTexto = data.adServer.topVeiculos.map(v =>
     `  • ${v.name} (${v.categoria}): ${fmt(v.impressions)} imp de ${fmt(v.contratado)} contratadas (pacing ${v.pacingPct.toFixed(0)}%), CTR ${(v.ctr * 100).toFixed(2)}%, Viewability ${(v.viewability * 100).toFixed(1)}%`
   ).join("\n")
+
+  const temRedes = !!data.redes && data.redes.impressions > 0
+  const redesTexto = temRedes
+    ? `📊 REDES SOCIAIS (Meta — consolidado):
+  Investimento: ${fmtCur(data.redes!.cost)}
+  Impressões: ${fmt(data.redes!.impressions)}
+  Cliques: ${fmt(data.redes!.clicks)}  ·  CTR: ${(data.redes!.ctr * 100).toFixed(2)}%
+  Leads (formulário): ${fmt(data.redes!.leads)}  ·  CPL: ${fmtCur(data.redes!.cpl)}
+  Por veículo:
+${data.redes!.byVeiculo.map(v => `    • ${v.name}: ${fmt(v.impressions)} imp, CTR ${(v.ctr * 100).toFixed(2)}%, ${fmt(v.leads)} leads, CPL ${fmtCur(v.cpl)}`).join("\n")}
+`
+    : ""
 
   const ga4Texto = data.ga4 && data.ga4.sessions > 0
     ? `📊 SITE / LANDING PAGE (Google Analytics 4):
@@ -449,7 +465,7 @@ ${data.ga4.topCities.slice(0, 6).map(c => `    • ${c.name}: ${fmt(c.sessions)}
     : "📊 SITE / GA4: sem dados de sessões no período.\n"
 
   const prompt = `Você é um analista de performance de mídia digital especializado em campanhas de crédito e produtos financeiros (linha "Capital de Giro" do Banco da Amazônia, gerenciada pela agência Cálix).
-Esta é a "Etapa 2" da campanha, que AINDA ESTÁ EM ANDAMENTO — por enquanto só há dados de Display (AdServer), do Plano de Mídia (planejamento) e do site (GA4). NÃO há dados de redes sociais nem de leads ainda; NÃO invente esses números.
+Esta é a "Etapa 2" da campanha, que AINDA ESTÁ EM ANDAMENTO — os dados são parciais: Display (AdServer), Plano de Mídia (planejamento), site (GA4)${temRedes ? " e Redes Sociais (Meta)" : ""}.${temRedes ? "" : " Ainda NÃO há dados de redes sociais nem de leads; NÃO invente esses números."}
 
 ═══════════════════════════════════════
 DADOS DISPONÍVEIS
@@ -471,21 +487,20 @@ DADOS DISPONÍVEIS
 📊 VEÍCULOS (Display):
 ${veiculosTexto}
 
-${ga4Texto}
+${redesTexto}${ga4Texto}
 ═══════════════════════════════════════
 REGRAS PARA ANÁLISE
 ═══════════════════════════════════════
-- Deixe claro que a campanha está em andamento e os dados são parciais (só Display + site)
+- Deixe claro que a campanha está em andamento e os dados são parciais
 - Avalie a entrega vs contratado (pacing) e a qualidade (CTR, Viewability) do Display
 - Destaque veículos adiantados/atrasados no pacing
-- Comente os acessos ao site (GA4): volume, canais de origem e regiões/cidades de maior audiência
-- Use benchmarks: CTR Display ~0.1-0.3%, Viewability Display >50%, Taxa de rejeição site <60%
+${temRedes ? "- Comente as Redes Sociais (Meta): investimento, CTR, leads e CPL, e o veículo de melhor desempenho\n" : ""}- Comente os acessos ao site (GA4): volume, canais de origem e regiões/cidades de maior audiência
+- Use benchmarks: CTR Display ~0.1-0.3%, CTR Social ~1-2%, Viewability Display >50%, Taxa de rejeição site <60%
 - Seja direto e factual; NÃO dê recomendações; use português profissional; cite números
-- NÃO mencione redes sociais nem leads (não há dados)
-
+${temRedes ? "" : "- NÃO mencione redes sociais nem leads (não há dados)\n"}
 FORMATO: Exatamente 3 parágrafos curtos:
 1. Visão geral (campanha em andamento), investimento planejado e entrega do Display (pacing)
-2. Qualidade do Display (CTR/Viewability) e destaques por veículo
+2. ${temRedes ? "Qualidade do Display (CTR/Viewability) e desempenho das Redes Sociais (leads/CPL)" : "Qualidade do Display (CTR/Viewability) e destaques por veículo"}
 3. Acessos ao site (GA4): canais, regiões/cidades e pontos de atenção`
 
   return callGemini(prompt)

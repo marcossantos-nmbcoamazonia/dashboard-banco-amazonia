@@ -5,6 +5,7 @@ import { useRef, useState, useEffect, useMemo, useCallback } from "react"
 import {
   DollarSign, Eye, MousePointerClick, Globe2, Target, TrendingUp, Sparkles, RefreshCw,
   Calendar, X, ArrowRight, MapPin, Activity, MonitorPlay, Radio, ChevronRight, ChevronDown,
+  Users, Play, Image as ImageIcon,
 } from "lucide-react"
 import axios from "axios"
 import { ResponsiveLine } from "@nivo/line"
@@ -58,6 +59,9 @@ const formatDuration = (sec: number) => {
 }
 const shortBR = (iso: string) => { const [, m, d] = iso.split("-"); return d && m ? `${d}/${m}` : iso }
 
+// Audience Network é entrega da própria Meta → tratamos como Facebook (agrega junto).
+const normVeiculo = (v: string) => (/audience\s*network/i.test(v) ? "Facebook" : v)
+
 // Pacing: amarelo (0%) → roxo escuro (100%)
 const pacingColor = (pct: number): string => {
   const t = Math.min(pct, 100) / 100
@@ -108,6 +112,26 @@ const RankBar: React.FC<{ label: string; value: number; max: number; total: numb
     )
   }
 
+// Miniatura de criativo com fallback "Sem imagem" (URL ausente ou hotlink fbcdn bloqueado)
+const CreativeThumb: React.FC<{ src: string; alt: string }> = ({ src, alt }) => {
+  const [err, setErr] = useState(false)
+  if (!src || err) {
+    return (
+      <div className="w-full aspect-square rounded-lg bg-gradient-to-br from-purple-50 to-indigo-100 flex flex-col items-center justify-center gap-1">
+        <ImageIcon className="w-7 h-7 text-purple-300" />
+        <span className="text-[10px] text-purple-400 font-medium">Sem imagem</span>
+      </div>
+    )
+  }
+  return <img src={src} alt={alt} loading="lazy" onError={() => setErr(true)} className="w-full aspect-square rounded-lg object-cover bg-gray-100" />
+}
+
+// ─── Consolidado (redes sociais) ───────────────────────────────────────────────
+interface ConsolidadoRow {
+  date: string; adSetName: string; adName: string; cost: number; impressions: number; clicks: number
+  videoViews: number; videoCompletions: number; leads: number; veiculo: string; image: string; campanha: string
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 const CapitalDeGiroEtapa2: React.FC = () => {
   const contentRef = useRef<HTMLDivElement>(null)
@@ -117,7 +141,15 @@ const CapitalDeGiroEtapa2: React.FC = () => {
   const [ga4Region, setGa4Region] = useState<{ date: string; region: string; sessions: number; city: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: "", end: "" })
-  const [chartMetric, setChartMetric] = useState<"impressions" | "clicks" | "viewability" | "ctr">("impressions")
+  // Evolução no tempo (Display + Redes): métrica + filtro por veículo
+  type EvoMetric = "impressions" | "clicks" | "ctr" | "viewability" | "leads" | "cost" | "videoViews"
+  const [chartMetric, setChartMetric] = useState<EvoMetric>("impressions")
+  const [evoVeiculo, setEvoVeiculo] = useState<string>("") // "" = todos os veículos
+  const [consolidado, setConsolidado] = useState<ConsolidadoRow[]>([])
+  const [creativeSort, setCreativeSort] = useState<"impressions" | "leads" | "ctr" | "cost">("impressions")
+  const [creativeVeiculo, setCreativeVeiculo] = useState<string>("Todos")
+  const [selectedCreative, setSelectedCreative] = useState<string | null>(null)
+  const [modalMetric, setModalMetric] = useState<"impressions" | "clicks" | "leads" | "cost">("impressions")
   const [expandedMeios, setExpandedMeios] = useState<Record<string, boolean>>({})
   const [expandedVeics, setExpandedVeics] = useState<Record<string, boolean>>({})
   const [aiAnalysis, setAiAnalysis] = useState<string>("")
@@ -129,12 +161,13 @@ const CapitalDeGiroEtapa2: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const [ad1, ad2, planoRes, ga4Res, ga4RgRes] = await Promise.all([
+        const [ad1, ad2, planoRes, ga4Res, ga4RgRes, consRes] = await Promise.all([
           axios.get(buildAdServerUrl(ADSERVER_CAMPAIGNS[0].filterB64)).catch(() => ({ data: { campaign: null } })),
           axios.get(buildAdServerUrl(ADSERVER_CAMPAIGNS[1].filterB64)).catch(() => ({ data: { campaign: null } })),
           axios.get(`${SHEET_BASE}?range=Plano%20de%20Midia`).catch(() => ({ data: { success: false } })),
           axios.get(`${SHEET_BASE}?range=GA4`).catch(() => ({ data: { success: false } })),
           axios.get(`${SHEET_BASE}?range=GA4%20-%20Region`).catch(() => ({ data: { success: false } })),
+          axios.get(`${SHEET_BASE}?range=consolidado`).catch(() => ({ data: { success: false } })),
         ])
 
         const camps: { campaign: AdCampaign; categoria: AdCategoria }[] = []
@@ -162,6 +195,32 @@ const CapitalDeGiroEtapa2: React.FC = () => {
           setGa4Region(rows.slice(1).map((r) => ({
             date: (r[0] || "").slice(0, 10), region: r[iRg] || "", sessions: parseGA4Int(r[iSs]), city: iCity >= 0 ? (r[iCity] || "") : "",
           })))
+        }
+
+        // Consolidado — redes sociais (só linhas da Etapa 2)
+        if (consRes.data?.success && consRes.data?.data?.values) {
+          const rows: any[][] = consRes.data.data.values
+          const h = rows[0]
+          const idx = (c: string) => h.indexOf(c)
+          const iVeic = idx("Veículo") >= 0 ? idx("Veículo") : 14
+          const iCamp = idx("Campanha")
+          const parsed: ConsolidadoRow[] = rows.slice(1)
+            .filter((r) => (r[iCamp] || "").toLowerCase().includes("etapa 2"))
+            .map((r) => ({
+              date: r[idx("Date")] || "",
+              adSetName: r[idx("Ad Set Name")] || "",
+              adName: r[idx("Ad Name")] || "",
+              cost: parseCur(r[idx("Cost")] ?? "0"),
+              impressions: parseCur(r[idx("Impressions")] || "0"),
+              clicks: parseCur(r[idx("Clicks")] || "0"),
+              videoViews: parseCur(r[idx("Video views")] || "0"),
+              videoCompletions: parseCur(r[idx("Video completions")] || "0"),
+              leads: parseCur(r[idx("Leads")] || "0"),
+              veiculo: normVeiculo(r[iVeic] || ""),
+              image: r[idx("Image")] || "",
+              campanha: r[iCamp] || "",
+            }))
+          setConsolidado(parsed)
         }
       } catch (err) {
         console.error("Erro ao buscar dados Capital de Giro Etapa 2:", err)
@@ -237,42 +296,6 @@ const CapitalDeGiroEtapa2: React.FC = () => {
     return c ? `${c.campaign_start_datetime} → ${c.campaign_end_datetime}` : ""
   }, [adCampaigns])
 
-  // ─── AdServer: evolução no tempo ─────────────────────────────────────────────
-  const chartMetricLabel: Record<typeof chartMetric, string> = { impressions: "Impressões", clicks: "Cliques", viewability: "Viewability", ctr: "CTR" }
-  const chartIsPct = chartMetric === "viewability" || chartMetric === "ctr"
-
-  const adChartData = useMemo(() => {
-    const allDates = new Set<string>()
-    adSites.forEach((s) => s.byDay.forEach((_v, iso) => allDates.add(iso)))
-    const sortedDates = Array.from(allDates).sort((a, b) => a.localeCompare(b))
-    const value = (d: { impressions: number; clicks: number; viewables: number }): number => {
-      switch (chartMetric) {
-        case "impressions": return d.impressions
-        case "clicks": return d.clicks
-        case "viewability": return d.impressions > 0 ? (d.viewables / d.impressions) * 100 : 0
-        case "ctr": return d.impressions > 0 ? (d.clicks / d.impressions) * 100 : 0
-        default: return 0
-      }
-    }
-    return adSites.map((s, i) => ({
-      id: s.site,
-      color: colorForVeiculo(s.site, i),
-      data: sortedDates.map((iso) => {
-        const d = s.byDay.get(iso)
-        return { x: iso, y: d ? Number(value(d).toFixed(chartIsPct ? 2 : 0)) : null }
-      }),
-    }))
-  }, [adSites, chartMetric, chartIsPct])
-  const adChartColors = useMemo(() => adChartData.map((s) => s.color), [adChartData])
-  const adChartHasData = adChartData.some((s) => s.data.some((p) => p.y !== null))
-  const adChartTicks = useMemo(() => {
-    const set = new Set<string>()
-    adSites.forEach((s) => s.byDay.forEach((_v, iso) => set.add(iso)))
-    const xs = Array.from(set).sort((a, b) => a.localeCompare(b))
-    const step = Math.ceil(xs.length / 8) || 1
-    return xs.filter((_, i) => i % step === 0)
-  }, [adSites])
-
   // ─── GA4 ─────────────────────────────────────────────────────────────────────
   const ga4PorData = useMemo(() => ga4.filter((r) => inDateRange(r.date)), [ga4, inDateRange])
   const ga4RegionPorData = useMemo(() => ga4Region.filter((r) => inDateRange(r.date)), [ga4Region, inDateRange])
@@ -340,6 +363,171 @@ const CapitalDeGiroEtapa2: React.FC = () => {
 
   const hasGa4 = ga4Totals.sessions > 0
 
+  // ─── Redes Sociais (consolidado) ─────────────────────────────────────────────
+  const consolidadoPorData = useMemo(() => consolidado.filter((r) => inDateRange(r.date)), [consolidado, inDateRange])
+
+  const redesTotals = useMemo(() => {
+    const t = consolidadoPorData.reduce((acc, r) => ({
+      cost: acc.cost + r.cost, impressions: acc.impressions + r.impressions, clicks: acc.clicks + r.clicks,
+      videoViews: acc.videoViews + r.videoViews, videoCompletions: acc.videoCompletions + r.videoCompletions, leads: acc.leads + r.leads,
+    }), { cost: 0, impressions: 0, clicks: 0, videoViews: 0, videoCompletions: 0, leads: 0 })
+    return {
+      ...t,
+      ctr: t.impressions > 0 ? t.clicks / t.impressions : 0,
+      cpl: t.leads > 0 ? t.cost / t.leads : 0,
+      vtr: t.videoViews > 0 ? t.videoCompletions / t.videoViews : 0,
+    }
+  }, [consolidadoPorData])
+  const hasRedes = consolidadoPorData.length > 0
+
+  const redesVeiculos = useMemo(() => Array.from(new Set(consolidadoPorData.map((r) => r.veiculo).filter(Boolean))), [consolidadoPorData])
+  const byVeiculo = useMemo(() => {
+    const map = new Map<string, { cost: number; impressions: number; clicks: number; leads: number; ctr: number; cpl: number }>()
+    redesVeiculos.forEach((v) => {
+      const rows = consolidadoPorData.filter((r) => r.veiculo === v)
+      const t = rows.reduce((acc, r) => ({ cost: acc.cost + r.cost, impressions: acc.impressions + r.impressions, clicks: acc.clicks + r.clicks, leads: acc.leads + r.leads }), { cost: 0, impressions: 0, clicks: 0, leads: 0 })
+      map.set(v, { ...t, ctr: t.impressions > 0 ? t.clicks / t.impressions : 0, cpl: t.leads > 0 ? t.cost / t.leads : 0 })
+    })
+    return map
+  }, [consolidadoPorData, redesVeiculos])
+
+  // Criativos (Meta) — agrupa por URL de imagem; nome = Ad Name (distintivo)
+  const creatives = useMemo(() => {
+    type Agg = { image: string; name: string; veiculos: Set<string>; impressions: number; clicks: number; cost: number; leads: number; videoViews: number; videoCompletions: number }
+    const map = new Map<string, Agg>()
+    consolidadoPorData.forEach((r) => {
+      if (!r.image) return
+      if (creativeVeiculo !== "Todos" && r.veiculo !== creativeVeiculo) return
+      const cur = map.get(r.image) ?? { image: r.image, name: "", veiculos: new Set<string>(), impressions: 0, clicks: 0, cost: 0, leads: 0, videoViews: 0, videoCompletions: 0 }
+      cur.impressions += r.impressions; cur.clicks += r.clicks; cur.cost += r.cost; cur.leads += r.leads
+      cur.videoViews += r.videoViews; cur.videoCompletions += r.videoCompletions
+      if (r.veiculo) cur.veiculos.add(r.veiculo)
+      if (!cur.name && (r.adName || r.adSetName)) cur.name = r.adName || r.adSetName
+      map.set(r.image, cur)
+    })
+    const arr = Array.from(map.values()).map((c) => ({
+      image: c.image, name: c.name || "Criativo", veiculos: Array.from(c.veiculos),
+      impressions: c.impressions, clicks: c.clicks, cost: c.cost, leads: c.leads, videoViews: c.videoViews, videoCompletions: c.videoCompletions,
+      ctr: c.impressions > 0 ? c.clicks / c.impressions : 0, vtr: c.videoViews > 0 ? c.videoCompletions / c.videoViews : 0,
+    }))
+    arr.sort((a, b) => {
+      if (creativeSort === "ctr") return b.ctr - a.ctr
+      if (creativeSort === "leads") return b.leads - a.leads
+      if (creativeSort === "cost") return b.cost - a.cost
+      return b.impressions - a.impressions
+    })
+    return arr
+  }, [consolidadoPorData, creativeSort, creativeVeiculo])
+
+  const activeCreative = useMemo(() => (selectedCreative ? creatives.find((c) => c.image === selectedCreative) ?? null : null), [selectedCreative, creatives])
+  const creativeDaily = useMemo(() => {
+    if (!selectedCreative) return [] as { iso: string; impressions: number; clicks: number; leads: number; cost: number }[]
+    const map = new Map<string, { impressions: number; clicks: number; leads: number; cost: number }>()
+    consolidadoPorData.forEach((r) => {
+      if (r.image !== selectedCreative) return
+      const iso = toISODate(r.date); if (!iso) return
+      const cur = map.get(iso) ?? { impressions: 0, clicks: 0, leads: 0, cost: 0 }
+      cur.impressions += r.impressions; cur.clicks += r.clicks; cur.leads += r.leads; cur.cost += r.cost
+      map.set(iso, cur)
+    })
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([iso, v]) => ({ iso, ...v }))
+  }, [selectedCreative, consolidadoPorData])
+  const modalMetricLabel: Record<typeof modalMetric, string> = { impressions: "Impressões", clicks: "Cliques", leads: "Leads", cost: "Investimento" }
+  const modalLineData = useMemo(() => [{ id: modalMetricLabel[modalMetric], color: PURPLE, data: creativeDaily.map((d) => ({ x: shortBR(d.iso), y: d[modalMetric] })) }], [creativeDaily, modalMetric]) // eslint-disable-line react-hooks/exhaustive-deps
+  const modalTicks = useMemo(() => {
+    const xs = creativeDaily.map((d) => shortBR(d.iso)); const step = Math.ceil(xs.length / 8) || 1
+    return xs.filter((_, i) => i % step === 0)
+  }, [creativeDaily])
+
+  useEffect(() => {
+    if (!selectedCreative) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setSelectedCreative(null) }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [selectedCreative])
+
+  // ─── Evolução no tempo (Display + Redes, combinado) ──────────────────────────
+  // Une veículos do Display (AdServer) e das Redes (consolidado) num só gráfico.
+  // Métricas exclusivas de uma fonte ficam null na outra (a linha some p/ aquela métrica).
+  type EvoSource = "display" | "redes"
+  type EvoDay = { impressions: number; clicks: number; viewables: number; cost: number; leads: number; videoViews: number }
+  const evoVeiculos = useMemo(() => {
+    const blank = (): EvoDay => ({ impressions: 0, clicks: 0, viewables: 0, cost: 0, leads: 0, videoViews: 0 })
+    const map = new Map<string, { veiculo: string; source: EvoSource; byDay: Map<string, EvoDay> }>()
+    adSites.forEach((s) => {
+      const e = map.get(s.site) ?? { veiculo: s.site, source: "display" as EvoSource, byDay: new Map<string, EvoDay>() }
+      s.byDay.forEach((d, iso) => {
+        const cur = e.byDay.get(iso) ?? blank()
+        cur.impressions += d.impressions; cur.clicks += d.clicks; cur.viewables += d.viewables
+        e.byDay.set(iso, cur)
+      })
+      map.set(s.site, e)
+    })
+    consolidadoPorData.forEach((r) => {
+      const iso = toISODate(r.date); if (!iso || !r.veiculo) return
+      const e = map.get(r.veiculo) ?? { veiculo: r.veiculo, source: "redes" as EvoSource, byDay: new Map<string, EvoDay>() }
+      const cur = e.byDay.get(iso) ?? blank()
+      cur.impressions += r.impressions; cur.clicks += r.clicks; cur.cost += r.cost; cur.leads += r.leads; cur.videoViews += r.videoViews
+      e.byDay.set(iso, cur)
+      map.set(r.veiculo, e)
+    })
+    return Array.from(map.values())
+  }, [adSites, consolidadoPorData])
+
+  const evoVeiculoOptions = useMemo(() => evoVeiculos.map((e) => e.veiculo).sort((a, b) => a.localeCompare(b)), [evoVeiculos])
+  // Cor estável por veículo (não muda ao filtrar)
+  const evoColor = useMemo(() => {
+    const m = new Map<string, string>()
+    evoVeiculos.forEach((e, i) => m.set(e.veiculo, colorForVeiculo(e.veiculo, i)))
+    return m
+  }, [evoVeiculos])
+
+  const chartMetricLabel: Record<EvoMetric, string> = {
+    impressions: "Impressões", clicks: "Cliques", ctr: "CTR", viewability: "Viewability",
+    leads: "Leads", cost: "Investimento", videoViews: "Visualizações",
+  }
+  const chartIsPct = chartMetric === "ctr" || chartMetric === "viewability"
+  const chartIsCurrency = chartMetric === "cost"
+
+  const adChartData = useMemo(() => {
+    const allDates = new Set<string>()
+    evoVeiculos.forEach((e) => e.byDay.forEach((_v, iso) => allDates.add(iso)))
+    const sortedDates = Array.from(allDates).sort((a, b) => a.localeCompare(b))
+    const value = (d: EvoDay, source: EvoSource): number | null => {
+      switch (chartMetric) {
+        case "impressions": return d.impressions
+        case "clicks": return d.clicks
+        case "ctr": return d.impressions > 0 ? (d.clicks / d.impressions) * 100 : 0
+        case "viewability": return source === "display" ? (d.impressions > 0 ? (d.viewables / d.impressions) * 100 : 0) : null
+        case "leads": return source === "redes" ? d.leads : null
+        case "cost": return source === "redes" ? d.cost : null
+        case "videoViews": return source === "redes" ? d.videoViews : null
+        default: return null
+      }
+    }
+    const list = evoVeiculo ? evoVeiculos.filter((e) => e.veiculo === evoVeiculo) : evoVeiculos
+    return list
+      .map((e) => ({
+        id: e.veiculo,
+        color: evoColor.get(e.veiculo) || PURPLE,
+        data: sortedDates.map((iso) => {
+          const d = e.byDay.get(iso)
+          const y = d ? value(d, e.source) : null
+          return { x: iso, y: y === null ? null : Number(y.toFixed(chartIsPct || chartIsCurrency ? 2 : 0)) }
+        }),
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id))
+  }, [evoVeiculos, evoVeiculo, evoColor, chartMetric, chartIsPct, chartIsCurrency])
+  const adChartColors = useMemo(() => adChartData.map((s) => s.color), [adChartData])
+  const adChartHasData = adChartData.some((s) => s.data.some((p) => p.y !== null))
+  const adChartTicks = useMemo(() => {
+    const set = new Set<string>()
+    evoVeiculos.forEach((e) => e.byDay.forEach((_v, iso) => set.add(iso)))
+    const xs = Array.from(set).sort((a, b) => a.localeCompare(b))
+    const step = Math.ceil(xs.length / 8) || 1
+    return xs.filter((_, i) => i % step === 0)
+  }, [evoVeiculos])
+
   // ─── Plano de Mídia ──────────────────────────────────────────────────────────
   const planoData = useMemo(() => {
     if (planoRaw.length < 2) return { meios: {} as Record<string, any>, totalInvestimento: 0, totalExecucao: 0 }
@@ -368,11 +556,15 @@ const CapitalDeGiroEtapa2: React.FC = () => {
   // ─── Funil ───────────────────────────────────────────────────────────────────
   const funnel = useMemo(() => {
     const investimento = planoData.totalInvestimento + planoData.totalExecucao
+    const impressoes = adTotals.impressions + redesTotals.impressions
+    const cliques = adTotals.clicks + redesTotals.clicks
     return {
-      investimento, impressoes: adTotals.impressions, cliques: adTotals.clicks, sessoes: ga4Totals.sessions,
-      ctr: adTotals.ctr, pacing: adTotals.pacingPct, viewability: adTotals.viewability,
+      investimento, impressoes, cliques, visualizacoes: redesTotals.videoViews, sessoes: ga4Totals.sessions, leads: redesTotals.leads,
+      ctr: impressoes > 0 ? cliques / impressoes : 0,
+      pacing: adTotals.pacingPct, viewability: adTotals.viewability,
+      vtr: redesTotals.vtr, cpl: redesTotals.leads > 0 ? redesTotals.cost / redesTotals.leads : 0,
     }
-  }, [planoData, adTotals, ga4Totals])
+  }, [planoData, adTotals, ga4Totals, redesTotals])
 
   // ─── Análise IA ──────────────────────────────────────────────────────────────
   const DATA_KEY = "capital-de-giro-etapa-2"
@@ -382,6 +574,10 @@ const CapitalDeGiroEtapa2: React.FC = () => {
       viewability: adTotals.viewability, contratado: adTotals.contratado, pacing: adTotals.pacingPct,
       topVeiculos: adSites.slice(0, 10).map((s) => ({ name: s.site, categoria: s.categoria, contratado: s.contratado, impressions: s.impressions, clicks: s.clicks, ctr: s.ctr, viewability: s.viewability, pacingPct: s.pacingPct })),
     },
+    redes: hasRedes ? {
+      cost: redesTotals.cost, impressions: redesTotals.impressions, clicks: redesTotals.clicks, ctr: redesTotals.ctr, leads: redesTotals.leads, cpl: redesTotals.cpl,
+      byVeiculo: redesVeiculos.map((v) => { const t = byVeiculo.get(v)!; return { name: v, cost: t.cost, impressions: t.impressions, clicks: t.clicks, ctr: t.ctr, leads: t.leads, cpl: t.cpl } }),
+    } : null,
     ga4: hasGa4 ? {
       sessions: ga4Totals.sessions, newUsers: ga4Totals.newUsers, avgEngagementSec: ga4Totals.avgEngagement, bounceRate: ga4Totals.bounceRate,
       topSources: channelStats.slice(0, 8).map((c) => ({ name: c.name, sessions: c.sessions })),
@@ -444,6 +640,10 @@ const CapitalDeGiroEtapa2: React.FC = () => {
                 <p className="text-purple-200 text-xs">Sessões</p>
                 <p className="text-2xl font-bold text-white">{hasGa4 ? formatCompact(funnel.sessoes) : "—"}</p>
               </div>
+              <div>
+                <p className="text-purple-200 text-xs">Leads</p>
+                <p className="text-2xl font-bold text-white">{hasRedes ? formatNum(funnel.leads) : "—"}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -483,9 +683,11 @@ const CapitalDeGiroEtapa2: React.FC = () => {
         <div className="flex flex-wrap items-stretch gap-2">
           {[
             { el: <FunnelStep key="inv" label="Investimento" value={formatCurrency(funnel.investimento)} sub="Plano de mídia" icon={<DollarSign className="w-3.5 h-3.5" />} tooltip="Investimento planejado (Plano de Mídia): mídia + execução de projetos." /> },
-            { el: <FunnelStep key="imp" label="Impressões" value={formatCompact(funnel.impressoes)} sub={`Pacing ${funnel.pacing.toFixed(0)}%`} icon={<Eye className="w-3.5 h-3.5" />} tooltip="Impressões entregues no Display (AdServer). Pacing = entregue ÷ contratado." /> },
-            { el: <FunnelStep key="clk" label="Cliques" value={formatCompact(funnel.cliques)} sub={`CTR ${formatPct(funnel.ctr)}`} icon={<MousePointerClick className="w-3.5 h-3.5" />} tooltip="Cliques no Display (AdServer). CTR = cliques ÷ impressões." /> },
+            { el: <FunnelStep key="imp" label="Impressões" value={formatCompact(funnel.impressoes)} sub="Display + Redes" icon={<Eye className="w-3.5 h-3.5" />} tooltip="Impressões somando Display (AdServer) e Redes Sociais (Meta)." /> },
+            { el: <FunnelStep key="vv" label="Visualizações" value={formatCompact(funnel.visualizacoes)} sub={funnel.visualizacoes > 0 ? `VTR ${formatPct(funnel.vtr)}` : "Redes"} icon={<Play className="w-3.5 h-3.5" />} tooltip="Vídeos iniciados nas Redes Sociais. VTR = conclusões ÷ inícios." /> },
+            { el: <FunnelStep key="clk" label="Cliques" value={formatCompact(funnel.cliques)} sub={`CTR ${formatPct(funnel.ctr)}`} icon={<MousePointerClick className="w-3.5 h-3.5" />} tooltip="Cliques somando Display e Redes Sociais. CTR = cliques ÷ impressões." /> },
             { el: <FunnelStep key="ses" label="Sessões" value={hasGa4 ? formatCompact(funnel.sessoes) : "—"} sub={hasGa4 ? `${formatCompact(ga4Totals.newUsers)} novos` : "GA4"} icon={<Globe2 className="w-3.5 h-3.5" />} tooltip="Sessões na Landing Page medidas pelo Google Analytics 4 (GA4)." /> },
+            { el: <FunnelStep key="lead" label="Leads" value={hasRedes ? formatNum(funnel.leads) : "—"} sub={funnel.cpl > 0 ? `CPL ${formatCurrency(funnel.cpl)}` : "Redes"} icon={<Users className="w-3.5 h-3.5" />} tooltip="Leads de formulário nas Redes Sociais (Meta). CPL = investimento em redes ÷ leads." /> },
           ].map((s, i, arr) => (
             <div key={i} className="flex items-stretch gap-2 flex-1 min-w-[140px]">
               {s.el}
@@ -494,6 +696,101 @@ const CapitalDeGiroEtapa2: React.FC = () => {
           ))}
         </div>
       </div>
+
+      {/* ── Performance por Veículo · Redes Sociais ── */}
+      {hasRedes && (
+        <div className="card-overlay rounded-xl shadow-lg p-4">
+          <h3 className="text-sm font-bold text-gray-900 mb-3">Performance por Veículo · Redes Sociais</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left py-2 text-gray-500 font-medium">Veículo</th>
+                  <th className="text-right py-2 text-gray-500 font-medium">Invest.</th>
+                  <th className="text-right py-2 text-gray-500 font-medium">Impressões</th>
+                  <th className="text-right py-2 text-gray-500 font-medium">Cliques</th>
+                  <th className="text-right py-2 text-gray-500 font-medium">CTR</th>
+                  <th className="text-right py-2 text-gray-500 font-medium">Leads</th>
+                  <th className="text-right py-2 text-gray-500 font-medium">CPL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {redesVeiculos.map((v) => {
+                  const t = byVeiculo.get(v)!
+                  return (
+                    <tr key={v} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-2 font-semibold text-gray-800">{v}</td>
+                      <td className="py-2 text-right text-gray-700">{formatCurrency(t.cost)}</td>
+                      <td className="py-2 text-right text-gray-700">{formatNum(t.impressions)}</td>
+                      <td className="py-2 text-right text-gray-700">{formatNum(t.clicks)}</td>
+                      <td className="py-2 text-right text-purple-600 font-semibold">{formatPct(t.ctr)}</td>
+                      <td className="py-2 text-right text-indigo-600 font-bold">{formatNum(t.leads)}</td>
+                      <td className="py-2 text-right text-gray-700">{t.leads > 0 ? formatCurrency(t.cpl) : "-"}</td>
+                    </tr>
+                  )
+                })}
+                <tr className="bg-gray-50 font-bold">
+                  <td className="py-2 text-gray-900">Total</td>
+                  <td className="py-2 text-right text-purple-700">{formatCurrency(redesTotals.cost)}</td>
+                  <td className="py-2 text-right text-gray-900">{formatNum(redesTotals.impressions)}</td>
+                  <td className="py-2 text-right text-gray-900">{formatNum(redesTotals.clicks)}</td>
+                  <td className="py-2 text-right text-purple-700">{formatPct(redesTotals.ctr)}</td>
+                  <td className="py-2 text-right text-indigo-700">{formatNum(redesTotals.leads)}</td>
+                  <td className="py-2 text-right text-gray-900">{redesTotals.leads > 0 ? formatCurrency(redesTotals.cpl) : "-"}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Criativos · Redes Sociais ── */}
+      {creatives.length > 0 && (
+        <div className="card-overlay rounded-xl shadow-lg p-4">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-gradient-to-br from-purple-500 to-indigo-600"><ImageIcon className="w-4 h-4 text-white" /></div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Criativos · Redes Sociais</h3>
+                <p className="text-[10px] text-gray-400">Performance por peça (Meta) · clique para detalhes</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {["Todos", ...redesVeiculos].map((v) => (
+                <button key={v} onClick={() => setCreativeVeiculo(v)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all ${creativeVeiculo === v ? "bg-purple-600 text-white shadow" : "bg-white text-gray-600 border border-gray-200 hover:border-purple-400"}`}>{v}</button>
+              ))}
+              <select value={creativeSort} onChange={(e) => setCreativeSort(e.target.value as any)}
+                className="text-[11px] border border-gray-200 rounded-md px-2 py-1 text-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                <option value="impressions">Ordenar: Impressões</option>
+                <option value="leads">Ordenar: Leads</option>
+                <option value="ctr">Ordenar: CTR</option>
+                <option value="cost">Ordenar: Investimento</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+            {creatives.slice(0, 12).map((c, i) => (
+              <button key={i} type="button" onClick={() => { setSelectedCreative(c.image); setModalMetric("impressions") }}
+                className="text-left border border-gray-100 rounded-lg p-2 hover:shadow-md hover:border-purple-300 transition-all cursor-pointer">
+                <CreativeThumb src={c.image} alt={c.name} />
+                <div className="mt-2 space-y-1">
+                  <p className="text-[11px] font-bold text-gray-800 leading-tight line-clamp-2 min-h-[28px]" title={c.name}>{c.name.replace(/_/g, " ")}</p>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {c.veiculos.map((v) => (<span key={v} className="text-[8px] px-1 py-0.5 rounded bg-purple-50 text-purple-600 font-medium">{v}</span>))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] pt-1">
+                    <span className="text-gray-400">Impr.</span><span className="text-right font-semibold text-gray-700">{formatCompact(c.impressions)}</span>
+                    <span className="text-gray-400">CTR</span><span className="text-right font-semibold text-purple-600">{formatPct(c.ctr)}</span>
+                    <span className="text-gray-400">Leads</span><span className="text-right font-semibold text-indigo-600">{formatNum(c.leads)}</span>
+                    <span className="text-gray-400">Invest.</span><span className="text-right font-semibold text-gray-700">{formatCompact(c.cost)}</span>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Display · AdServer ── */}
       {adSites.length > 0 && (
@@ -553,19 +850,25 @@ const CapitalDeGiroEtapa2: React.FC = () => {
         </div>
       )}
 
-      {/* ── Evolução no Tempo · Display ── */}
+      {/* ── Evolução no Tempo (Display + Redes) ── */}
       {adChartHasData && (
         <div className="card-overlay rounded-xl shadow-lg p-4">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${PURPLE}, ${PURPLE_LIGHT})` }}><TrendingUp className="w-4 h-4 text-white" /></div>
               <div>
-                <h3 className="text-sm font-bold text-gray-900">Evolução no Tempo · Display</h3>
-                <p className="text-[10px] text-gray-400">{chartMetricLabel[chartMetric]} por dia, por veículo (AdServer)</p>
+                <h3 className="text-sm font-bold text-gray-900">Evolução no Tempo</h3>
+                <p className="text-[10px] text-gray-400">{chartMetricLabel[chartMetric]} por dia, por veículo (Display + Redes Sociais)</p>
               </div>
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
-              {(["impressions", "clicks", "viewability", "ctr"] as const).map((m) => (
+              <select value={evoVeiculo} onChange={(e) => setEvoVeiculo(e.target.value)}
+                className="text-[11px] border border-gray-200 rounded-md px-2 py-1 text-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 max-w-[200px] truncate"
+                title={evoVeiculo || "Todos os veículos"}>
+                <option value="">Todos os veículos ({evoVeiculoOptions.length})</option>
+                {evoVeiculoOptions.map((v) => (<option key={v} value={v}>{v}</option>))}
+              </select>
+              {(["impressions", "clicks", "ctr", "viewability", "leads", "cost", "videoViews"] as const).map((m) => (
                 <button key={m} onClick={() => setChartMetric(m)}
                   className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all ${chartMetric === m ? "text-white shadow" : "bg-white text-gray-600 border border-gray-200 hover:border-purple-400"}`}
                   style={chartMetric === m ? { backgroundColor: PURPLE } : {}}>{chartMetricLabel[m]}</button>
@@ -576,14 +879,14 @@ const CapitalDeGiroEtapa2: React.FC = () => {
             <ResponsiveLine
               data={adChartData}
               colors={adChartColors}
-              margin={{ top: 16, right: 24, bottom: 68, left: 60 }}
+              margin={{ top: 16, right: 24, bottom: 68, left: 64 }}
               xScale={{ type: "point" }}
               yScale={{ type: "linear", min: 0, max: "auto" }}
               curve="monotoneX"
               axisTop={null}
               axisRight={null}
               axisBottom={{ tickSize: 5, tickPadding: 8, tickRotation: -45, tickValues: adChartTicks, format: (v) => shortBR(String(v)) }}
-              axisLeft={{ tickSize: 5, tickPadding: 8, format: (v) => (chartIsPct ? `${Number(v).toFixed(0)}%` : formatCompact(Number(v))) }}
+              axisLeft={{ tickSize: 5, tickPadding: 8, format: (v) => (chartIsCurrency ? `R$ ${formatCompact(Number(v))}` : chartIsPct ? `${Number(v).toFixed(0)}%` : formatCompact(Number(v))) }}
               enableGridX={false}
               enablePoints={adChartTicks.length <= 40}
               pointSize={5}
@@ -599,7 +902,7 @@ const CapitalDeGiroEtapa2: React.FC = () => {
                     <div key={p.id} className="flex items-center gap-2 text-[11px]">
                       <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.seriesColor }} />
                       <span className="text-gray-600">{String(p.seriesId)}:</span>
-                      <span className="font-semibold text-gray-900">{chartIsPct ? `${Number(p.data.y).toFixed(2)}%` : formatNum(Number(p.data.y))}</span>
+                      <span className="font-semibold text-gray-900">{chartIsCurrency ? formatCurrency(Number(p.data.y)) : chartIsPct ? `${Number(p.data.y).toFixed(2)}%` : formatNum(Number(p.data.y))}</span>
                     </div>
                   ))}
                 </div>
@@ -831,6 +1134,80 @@ const CapitalDeGiroEtapa2: React.FC = () => {
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal de criativo ── */}
+      {activeCreative && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setSelectedCreative(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3 p-4 border-b border-gray-100 sticky top-0 bg-white z-10">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-gradient-to-br from-purple-500 to-indigo-600"><ImageIcon className="w-4 h-4 text-white" /></div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold text-gray-900 truncate" title={activeCreative.name}>{activeCreative.name.replace(/_/g, " ")}</h3>
+                  <p className="text-[11px] text-gray-400 truncate">{activeCreative.veiculos.join(" · ") || "Criativo"}</p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedCreative(null)} className="p-1.5 rounded-md hover:bg-gray-100 text-gray-500 shrink-0" aria-label="Fechar"><X className="w-4 h-4" /></button>
+            </div>
+
+            <div className="p-4 grid gap-4 md:grid-cols-[220px_1fr]">
+              <div>
+                <CreativeThumb src={activeCreative.image} alt={activeCreative.name} />
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {activeCreative.veiculos.map((v) => (<span key={v} className="text-[9px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-medium">{v}</span>))}
+                </div>
+              </div>
+
+              <div className="space-y-4 min-w-0">
+                <div>
+                  <p className="text-[11px] font-bold text-gray-700 mb-2">Resultados gerais</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-purple-50 rounded-lg p-2 text-center"><p className="text-base font-bold text-purple-700">{formatCompact(activeCreative.impressions)}</p><p className="text-[9px] text-gray-500">Impressões</p></div>
+                    <div className="bg-indigo-50 rounded-lg p-2 text-center"><p className="text-base font-bold text-indigo-700">{formatNum(activeCreative.clicks)}</p><p className="text-[9px] text-gray-500">Cliques</p></div>
+                    <div className="bg-fuchsia-50 rounded-lg p-2 text-center"><p className="text-base font-bold text-fuchsia-700">{formatPct(activeCreative.ctr)}</p><p className="text-[9px] text-gray-500">CTR</p></div>
+                    <div className="bg-violet-50 rounded-lg p-2 text-center"><p className="text-base font-bold text-violet-700">{formatNum(activeCreative.leads)}</p><p className="text-[9px] text-gray-500">Leads</p></div>
+                    <div className="bg-emerald-50 rounded-lg p-2 text-center"><p className="text-base font-bold text-emerald-700">{formatCurrency(activeCreative.cost)}</p><p className="text-[9px] text-gray-500">Investimento</p></div>
+                    <div className="bg-amber-50 rounded-lg p-2 text-center"><p className="text-base font-bold text-amber-700">{activeCreative.videoViews > 0 ? formatPct(activeCreative.vtr) : "—"}</p><p className="text-[9px] text-gray-500">{activeCreative.videoViews > 0 ? "VTR" : "Sem vídeo"}</p></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                    <p className="text-[11px] font-bold text-gray-700">Comportamento ao longo do tempo</p>
+                    <div className="flex gap-1">
+                      {(["impressions", "clicks", "leads", "cost"] as const).map((m) => (
+                        <button key={m} onClick={() => setModalMetric(m)}
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all ${modalMetric === m ? "bg-purple-600 text-white shadow" : "bg-white text-gray-500 border border-gray-200 hover:border-purple-400"}`}>{modalMetricLabel[m]}</button>
+                      ))}
+                    </div>
+                  </div>
+                  {creativeDaily.length > 1 ? (
+                    <div style={{ height: 220 }}>
+                      <ResponsiveLine
+                        data={modalLineData} colors={[PURPLE]}
+                        margin={{ top: 12, right: 20, bottom: 44, left: 56 }}
+                        xScale={{ type: "point" }} yScale={{ type: "linear", min: 0, max: "auto" }} curve="monotoneX"
+                        axisTop={null} axisRight={null}
+                        axisBottom={{ tickSize: 5, tickPadding: 8, tickRotation: -40, tickValues: modalTicks }}
+                        axisLeft={{ tickSize: 5, tickPadding: 8, format: (v) => (modalMetric === "cost" ? `R$ ${formatCompact(Number(v))}` : formatCompact(Number(v))) }}
+                        enableGridX={false} enableArea areaOpacity={0.12} pointSize={6} pointBorderWidth={2} pointBorderColor={{ from: "seriesColor" }} pointColor="#ffffff" useMesh enableSlices="x"
+                        sliceTooltip={({ slice }) => (
+                          <div className="bg-white rounded-lg shadow-xl border border-gray-100 px-3 py-2">
+                            <p className="text-[11px] font-bold text-gray-900 mb-1">{String(slice.points[0]?.data.x)}</p>
+                            <div className="flex items-center gap-2 text-[11px]"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: PURPLE }} /><span className="text-gray-600">{modalMetricLabel[modalMetric]}:</span><span className="font-semibold text-gray-900">{modalMetric === "cost" ? formatCurrency(Number(slice.points[0]?.data.y)) : formatNum(Number(slice.points[0]?.data.y))}</span></div>
+                          </div>
+                        )}
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-400 py-8 text-center">Este criativo tem apenas um dia de veiculação no período — sem série temporal para exibir.</p>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
