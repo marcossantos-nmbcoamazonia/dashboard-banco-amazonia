@@ -162,17 +162,20 @@ const CapitalDeGiroEtapa2: React.FC = () => {
       try {
         setLoading(true)
         const [ad1, ad2, planoRes, ga4Res, ga4RgRes, consRes] = await Promise.all([
-          axios.get(buildAdServerUrl(ADSERVER_CAMPAIGNS[0].filterB64)).catch(() => ({ data: { campaign: null } })),
-          axios.get(buildAdServerUrl(ADSERVER_CAMPAIGNS[1].filterB64)).catch(() => ({ data: { campaign: null } })),
+          axios.get(buildAdServerUrl(ADSERVER_CAMPAIGNS[0].filterB64)).catch(() => ({ data: { campaigns: null } })),
+          axios.get(buildAdServerUrl(ADSERVER_CAMPAIGNS[1].filterB64)).catch(() => ({ data: { campaigns: null } })),
           axios.get(`${SHEET_BASE}?range=Plano%20de%20Midia`).catch(() => ({ data: { success: false } })),
           axios.get(`${SHEET_BASE}?range=GA4`).catch(() => ({ data: { success: false } })),
           axios.get(`${SHEET_BASE}?range=GA4%20-%20Region`).catch(() => ({ data: { success: false } })),
           axios.get(`${SHEET_BASE}?range=consolidado`).catch(() => ({ data: { success: false } })),
         ])
 
+        // A query nova retorna `campaigns` (array); pegamos a 1ª (filtramos por 1 campaign_id).
         const camps: { campaign: AdCampaign; categoria: AdCategoria }[] = []
-        if (ad1.data?.campaign) camps.push({ campaign: ad1.data.campaign, categoria: ADSERVER_CAMPAIGNS[0].categoria })
-        if (ad2.data?.campaign) camps.push({ campaign: ad2.data.campaign, categoria: ADSERVER_CAMPAIGNS[1].categoria })
+        const c1 = ad1.data?.campaigns?.[0]
+        const c2 = ad2.data?.campaigns?.[0]
+        if (c1) camps.push({ campaign: c1, categoria: ADSERVER_CAMPAIGNS[0].categoria })
+        if (c2) camps.push({ campaign: c2, categoria: ADSERVER_CAMPAIGNS[1].categoria })
         setAdCampaigns(camps)
 
         if (planoRes.data?.success && planoRes.data?.data?.values) setPlanoRaw(planoRes.data.data.values)
