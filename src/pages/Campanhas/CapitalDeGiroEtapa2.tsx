@@ -673,7 +673,7 @@ const CapitalDeGiroEtapa2: React.FC = () => {
             <X className="w-3.5 h-3.5" /> Limpar
           </button>
         )}
-        <span className="text-[11px] text-gray-400 ml-auto">Filtra Display (AdServer) e Site (GA4). Plano de Mídia não possui data por registro.</span>
+        <span className="text-[11px] text-gray-400 ml-auto">O período filtra os dados de entrega (Display, Redes Sociais e Site). O Plano de Mídia mostra sempre o planejamento completo da campanha.</span>
       </div>
 
       {/* ── Funil ── */}
