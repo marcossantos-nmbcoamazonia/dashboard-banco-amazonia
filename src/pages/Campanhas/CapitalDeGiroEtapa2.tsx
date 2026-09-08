@@ -113,9 +113,16 @@ const RankBar: React.FC<{ label: string; value: number; max: number; total: numb
   }
 
 // Miniatura de criativo com fallback "Sem imagem" (URL ausente ou hotlink fbcdn bloqueado)
-const CreativeThumb: React.FC<{ src: string; alt: string }> = ({ src, alt }) => {
-  const [err, setErr] = useState(false)
-  if (!src || err) {
+// Miniatura do criativo: tenta as fontes em ordem (imagem local de /public/creatives
+// primeiro — é estável; depois a URL do Meta, que expira) e cai em "Sem imagem"
+// se nenhuma carregar.
+const CreativeThumb: React.FC<{ sources: (string | null | undefined)[]; alt: string }> = ({ sources, alt }) => {
+  const list = sources.filter((s): s is string => !!s)
+  const listKey = list.join("|")
+  const [idx, setIdx] = useState(0)
+  useEffect(() => { setIdx(0) }, [listKey]) // reseta ao trocar de criativo
+  const current = list[idx]
+  if (!current) {
     return (
       <div className="w-full aspect-square rounded-lg bg-gradient-to-br from-purple-50 to-indigo-100 flex flex-col items-center justify-center gap-1">
         <ImageIcon className="w-7 h-7 text-purple-300" />
@@ -123,7 +130,10 @@ const CreativeThumb: React.FC<{ src: string; alt: string }> = ({ src, alt }) => 
       </div>
     )
   }
-  return <img src={src} alt={alt} loading="lazy" onError={() => setErr(true)} className="w-full aspect-square rounded-lg object-cover bg-gray-100" />
+  return (
+    <img src={current} alt={alt} loading="lazy" onError={() => setIdx((i) => i + 1)}
+      className="w-full aspect-square rounded-lg object-cover bg-gray-100" />
+  )
 }
 
 // ─── Consolidado (redes sociais) ───────────────────────────────────────────────
@@ -419,7 +429,10 @@ const CapitalDeGiroEtapa2: React.FC = () => {
       map.set(key, cur)
     })
     const arr = Array.from(map.values()).map((c) => ({
-      key: c.key, image: c.image, name: c.name || "Criativo", veiculos: Array.from(c.veiculos),
+      // A taxonomia do Ad Name é o nome do arquivo em /public/creatives.
+      // Se o arquivo não existir, o CreativeThumb cai na URL do Meta (ou "Sem imagem").
+      key: c.key, image: c.image, localImage: `/creatives/${c.key}.png`,
+      name: c.name || "Criativo", veiculos: Array.from(c.veiculos),
       impressions: c.impressions, clicks: c.clicks, cost: c.cost, leads: c.leads, videoViews: c.videoViews, videoCompletions: c.videoCompletions,
       ctr: c.impressions > 0 ? c.clicks / c.impressions : 0, vtr: c.videoViews > 0 ? c.videoCompletions / c.videoViews : 0,
     }))
@@ -786,7 +799,7 @@ const CapitalDeGiroEtapa2: React.FC = () => {
             {creatives.slice(0, 12).map((c, i) => (
               <button key={i} type="button" onClick={() => { setSelectedCreative(c.key); setModalMetric("impressions") }}
                 className="text-left border border-gray-100 rounded-lg p-2 hover:shadow-md hover:border-purple-300 transition-all cursor-pointer">
-                <CreativeThumb src={c.image} alt={c.name} />
+                <CreativeThumb sources={[c.localImage, c.image]} alt={c.name} />
                 <div className="mt-2 space-y-1">
                   <p className="text-[11px] font-bold text-gray-800 leading-tight line-clamp-2 min-h-[28px]" title={c.name}>{c.name.replace(/_/g, " ")}</p>
                   <div className="flex items-center gap-1 flex-wrap">
@@ -1168,7 +1181,7 @@ const CapitalDeGiroEtapa2: React.FC = () => {
 
             <div className="p-4 grid gap-4 md:grid-cols-[220px_1fr]">
               <div>
-                <CreativeThumb src={activeCreative.image} alt={activeCreative.name} />
+                <CreativeThumb sources={[activeCreative.localImage, activeCreative.image]} alt={activeCreative.name} />
                 <div className="mt-2 flex flex-wrap gap-1">
                   {activeCreative.veiculos.map((v) => (<span key={v} className="text-[9px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-medium">{v}</span>))}
                 </div>
