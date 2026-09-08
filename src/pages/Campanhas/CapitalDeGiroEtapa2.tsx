@@ -394,22 +394,32 @@ const CapitalDeGiroEtapa2: React.FC = () => {
     return map
   }, [consolidadoPorData, redesVeiculos])
 
-  // Criativos (Meta) — agrupa por URL de imagem; nome = Ad Name (distintivo)
+  // Veículos que realmente têm criativo (o Google Ads vem sem Ad Name/imagem → fora)
+  const creativeVeiculos = useMemo(
+    () => Array.from(new Set(consolidadoPorData.filter((r) => r.adName).map((r) => r.veiculo).filter(Boolean))),
+    [consolidadoPorData]
+  )
+
+  // Criativos (Meta) — agrupa pelo Ad Name (identificador da peça). A imagem é opcional:
+  // nem toda peça tem a coluna `Image` preenchida, e nesse caso o card mostra "Sem imagem".
   const creatives = useMemo(() => {
-    type Agg = { image: string; name: string; veiculos: Set<string>; impressions: number; clicks: number; cost: number; leads: number; videoViews: number; videoCompletions: number }
+    type Agg = { key: string; image: string; name: string; veiculos: Set<string>; impressions: number; clicks: number; cost: number; leads: number; videoViews: number; videoCompletions: number }
     const map = new Map<string, Agg>()
     consolidadoPorData.forEach((r) => {
-      if (!r.image) return
+      // Chave = Ad Name (a peça). O Google Ads (PMAX) vem sem Ad Name — só com
+      // Ad Set "CRIATIVOS-DIVERSOS" — e por isso fica fora da galeria de peças.
+      const key = r.adName
+      if (!key) return
       if (creativeVeiculo !== "Todos" && r.veiculo !== creativeVeiculo) return
-      const cur = map.get(r.image) ?? { image: r.image, name: "", veiculos: new Set<string>(), impressions: 0, clicks: 0, cost: 0, leads: 0, videoViews: 0, videoCompletions: 0 }
+      const cur = map.get(key) ?? { key, image: "", name: key, veiculos: new Set<string>(), impressions: 0, clicks: 0, cost: 0, leads: 0, videoViews: 0, videoCompletions: 0 }
       cur.impressions += r.impressions; cur.clicks += r.clicks; cur.cost += r.cost; cur.leads += r.leads
       cur.videoViews += r.videoViews; cur.videoCompletions += r.videoCompletions
       if (r.veiculo) cur.veiculos.add(r.veiculo)
-      if (!cur.name && (r.adName || r.adSetName)) cur.name = r.adName || r.adSetName
-      map.set(r.image, cur)
+      if (!cur.image && r.image) cur.image = r.image // 1ª imagem encontrada (se houver)
+      map.set(key, cur)
     })
     const arr = Array.from(map.values()).map((c) => ({
-      image: c.image, name: c.name || "Criativo", veiculos: Array.from(c.veiculos),
+      key: c.key, image: c.image, name: c.name || "Criativo", veiculos: Array.from(c.veiculos),
       impressions: c.impressions, clicks: c.clicks, cost: c.cost, leads: c.leads, videoViews: c.videoViews, videoCompletions: c.videoCompletions,
       ctr: c.impressions > 0 ? c.clicks / c.impressions : 0, vtr: c.videoViews > 0 ? c.videoCompletions / c.videoViews : 0,
     }))
@@ -422,12 +432,12 @@ const CapitalDeGiroEtapa2: React.FC = () => {
     return arr
   }, [consolidadoPorData, creativeSort, creativeVeiculo])
 
-  const activeCreative = useMemo(() => (selectedCreative ? creatives.find((c) => c.image === selectedCreative) ?? null : null), [selectedCreative, creatives])
+  const activeCreative = useMemo(() => (selectedCreative ? creatives.find((c) => c.key === selectedCreative) ?? null : null), [selectedCreative, creatives])
   const creativeDaily = useMemo(() => {
     if (!selectedCreative) return [] as { iso: string; impressions: number; clicks: number; leads: number; cost: number }[]
     const map = new Map<string, { impressions: number; clicks: number; leads: number; cost: number }>()
     consolidadoPorData.forEach((r) => {
-      if (r.image !== selectedCreative) return
+      if (r.adName !== selectedCreative) return
       const iso = toISODate(r.date); if (!iso) return
       const cur = map.get(iso) ?? { impressions: 0, clicks: 0, leads: 0, cost: 0 }
       cur.impressions += r.impressions; cur.clicks += r.clicks; cur.leads += r.leads; cur.cost += r.cost
@@ -759,7 +769,7 @@ const CapitalDeGiroEtapa2: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              {["Todos", ...redesVeiculos].map((v) => (
+              {["Todos", ...creativeVeiculos].map((v) => (
                 <button key={v} onClick={() => setCreativeVeiculo(v)}
                   className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all ${creativeVeiculo === v ? "bg-purple-600 text-white shadow" : "bg-white text-gray-600 border border-gray-200 hover:border-purple-400"}`}>{v}</button>
               ))}
@@ -774,7 +784,7 @@ const CapitalDeGiroEtapa2: React.FC = () => {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
             {creatives.slice(0, 12).map((c, i) => (
-              <button key={i} type="button" onClick={() => { setSelectedCreative(c.image); setModalMetric("impressions") }}
+              <button key={i} type="button" onClick={() => { setSelectedCreative(c.key); setModalMetric("impressions") }}
                 className="text-left border border-gray-100 rounded-lg p-2 hover:shadow-md hover:border-purple-300 transition-all cursor-pointer">
                 <CreativeThumb src={c.image} alt={c.name} />
                 <div className="mt-2 space-y-1">
