@@ -1,4 +1,4 @@
-// ─── AdServer (GraphQL 00px) — Capital de Giro | Etapa 2 ────────────────────────
+// ─── AdServer (GraphQL 00px) — Capital de Giro | Etapa 2 e Círio 2026 ───────────
 // A API entrega a query e o filtro em base64 no path e assina com ?s=<signature>.
 // Resposta: { campaigns: [ { ..., sites[] } ] } (array), aninhada em
 //   site (veículo) → channels (contratado) → placements (tipo de compra, regiões)
@@ -19,6 +19,13 @@ export const ADSERVER_CAMPAIGNS: { id: number; filterB64: string; categoria: AdC
   { id: 7240, filterB64: "eyJmaWx0ZXIiOiAie1wiY2FtcGFpZ25faWRcIjogNzI0MH0iLCAibGltaXQiOiAtMX0=", categoria: "nacional" },
   { id: 7239, filterB64: "eyJmaWx0ZXIiOiAie1wiY2FtcGFpZ25faWRcIjogNzIzOX0iLCAibGltaXQiOiAtMX0=", categoria: "regional" },
 ]
+
+// Círio 2026 (Escala) — uma única compra: IDEAL (CPM, display) + Zoox Mídia (CPV, vídeo).
+// Mesma query/assinatura acima, filtro {"filter": "{\"campaign_id\": 7268}", "limit": -1}.
+export const ADSERVER_CIRIO_2026 = {
+  id: 7268,
+  filterB64: "eyJmaWx0ZXIiOiAie1wiY2FtcGFpZ25faWRcIjogNzI2OH0iLCAibGltaXQiOiAtMX0=",
+}
 
 // A API 00px não envia CORS e exige User-Agent → passa pelo proxy próprio
 // (`api/adserver.js` na Vercel / `src/setupProxy.js` no dev). Host fica travado no proxy.

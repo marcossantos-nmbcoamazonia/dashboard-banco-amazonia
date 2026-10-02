@@ -206,6 +206,12 @@ const menuStructure: MenuItemOrGroup[] = [
         icon: <TrendingUp className="w-5 h-5" />,
       },
       {
+        id: "cirio-2026",
+        label: "Círio 2026",
+        path: "/campanhas/cirio-2026",
+        icon: <TrendingUp className="w-5 h-5" />,
+      },
+      {
         id: "portais-2026",
         label: "Portais - 2026",
         path: "/campanhas/portais-2026",

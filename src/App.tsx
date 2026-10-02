@@ -24,6 +24,7 @@ import AnaliseSemanal from "./pages/AnaliseSemanal/AnaliseSemanal" // Nova impor
 import CapitalDeGiro from "./pages/Campanhas/CapitalDeGiro"
 import CapitalDeGiroEtapa2 from "./pages/Campanhas/CapitalDeGiroEtapa2"
 import CusteioAgricola from "./pages/Campanhas/CusteioAgricola"
+import Cirio2026 from "./pages/Campanhas/Cirio2026"
 import Portais2026 from "./pages/Campanhas/Portais2026"
 import CentroCultural from "./pages/Campanhas/CentroCultural"
 import "./App.css"
@@ -60,6 +61,7 @@ function App() {
             <Route path="/campanhas/capital-de-giro" element={<CapitalDeGiro />} />
             <Route path="/campanhas/capital-de-giro-etapa-2" element={<CapitalDeGiroEtapa2 />} />
             <Route path="/campanhas/custeio-agricola" element={<CusteioAgricola />} />
+            <Route path="/campanhas/cirio-2026" element={<Cirio2026 />} />
             <Route path="/campanhas/portais-2026" element={<Portais2026 />} />
             <Route path="/campanhas/centro-cultural" element={<CentroCultural />} />
             <Route path="/glossario" element={<Glossario />} /> {/* Nova rota para Glossario */}

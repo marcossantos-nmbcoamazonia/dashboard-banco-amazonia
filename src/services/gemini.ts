@@ -505,3 +505,101 @@ FORMATO: Exatamente 3 parágrafos curtos:
 
   return callGemini(prompt)
 }
+
+// ─── Círio 2026 (Escala — campanha de alcance/visualização, SEM leads) ──────────
+
+interface Cirio2026Data {
+  periodo: string
+  investimento: { plano: number; redes: number; total: number }
+  redes: {
+    cost: number; impressions: number; clicks: number; ctr: number; cpm: number; videoViews: number; vtr: number
+    byVeiculo: { name: string; cost: number; impressions: number; clicks: number; ctr: number; cpm: number; videoViews: number; vtr: number }[]
+  } | null
+  display: {
+    sites: { name: string; tipo: string; contratado: number; entregue: number; pacingPct: number; clicks: number; ctr: number; viewability: number; vtr: number }[]
+  } | null
+  ga4: {
+    sessions: number
+    newUsers: number
+    avgEngagementSec: number
+    bounceRate: number
+    topSources: { name: string; sessions: number }[]
+    topFormatos: { name: string; sessions: number }[]
+    topRegions: { name: string; sessions: number }[]
+    topCities: { name: string; sessions: number }[]
+  } | null
+}
+
+export const analyzeCirio2026 = async (data: Cirio2026Data): Promise<string> => {
+  const fmt = (n: number) => new Intl.NumberFormat("pt-BR").format(Math.round(n))
+  const fmtPct = (n: number) => `${(n * 100).toFixed(2)}%`
+  const fmtCur = (n: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n)
+
+  const redesTexto = data.redes && data.redes.impressions > 0
+    ? `📊 REDES SOCIAIS (Meta + YouTube — consolidado, realizado):
+  Investimento: ${fmtCur(data.redes.cost)}
+  Impressões: ${fmt(data.redes.impressions)}  ·  CPM: ${fmtCur(data.redes.cpm)}
+  Cliques: ${fmt(data.redes.clicks)}  ·  CTR: ${fmtPct(data.redes.ctr)}
+  Visualizações de vídeo: ${fmt(data.redes.videoViews)}  ·  VTR: ${fmtPct(data.redes.vtr)}
+  Por veículo:
+${data.redes.byVeiculo.map(v => `    • ${v.name}: ${fmtCur(v.cost)}, ${fmt(v.impressions)} imp (CPM ${fmtCur(v.cpm)}), CTR ${fmtPct(v.ctr)}, ${fmt(v.videoViews)} views, VTR ${fmtPct(v.vtr)}`).join("\n")}
+`
+    : ""
+
+  const displayTexto = data.display && data.display.sites.length > 0
+    ? `📊 DISPLAY / VÍDEO PROGRAMÁTICO (AdServer):
+${data.display.sites.map(s => `  • ${s.name} (${s.tipo}): ${fmt(s.entregue)} ${s.tipo === "CPV" ? "vídeos completos" : "impressões"} de ${fmt(s.contratado)} contratados (pacing ${s.pacingPct.toFixed(0)}%), ${fmt(s.clicks)} cliques, CTR ${fmtPct(s.ctr)}, Viewability ${fmtPct(s.viewability)}${s.tipo === "CPV" ? `, VTR ${fmtPct(s.vtr)}` : ""}`).join("\n")}
+`
+    : ""
+
+  const ga4Texto = data.ga4 && data.ga4.sessions > 0
+    ? `📊 SITE (Google Analytics 4 — tráfego da campanha):
+  Sessões: ${fmt(data.ga4.sessions)}
+  Novos usuários: ${fmt(data.ga4.newUsers)}
+  Tempo médio de engajamento: ${Math.round(data.ga4.avgEngagementSec)}s
+  Taxa de rejeição: ${(data.ga4.bounceRate * 100).toFixed(1)}%
+  Origens que mais trouxeram acessos:
+${data.ga4.topSources.slice(0, 6).map(s => `    • ${s.name}: ${fmt(s.sessions)} sessões`).join("\n")}
+  Formatos/peças que mais trouxeram acessos:
+${data.ga4.topFormatos.slice(0, 6).map(f => `    • ${f.name}: ${fmt(f.sessions)} sessões`).join("\n")}
+  Estados com mais acessos:
+${data.ga4.topRegions.slice(0, 6).map(r => `    • ${r.name}: ${fmt(r.sessions)} sessões`).join("\n")}
+  Cidades com mais acessos:
+${data.ga4.topCities.slice(0, 6).map(c => `    • ${c.name}: ${fmt(c.sessions)} sessões`).join("\n")}
+`
+    : "📊 SITE / GA4: sem dados de sessões no período.\n"
+
+  const prompt = `Você é um analista de performance de mídia especializado em campanhas institucionais e de marca.
+Analise a campanha "Círio 2026" do Banco da Amazônia (Círio de Nazaré, Belém/PA), gerenciada pela agência Escala.
+A campanha está EM ANDAMENTO (${data.periodo || "período não informado"}) e tem objetivo de alcance, visualização de vídeo e tráfego para o site. NÃO há leads nem conversões nesta campanha.
+
+═══════════════════════════════════════
+DADOS DA CAMPANHA
+═══════════════════════════════════════
+
+📊 INVESTIMENTO:
+  Plano de mídia (contratado — TV, DOOH e internet): ${fmtCur(data.investimento.plano)}
+  Redes sociais (realizado): ${fmtCur(data.investimento.redes)}
+  Total: ${fmtCur(data.investimento.total)}
+
+${redesTexto}
+${displayTexto}
+${ga4Texto}
+═══════════════════════════════════════
+REGRAS PARA ANÁLISE
+═══════════════════════════════════════
+- Deixe claro que a campanha está em andamento e os dados são parciais
+- Avalie alcance e eficiência de mídia: impressões, CPM, visualizações e VTR dos vídeos
+- Avalie a entrega do AdServer vs contratado (pacing) e a qualidade (CTR, Viewability)
+- Comente os acessos ao site (GA4): volume, origens, formatos/peças e regiões/cidades
+- Use benchmarks: CTR Display ~0.1-0.3%, CTR Social ~1-2%, Viewability Display >50%, Taxa de rejeição site <60%
+- NÃO mencione leads, conversões, CPL ou formulários (não fazem parte desta campanha)
+- Seja direto e factual; NÃO dê recomendações; use português profissional; cite números
+
+FORMATO: Exatamente 3 parágrafos curtos:
+1. Visão geral (campanha em andamento), investimento e alcance total (impressões e visualizações)
+2. Redes sociais (YouTube/Meta) e Display/vídeo programático (pacing, CTR, Viewability, VTR)
+3. Acessos ao site (GA4): origens, formatos, regiões/cidades, destaques e pontos de atenção`
+
+  return callGemini(prompt)
+}

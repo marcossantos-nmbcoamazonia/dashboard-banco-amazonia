@@ -50,6 +50,12 @@ export const prettySource = (raw: string): string => {
   if (s === "exame") return "Exame"
   if (s === "ideal") return "Ideal"
   if (s === "terra") return "Terra"
+  if (s === "youtube") return "YouTube"
+  if (s === "zoox") return "Zoox"
+  if (s === "jcdecaux") return "JCDecaux"
+  if (s === "favela_e_perifa") return "Favela e Perifa"
+  // Macro de URL do Meta que não foi substituída no anúncio
+  if (/^\{\{.*\}\}$/.test(s)) return "Meta (parâmetro não resolvido)"
   // fallback: capitaliza tokens separados por _ ou espaço
   return s.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
 }
